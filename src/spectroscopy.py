@@ -140,7 +140,8 @@ def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, poly
     -------
 
     spectrum : numpy.array
-        A 3-dimensional cube with the optimally extracted spectra, the variance and the inverse of the variance.
+        A 3-dimensional cube with spectrum[0,:] indicating the columns, spectrum[1,:] the optimally extracted spectra at those columns and 
+        spectrum[2,:] having the *inverse* of the variance of the spectra.
 
     """
 
@@ -150,7 +151,7 @@ def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, poly
 
     else:
 
-        flattened_P = get_P(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, 
+        flattened_P = getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, 
                             min_column = min_column, max_column = max_column, return_flat = True)
 
     # Prepare inputs:
@@ -178,8 +179,8 @@ def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, poly
                                                     gain,
                                                     polynomial_spacing,
                                                     nsigma,
-                                                    min_col,
-                                                    max_col
+                                                    min_column,
+                                                    max_column
                                )
                           
     spectrum = np.asarray(flattened_spectrum) 
@@ -197,7 +198,7 @@ def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, poly
 
         return spectrum, P
 
-def getFastSimpleSpectrum(data, centroids, aperture_radius, min_column = None, max_column = None):
+def getFastSimpleSpectrum(data, centroids, aperture_radius, min_column = None, max_column = None, return_aperture = False):
 
     """
     Given a 2D-spectrum, this function returns a simple-extracted spectrum. This function is fast to 
@@ -244,6 +245,7 @@ def getFastSimpleSpectrum(data, centroids, aperture_radius, min_column = None, m
                                                           centroids,
                                                           nrows,
                                                           ncolumns,
+                                                          ncentroids,
                                                           aperture_radius,
                                                           min_column,
                                                           max_column
