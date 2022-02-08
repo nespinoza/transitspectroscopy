@@ -71,7 +71,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
 
         if 'override_' in kwarg:
 
-            if not os.path.exists(kwarg):
+            if not os.path.exists(kwargs[kwarg]):
 
                 rfile = kwargs[kwarg].split('/')[-1]
                 download_reference_file(rfile)
