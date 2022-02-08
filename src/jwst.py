@@ -1,11 +1,23 @@
 import os
 import numpy as np
 
+from astropy.utils.data import download_file
 from astropy import units as u
 from astropy.timeseries import TimeSeries
 
 from jwst.pipeline import calwebb_detector1, calwebb_spec2
 from jwst import datamodels
+
+def download_reference_file(filename):
+    """
+    This function downloads a reference file from CRDS given a reference file filename. File gets downloaded to the current working folder.
+    """
+
+    print('\n\t >> Downloading {} reference file from CRDS...'.format(filename))
+    download_filename = download_file('https://jwst-crds.stsci.edu/unchecked_get/references/jwst/' + filename, cache=True)
+
+    # Rename file:
+    os.rename(download_filename, filename)
 
 def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', skip_steps = [], outputfolder = '', **kwargs):
     """
@@ -53,6 +65,17 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     if outputfolder != '':
         if outputfolder[-1] != '/':
             outputfolder += '/'
+
+    # Download reference files if not present in the system:
+    for kwarg in kwargs.keys():
+
+        if 'override_' in kwarg:
+
+            if not os.path.exists(kwarg):
+
+                rfile = kwargs[kwarg].split('/')[-1]
+                download_reference_file(rfile)
+                os.rename(rfile, kwargs[kwarg])
 
     # Lower-case all steps-to-be-skipped:
     for i in range(len(skip_steps)):
@@ -131,7 +154,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     if 'saturation' not in skip_steps:
 
         if 'override_saturation' in kwargs.keys():
-        
+
             saturation = calwebb_detector1.saturation_step.SaturationStep.call(output_dictionary['dqinit'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
                                                                                override_saturation = kwargs['override_saturation'])
 
