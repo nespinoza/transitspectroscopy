@@ -1,6 +1,7 @@
 import os
 import numpy as np
 from scipy.sparse.linalg import lsmr
+from copy import deepcopy
 
 from astropy.utils.data import download_file
 from astropy import units as u
