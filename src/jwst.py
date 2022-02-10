@@ -13,7 +13,8 @@ def get_loom(data, mask, return_parameters = False):
     """
     Least-squares Odd-even and One-over-f correction Model (LOOM)
 
-    This function returns the best-fit LOOM to a given frame/group.
+    This function returns the best-fit LOOM to a given frame/group. Note given the least-squares nature of LOOM, this is quite sensitive to outliers --- be sure to mask 
+    those out as well when using this function.
 
     Parameters
     ----------
