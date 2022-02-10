@@ -47,7 +47,7 @@ def cc_uniluminated_outliers(data, mask, nsigma = 5):
     column_mads = np.nanmedian(np.abs(nan_data - column_medians), axis = 0)
 
     # Detect outliers:
-    idx = np.where(np.abs(data - column_medians) > nsigma * column_mads * 1.4826)[0]
+    idx = np.where(np.abs(data - column_medians) > nsigma * column_mads * 1.4826)
 
     # Create new mask:
     new_mask = np.ones(data.shape)
@@ -491,23 +491,15 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     if loom:
 
         # First, get last-minus-first frames:
-        min_group, max_group = None, None
+        min_group, max_group = 0, ngroups - 1
 
         if 'min_group' in kwargs.keys():
 
             min_group = kwargs['min_group']
 
-        else:
-
-            min_group = 0
-
         if 'max_group' in kwargs.keys():
 
             max_group = kwargs['max_group'] 
-
-        else:
-
-            max_group = ngroups - 1
 
         lmf, median_lmf = get_last_minus_first(output_dictionary['superbias'].data, min_group = min_group, max_group = max_group)
 
@@ -530,7 +522,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
                     group_mask = cc_uniluminated_outliers(refpix.data[i, j, :, :], mask)
 
                     # Get LOOM estimate:
-                    looms[i, j, :, :] = get_loom(refpix.data[i, j, :, :], mask * group_mask)
+                    looms[i, j, :, :] = get_loom(refpix.data[i, j, :, :], group_mask)
 
                     # Substract it from the data:
                     refpix.data[i, j, :, :] -= looms[i, j, :, :]
