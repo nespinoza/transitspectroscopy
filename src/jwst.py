@@ -391,12 +391,21 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
 
     # Extract filename before *uncal:
     dataname = datafile.split('/')[-1].split('uncal.fits')[0][:-1]
+    full_datapath = outputfolder+'pipeline_outputs' + '/' + dataname
 
     # Run steps sequentially. First, the DQInitStep:
     if 'dqinit' not in skip_steps:
 
-        dqinit = calwebb_detector1.dq_init_step.DQInitStep.call(uncal_data, output_dir=outputfolder+'pipeline_outputs', save_results = True)
-        output_dictionary['dqinit'] = dqinit
+        output_filename = full_datapath + 'dqinitstep.fits'
+        if not os.path.exists(output_filename):
+
+            dqinit = calwebb_detector1.dq_init_step.DQInitStep.call(uncal_data, output_dir=outputfolder+'pipeline_outputs', save_results = True)
+            output_dictionary['dqinit'] = dqinit
+
+        else:
+
+            print('\t >> dqinit step products found, loading them...')
+            output_dictionary['dqinit'] = datamodels.open(output_filename)
 
     else:
 
@@ -405,16 +414,24 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # Next, saturation step:
     if 'saturation' not in skip_steps:
 
-        if 'override_saturation' in kwargs.keys():
+        output_filename = full_datapath + 'saturationstep.fits'
+        if not os.path.exists(output_filename):
 
-            saturation = calwebb_detector1.saturation_step.SaturationStep.call(output_dictionary['dqinit'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
-                                                                               override_saturation = kwargs['override_saturation'])
+            if 'override_saturation' in kwargs.keys():
+
+                saturation = calwebb_detector1.saturation_step.SaturationStep.call(output_dictionary['dqinit'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
+                                                                                   override_saturation = kwargs['override_saturation'])
+
+            else:
+
+                saturation = calwebb_detector1.saturation_step.SaturationStep.call(output_dictionary['dqinit'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
+
+            output_dictionary['saturation'] = saturation
 
         else:
 
-            saturation = calwebb_detector1.saturation_step.SaturationStep.call(output_dictionary['dqinit'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
-
-        output_dictionary['saturation'] = saturation
+            print('\t >> saturation step products found, loading them...')
+            output_dictionary['saturation'] = datamodels.open(output_filename)
 
     else:
 
@@ -423,16 +440,25 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # Next up, superbias step:
     if 'superbias' not in skip_steps:
 
-        if 'override_superbias' in kwargs.keys():
-    
-            superbias = calwebb_detector1.superbias_step.SuperBiasStep.call(output_dictionary['saturation'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
-                                                                            override_superbias = kwargs['override_superbias'])
+
+        output_filename = full_datapath + 'superbiasstep.fits'
+        if not os.path.exists(output_filename):
+
+            if 'override_superbias' in kwargs.keys():
+        
+                superbias = calwebb_detector1.superbias_step.SuperBiasStep.call(output_dictionary['saturation'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
+                                                                                override_superbias = kwargs['override_superbias'])
+
+            else:
+
+                superbias = calwebb_detector1.superbias_step.SuperBiasStep.call(output_dictionary['saturation'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
+
+            output_dictionary['superbias'] = superbias
 
         else:
 
-            superbias = calwebb_detector1.superbias_step.SuperBiasStep.call(output_dictionary['saturation'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
-
-        output_dictionary['superbias'] = superbias
+            print('\t >> superbias step products found, loading them...')
+            output_dictionary['superbias'] = datamodels.open(output_filename)
 
     else:
 
@@ -442,8 +468,17 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     if 'refpix' not in skip_steps:
 
         if not loom:
-            refpix = calwebb_detector1.refpix_step.RefPixStep.call(output_dictionary['superbias'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
-            output_dictionary['refpix'] = refpix
+
+            output_filename = full_datapath + 'refpixstep.fits'
+            if not os.path.exists(output_filename):
+
+                refpix = calwebb_detector1.refpix_step.RefPixStep.call(output_dictionary['superbias'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
+                output_dictionary['refpix'] = refpix
+
+            else:
+
+                print('\t >> refpix step products found, loading them...')
+                output_dictionary['refpix'] = datamodels.open(output_filename)
 
     else:
 
@@ -475,20 +510,32 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         looms = np.zeros([nintegrations, ngroups, nrows, ncolumns])
         lmf_after = np.zeros(lmf.shape)
 
-        for i in range(nintegrations):
-    
-            for j in range(ngroups):
-    
-                # Get mask with group-dependant outliers:
-                group_mask = cc_uniluminated_outliers(refpix.data[i, j, :, :], mask)
+        output_filename = full_datapath + 'refpixstep_loom.fits'
+        if not os.path.exists(output_filename):
 
-                # Get LOOM estimate:
-                looms[i, j, :, :] = get_loom(refpix.data[i, j, :, :], mask * group_mask)
+            for i in range(nintegrations):
+        
+                for j in range(ngroups):
+        
+                    # Get mask with group-dependant outliers:
+                    group_mask = cc_uniluminated_outliers(refpix.data[i, j, :, :], mask)
 
-                # Substract it from the data:
-                refpix.data[i, j, :, :] -= looms[i, j, :, :]
+                    # Get LOOM estimate:
+                    looms[i, j, :, :] = get_loom(refpix.data[i, j, :, :], mask * group_mask)
 
-            lmf_after[i, :, :] = refpix.data[i, max_group, :, :] - refpix.data[i, min_group, :, :]
+                    # Substract it from the data:
+                    refpix.data[i, j, :, :] -= looms[i, j, :, :]
+
+                lmf_after[i, :, :] = refpix.data[i, max_group, :, :] - refpix.data[i, min_group, :, :]
+
+            refpix.save(output_filename)
+
+        else:
+
+            print('\t >> refpix LOOM step products found, loading them...')
+            refpix = datamodels.open(output_filename)
+            lmf_after, _ = get_last_minus_first(refpix.data, min_group = min_group, max_group = max_group)
+
         # Save results:
         output_dictionary['refpix'] = refpix
         output_dictionary['looms'] = looms[i, j, :, :]
@@ -498,16 +545,24 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # Linearity step:
     if 'linearity' not in skip_steps:
 
-        if 'override_linearity' in kwargs.keys():
+        output_filename = full_datapath + 'linearitystep.fits'
+        if not os.path.exists(output_filename):
 
-            linearity = calwebb_detector1.linearity_step.LinearityStep.call(output_dictionary['refpix'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
-                                                                            override_linearity = kwargs['override_linearity'])
+            if 'override_linearity' in kwargs.keys():
+
+                linearity = calwebb_detector1.linearity_step.LinearityStep.call(output_dictionary['refpix'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
+                                                                                override_linearity = kwargs['override_linearity'])
+
+            else:
+
+               linearity = calwebb_detector1.linearity_step.LinearityStep.call(output_dictionary['refpix'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
+
+            output_dictionary['linearity'] = linearity
 
         else:
 
-           linearity = calwebb_detector1.linearity_step.LinearityStep.call(output_dictionary['refpix'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
-
-        output_dictionary['linearity'] = linearity
+            print('\t >> linearity step products found, loading them...')
+            output_dictionary['linearity'] = datamodels.open(output_filename)
 
     else:
 
@@ -516,16 +571,24 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # DarkCurrent step:
     if 'darkcurrent' not in skip_steps:
 
-        if 'override_darkcurrent' in kwargs.keys():
+        output_filename = full_datapath + 'darkcurrentstep.fits'
+        if not os.path.exists(output_filename):
 
-            darkcurrent = calwebb_detector1.dark_current_step.DarkCurrentStep.call(output_dictionary['linearity'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
-                                                                                   override_dark = kwargs['override_dark'])
+            if 'override_darkcurrent' in kwargs.keys():
+
+                darkcurrent = calwebb_detector1.dark_current_step.DarkCurrentStep.call(output_dictionary['linearity'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
+                                                                                       override_dark = kwargs['override_dark'])
+
+            else:
+
+                darkcurrent = calwebb_detector1.dark_current_step.DarkCurrentStep.call(output_dictionary['linearity'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
+
+            output_dictionary['darkcurrent'] = darkcurrent
 
         else:
-
-            darkcurrent = calwebb_detector1.dark_current_step.DarkCurrentStep.call(output_dictionary['linearity'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
-
-        output_dictionary['darkcurrent'] = darkcurrent
+            
+            print('\t >> darkcurrent step products found, loading them...')
+            output_dictionary['darkcurrent'] = datamodels.open(output_filename)
 
     else:
 
@@ -534,36 +597,43 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # JumpStep:
     if 'jumpstep' not in skip_steps:
 
+        output_filename = full_datapath + 'jumpstep.fits'
+        if not os.path.exists(output_filename):
 
-        if ('override_readnoise' in kwargs.keys()) and ('override_gain' in kwargs.keys()):
+            if ('override_readnoise' in kwargs.keys()) and ('override_gain' in kwargs.keys()):
 
-            jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
-                                                                 rejection_threshold=jump_threshold,
-                                                                 maximum_cores = maximum_cores, 
-                                                                 override_readnoise = kwargs['override_readnoise'],
-                                                                 override_gain = kwargs['override_gain'])
+                jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
+                                                                     rejection_threshold=jump_threshold,
+                                                                     maximum_cores = maximum_cores, 
+                                                                     override_readnoise = kwargs['override_readnoise'],
+                                                                     override_gain = kwargs['override_gain'])
 
-        elif 'override_readnoise' in kwargs.keys():
+            elif 'override_readnoise' in kwargs.keys():
 
-            jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
-                                                                 rejection_threshold=jump_threshold,
-                                                                 maximum_cores = maximum_cores, 
-                                                                 override_readnoise = kwargs['override_readnoise'])
+                jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
+                                                                     rejection_threshold=jump_threshold,
+                                                                     maximum_cores = maximum_cores, 
+                                                                     override_readnoise = kwargs['override_readnoise'])
 
-        elif 'override_gain' in kwargs.keys():
+            elif 'override_gain' in kwargs.keys():
 
-            jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
-                                                                 rejection_threshold=jump_threshold,
-                                                                 maximum_cores = maximum_cores, 
-                                                                 override_gain = kwargs['override_gain'])
+                jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
+                                                                     rejection_threshold=jump_threshold,
+                                                                     maximum_cores = maximum_cores, 
+                                                                     override_gain = kwargs['override_gain'])
+
+            else:
+
+                jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True, 
+                                                                     rejection_threshold=jump_threshold,
+                                                                     maximum_cores = maximum_cores)
+
+            output_dictionary['jumpstep'] = jumpstep
 
         else:
 
-            jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True, 
-                                                                 rejection_threshold=jump_threshold,
-                                                                 maximum_cores = maximum_cores)
-
-        output_dictionary['jumpstep'] = jumpstep
+            print('\t >> jump step products found, loading them...')
+            output_dictionary['jumpstep'] = datamodels.open(output_filename)
 
     else:
 
