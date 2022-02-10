@@ -36,7 +36,7 @@ def get_loom(data, mask, return_parameters = False):
         Best-fit LOOM that considers a frame-wise offset, odd-even effect and 1/f striping along the columns. Has same dimensions as input `data`.
 
     parameters : numpy.array
-        (Optional) Parameters of the LOOM --- [mu, E, O, a_0, a_1, a_2, ..., a_(ncolumns-1)]. mu is the offset of the image form zero; E are the even rows, O the odd rows, 
+        (Optional) Parameters of the LOOM --- [mu, O, E, a_0, a_1, a_2, ..., a_(ncolumns-1)]. mu is the offset of the image form zero; E are the even rows, O the odd rows, 
         and the a_i the mean 1/f pattern of each column.
     
     """
