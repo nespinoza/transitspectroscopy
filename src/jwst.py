@@ -497,9 +497,17 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
 
             min_group = kwargs['min_group']
 
+        else:
+
+            min_group = 0
+
         if 'max_group' in kwargs.keys():
 
             max_group = kwargs['max_group'] 
+
+        else:
+
+            max_group = ngroups - 1
 
         lmf, median_lmf = get_last_minus_first(output_dictionary['superbias'].data, min_group = min_group, max_group = max_group)
 
