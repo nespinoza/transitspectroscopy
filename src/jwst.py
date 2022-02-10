@@ -9,12 +9,58 @@ from astropy.timeseries import TimeSeries
 from jwst.pipeline import calwebb_detector1, calwebb_spec2
 from jwst import datamodels
 
+def cc_uniluminated_outliers(data, mask, nsigma = 5):
+    """
+    Column-to-column background outlier detection
+
+    This function goes column-by-column and detects outliers on a given frame (`data`) wherever there are no sources. The user needs to provide a mask where values of 1 are the 
+    uniluminated pixels, and 0's are the illuminated pixels. Main difference with `get_uniluminated_mask` is that this function gets you hot pixels, cosmic rays and bad pixels.
+
+    Parameters
+    ----------
+
+    data : numpy.array
+        Numpy array of dimensions (npixel, npixel). It is assumed columns go in the slow-direction (i.e., 1/f striping direction) and rows go 
+        in the fast-read direction (i.e., odd-even effect direction).
+
+    mask : numpy.array
+        Numpy array of the same length as `data`; pixels that should be included in the calculation (expected to be non-iluminated by the main source) 
+        should be set to 1 --- the rest should be zeros
+
+    Returns
+    -------
+
+    updated_mask : numpy.array
+        Combination of the input mask with the outliers in the background, which are identified with zeroes.
+
+    """
+
+    # Turn all zeroes in the mask to nans:
+    nan_data = np.copy(data)
+    nan_data[mask == 0] = np.nan
+
+    # Compute column medians:
+    column_medians = np.nanmedian(nan_data, axis = 0)
+    
+    # Compute column median-absolute deviation:
+    column_mad = np.nanmedian(np.abs(nan_data - column_median), axis = 0)
+
+    # Detect outliers:
+    idx = np.where(np.abs(data - column_median) > nsigma * column_mad * 1.4826)[0]
+
+    # Create new mask:
+    new_mask = np.ones(data.shape)
+    new_mask[idx] = 0
+
+    # Return combined mask:
+    return mask * new_mask
+
 def get_loom(data, mask, return_parameters = False):
     """
     Least-squares Odd-even and One-over-f correction Model (LOOM)
 
-    This function returns the best-fit LOOM to a given frame/group. Note given the least-squares nature of LOOM, this is quite sensitive to outliers --- be sure to mask 
-    those out as well when using this function.
+    This function returns the best-fit LOOM to a given frame/group. Note given the least-squares nature of LOOM, 
+    this is quite sensitive to outliers --- be sure to mask those out as well when using this function.
 
     Parameters
     ----------
@@ -37,8 +83,8 @@ def get_loom(data, mask, return_parameters = False):
         Best-fit LOOM that considers a frame-wise offset, odd-even effect and 1/f striping along the columns. Has same dimensions as input `data`.
 
     parameters : numpy.array
-        (Optional) Parameters of the LOOM --- [mu, O, E, a_0, a_1, a_2, ..., a_(ncolumns-1)]. mu is the offset of the image form zero; E are the even rows, O the odd rows, 
-        and the a_i the mean 1/f pattern of each column.
+        (Optional) Parameters of the LOOM --- [O, E, a_0, a_1, a_2, ..., a_(ncolumns-1)]. E are the even rows, O the odd rows, 
+        and the a_i the mean 1/f pattern of each column. Note E and O also account for overall offsets in the image.
     
     """
 
@@ -46,8 +92,8 @@ def get_loom(data, mask, return_parameters = False):
     nrows, ncolumns = data.shape
 
     # Now, initialize the A matrix and b vector:
-    A = np.zeros([ncolumns + 3, ncolumns + 3])
-    b = np.zeros(ncolumns + 3)
+    A = np.zeros([ncolumns + 2, ncolumns + 2])
+    b = np.zeros(ncolumns + 2)
 
     # Compute various numbers we will need to fill this matrix:
     npix = np.sum(mask)                     # number of pixels used to compute model
@@ -61,43 +107,44 @@ def get_loom(data, mask, return_parameters = False):
     # Start filling the A matrix and b vector. First column of A matrix are coefficients for mu, second for odd, third for even, and the rest are the coefficients for 
     # each column a_j. Start with results from equation for the mu partial derivative:
 
-    A[0,0], A[0,1], A[0,2], A[0,3:] = npix, nO, nE, nrows_j
+    #A[0,0], A[0,1], A[0,2], A[0,3:] = npix, nO, nE, nrows_j
 
-    b[0] = np.sum(mask * data)
+    #b[0] = np.sum(mask * data)
 
     # Now equation for O partial derivative:
 
-    A[1,0], A[1,1], A[1,2], A[1,3:] = nO, nO, 0., nodd_j
+    A[0,0], A[0,1], A[0,2:] = nO, 0., nodd_j
 
-    b[1] = np.sum(mask[1::2, :] * data[1::2, :])
+    b[0] = np.sum(mask[1::2, :] * data[1::2, :])
      
     # Same for E partial derivative:
 
-    A[2,0], A[2,1], A[2,2], A[2,3:] = nE, 0., nE, neven_j
+    A[1,0], A[1,1], A[1,2:] = 0., nE, neven_j
 
-    b[2] = np.sum(mask[::2, :] * data[::2, :])
+    b[1] = np.sum(mask[::2, :] * data[::2, :])
 
     # And, finally, for the a_j partial derivatives:
 
-    A[3:,0], A[3:, 1], A[3:, 2] = nrows_j, nodd_j, neven_j
+    A[2:, 0], A[2:, 1] = nodd_j, neven_j
     
     for j in range(ncolumns):
 
-        A[j + 3, j + 3] = nrows_j[j]
+        A[j + 2, j + 2] = nrows_j[j]
 
-        b[j + 3] = np.sum(mask[:, j] * data[:, j])
+        b[j + 2] = np.sum(mask[:, j] * data[:, j])
 
     # Solve system:
     x = lsmr(A, b)[0]
 
     # Create LOOM:
-    loom = np.ones(data.shape) * x[0] # Set mean-level
-    loom[1::2, :] += x[1]             # Add odd level
-    loom[::2, :] += x[2]              # Add even level
+    #loom = np.ones(data.shape) * x[0] # Set mean-level
+    loom = np.zeros(data.shape)
+    loom[1::2, :] += x[0]             # Add odd level
+    loom[::2, :] += x[1]              # Add even level
    
     # Add 1/f column pattern: 
     for j in range(ncolumns):
-        loom[:, j] += x[j + 3]
+        loom[:, j] += x[j + 2]
 
     # Return model (and parameters, if wanted):
     if not return_parameters:
@@ -207,15 +254,16 @@ def get_uniluminated_mask(data, nsigma = 3):
         mad = np.nanmedian(np.nanabs(column_residuals - np.nanmedian(column_residuals)))
         sigma = mad * 1.4826
 
-        # Identify uniluminated pixels:
+        # Identify iluminated pixels:
         idx = np.where( data[:,i] > cc[i] + nsigma * sigma )[0]
+
         # Mask them:
         mask[idx, i] = 0
 
     # Return mask:
     return mask
 
-def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', skip_steps = [], outputfolder = '', **kwargs):
+def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', loom = True, skip_steps = [], outputfolder = '', **kwargs):
     """
     This function calibrates an *uncal.fits file through a "special" version of the JWST TSO CalWebb Stage 1, also passing the data through the assign WCS step to 
     get the wavelength map from Stage 2. With all this, this function by default returns the rates per integrations, errors on those rates, data-quality flags, 
@@ -225,6 +273,8 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     In addition to the default flags defined above, "override" flags can be passed as well to pass your own reference files. To pass the bias reference file, for instance, 
     one would do `stage1(datafile, ..., override_superbias = bias_filename)` where `bias_filename` is the location of the superbias reference file that wants to be used.
     
+    Note by default, LOOM is used instead of reference pixel correction. This algorithm uses non-iluminated pixels to estimate the odd-even and 1/f simple corrections. To 
+    use the pipeline's reference pixel correction, set `loom = False`.
 
     Parameters
     ----------
@@ -241,6 +291,9 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         If 'all', multiprocessing will be used for the `jump` and `ramp_fit` steps using all available cores.
     skip_steps : list
         List of all the names (strings) of steps we should skip.
+    loom : bool
+        If True, the Least-squares Odd-even, One-over-f Model (LOOM) model is used to correct for odd-even and 1/f patterns in the data. If False, the 
+        STScI pipeline algorithm is used which uses reference pixels to account for this. 
     reference_files : list
         List of all the reference files (strings) we will be using for the reduction. These will supercede the default ones used by the pipeline. 
     outputfolder : string
@@ -388,12 +441,59 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # Now reference pixel correction:
     if 'refpix' not in skip_steps:
 
-        refpix = calwebb_detector1.refpix_step.RefPixStep.call(output_dictionary['superbias'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
-        output_dictionary['refpix'] = refpix
+        if not loom:
+            refpix = calwebb_detector1.refpix_step.RefPixStep.call(output_dictionary['superbias'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
+            output_dictionary['refpix'] = refpix
 
     else:
 
         output_dictionary['refpix'] = output_dictionary['superbias']
+
+    # Get some important data out of the current data:
+    nintegrations, ngroups, nrows, ncolumns = output_dictionary['superbias'].data.shape
+
+    if loom:
+
+        # First, get last-minus-first frames:
+        min_group, max_group = None, None
+
+        if 'min_group' in kwargs.keys():
+
+            min_group = kwargs['min_group']
+
+        if 'max_group' in kwargs.keys():
+
+            max_group = kwargs['max_group'] 
+
+        lmf, median_lmf = get_last_minus_first(output_dictionary['superbias'].data, min_group = min_group, max_group = max_group)
+
+        # Generate mask of uniluminated pixels from the median last-minus-first frame:
+        mask = get_uniluminated_mask(median_lmf)
+
+        # Now go through each group, and correct 1/f and odd-even with the LOOM: cc_uniluminated_outliers(data, mask, nsigma = 5)
+        refpix = deepcopy(output_dictionary['superbias'])
+        looms = np.zeros([nintegrations, ngroups, nrows, ncolumns])
+        lmf_after = np.zeros(lmf.shape)
+
+        for i in range(nintegrations):
+    
+            for j in range(ngroups):
+    
+                # Get mask with group-dependant outliers:
+                group_mask = cc_uniluminated_outliers(refpix.data[i, j, :, :], mask)
+
+                # Get LOOM estimate:
+                looms[i, j, :, :] = get_loom(refpix.data[i, j, :, :], mask * group_mask)
+
+                # Substract it from the data:
+                refpix.data[i, j, :, :] -= looms[i, j, :, :]
+
+            lmf_after[i, :, :] = refpix.data[i, max_group, :, :] - refpix.data[i, min_group, :, :]
+        # Save results:
+        output_dictionary['refpix'] = refpix
+        output_dictionary['looms'] = looms[i, j, :, :]
+        output_dictionary['lmf_before'] = lmf 
+        output_dictionary['lmf_after'] = lmf_after
 
     # Linearity step:
     if 'linearity' not in skip_steps:
