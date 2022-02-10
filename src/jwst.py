@@ -251,7 +251,7 @@ def get_uniluminated_mask(data, nsigma = 3):
 
         # Get sigma:
         column_residuals = data[:,i] - cc[i]
-        mad = np.nanmedian(np.nanabs(column_residuals - np.nanmedian(column_residuals)))
+        mad = np.nanmedian(np.abs(column_residuals - np.nanmedian(column_residuals)))
         sigma = mad * 1.4826
 
         # Identify iluminated pixels:
