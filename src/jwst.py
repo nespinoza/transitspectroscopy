@@ -396,7 +396,8 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # Run steps sequentially. First, the DQInitStep:
     if 'dqinit' not in skip_steps:
 
-        output_filename = full_datapath + 'dqinitstep.fits'
+        output_filename = full_datapath + '_dqinitstep.fits'
+        print('>>>>>>>',output_filename)
         if not os.path.exists(output_filename):
 
             dqinit = calwebb_detector1.dq_init_step.DQInitStep.call(uncal_data, output_dir=outputfolder+'pipeline_outputs', save_results = True)
@@ -414,7 +415,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # Next, saturation step:
     if 'saturation' not in skip_steps:
 
-        output_filename = full_datapath + 'saturationstep.fits'
+        output_filename = full_datapath + '_saturationstep.fits'
         if not os.path.exists(output_filename):
 
             if 'override_saturation' in kwargs.keys():
@@ -441,7 +442,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     if 'superbias' not in skip_steps:
 
 
-        output_filename = full_datapath + 'superbiasstep.fits'
+        output_filename = full_datapath + '_superbiasstep.fits'
         if not os.path.exists(output_filename):
 
             if 'override_superbias' in kwargs.keys():
@@ -469,7 +470,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
 
         if not loom:
 
-            output_filename = full_datapath + 'refpixstep.fits'
+            output_filename = full_datapath + '_refpixstep.fits'
             if not os.path.exists(output_filename):
 
                 refpix = calwebb_detector1.refpix_step.RefPixStep.call(output_dictionary['superbias'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
@@ -510,7 +511,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         looms = np.zeros([nintegrations, ngroups, nrows, ncolumns])
         lmf_after = np.zeros(lmf.shape)
 
-        output_filename = full_datapath + 'refpixstep_loom.fits'
+        output_filename = full_datapath + '_refpixstep_loom.fits'
         if not os.path.exists(output_filename):
 
             for i in range(nintegrations):
@@ -545,7 +546,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # Linearity step:
     if 'linearity' not in skip_steps:
 
-        output_filename = full_datapath + 'linearitystep.fits'
+        output_filename = full_datapath + '_linearitystep.fits'
         if not os.path.exists(output_filename):
 
             if 'override_linearity' in kwargs.keys():
@@ -571,7 +572,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # DarkCurrent step:
     if 'darkcurrent' not in skip_steps:
 
-        output_filename = full_datapath + 'darkcurrentstep.fits'
+        output_filename = full_datapath + '_darkcurrentstep.fits'
         if not os.path.exists(output_filename):
 
             if 'override_darkcurrent' in kwargs.keys():
@@ -597,7 +598,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # JumpStep:
     if 'jumpstep' not in skip_steps:
 
-        output_filename = full_datapath + 'jumpstep.fits'
+        output_filename = full_datapath + '_jumpstep.fits'
         if not os.path.exists(output_filename):
 
             if ('override_readnoise' in kwargs.keys()) and ('override_gain' in kwargs.keys()):
