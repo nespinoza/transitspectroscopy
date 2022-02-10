@@ -44,10 +44,10 @@ def cc_uniluminated_outliers(data, mask, nsigma = 5):
     column_medians = np.nanmedian(nan_data, axis = 0)
     
     # Compute column median-absolute deviation:
-    column_mad = np.nanmedian(np.abs(nan_data - column_median), axis = 0)
+    column_mads = np.nanmedian(np.abs(nan_data - column_medians), axis = 0)
 
     # Detect outliers:
-    idx = np.where(np.abs(data - column_median) > nsigma * column_mad * 1.4826)[0]
+    idx = np.where(np.abs(data - column_medians) > nsigma * column_mads * 1.4826)[0]
 
     # Create new mask:
     new_mask = np.ones(data.shape)
