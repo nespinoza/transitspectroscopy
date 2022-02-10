@@ -397,7 +397,6 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     if 'dqinit' not in skip_steps:
 
         output_filename = full_datapath + '_dqinitstep.fits'
-        print('>>>>>>>',output_filename)
         if not os.path.exists(output_filename):
 
             dqinit = calwebb_detector1.dq_init_step.DQInitStep.call(uncal_data, output_dir=outputfolder+'pipeline_outputs', save_results = True)
