@@ -218,7 +218,7 @@ def get_last_minus_first(data, min_group = None, max_group = None):
     median_lmf = np.nanmedian(lmf, axis = 0)
 
     # Return products:
-    return lmf, med
+    return lmf, median_lmf
 
 def get_uniluminated_mask(data, nsigma = 3):
     """

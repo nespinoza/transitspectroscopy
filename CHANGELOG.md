@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2] - 2021-02-08
 ### Added
 - The `jwst` class which can reduce JWST data using the JWST pipeline.
+- Added `stage1` master function to `jwst` to reduce SOSS data.
+- Added `LOOM` model to `stage1` --- this replaces the refpix step in this script.
 
 ## [0.1] - 2021-01-28
 ### Added
