@@ -56,6 +56,47 @@ def cc_uniluminated_outliers(data, mask, nsigma = 5):
     # Return combined mask:
     return mask * new_mask
 
+def get_roeba(data, mask):
+    """
+    ROEBA algorithm for even/odd and one-over-f --- algorithm is Everett Schlawlin's idea (so cite tshirt when using this: https://tshirt.readthedocs.io/en/latest/specific_modules/ROEBA.html)
+
+    Parameters
+    ----------
+
+    data : numpy.array
+        Numpy array of dimensions (npixel, npixel). It is assumed columns go in the slow-direction (i.e., 1/f striping direction) and rows go 
+        in the fast-read direction (i.e., odd-even effect direction).
+
+    mask : numpy.array
+        Numpy array of the same length as `data`; pixels that should be included in the calculation (expected to be non-iluminated by the main source) 
+        should be set to 1 --- the rest should be zeros
+
+    Returns
+    -------
+
+    roeba : numpy.array
+        Odd-even, one-over-f correction model
+    """
+
+    # Nan-ed data so we do nanmedians to mask:
+    idx = np.where(mask == 0.)
+    nan_data = np.copy(data)
+    nan_data[idx] = np.nan
+
+    # Create output model:
+    roeba = np.zeros(data.shape)
+
+    # First compute odd-even model:
+    roeba[::2,:] = np.nanmedian(nan_data[::2,:])
+    roeba[1::2,:] = np.nanmedian(nan_data[1::2,:])
+
+    # Now do one-over-f:
+    roeba += np.nanmedian(nan_data, axis = 0)
+
+    # Return model:
+    return roeba
+    
+
 def get_loom(data, mask, return_parameters = False):
     """
     Least-squares Odd-even and One-over-f correction Model (LOOM)
@@ -264,7 +305,7 @@ def get_uniluminated_mask(data, nsigma = 3):
     # Return mask:
     return mask
 
-def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', loom = True, skip_steps = [], outputfolder = '', **kwargs):
+def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'roeba', skip_steps = [], outputfolder = '', **kwargs):
     """
     This function calibrates an *uncal.fits file through a "special" version of the JWST TSO CalWebb Stage 1, also passing the data through the assign WCS step to 
     get the wavelength map from Stage 2. With all this, this function by default returns the rates per integrations, errors on those rates, data-quality flags, 
@@ -292,9 +333,9 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         If 'all', multiprocessing will be used for the `jump` and `ramp_fit` steps using all available cores.
     skip_steps : list
         List of all the names (strings) of steps we should skip.
-    loom : bool
-        If True, the Least-squares Odd-even, One-over-f Model (LOOM) model is used to correct for odd-even and 1/f patterns in the data. If False, the 
-        STScI pipeline algorithm is used which uses reference pixels to account for this. 
+    preamp_correction : 
+        String defining the method to use to correct for pre-amp reset corrections (i.e., odd/even and one-over-f). Can be 'roeba' for Evertt Schlawlin's ROEBA, 'loom' for the 
+        Least-squares Odd-even, One-over-f Model (LOOM) or 'stsci' to let the STScI pipeline handle it through the refpix correction (if not skipped). 
     reference_files : list
         List of all the reference files (strings) we will be using for the reduction. These will supercede the default ones used by the pipeline. 
     outputfolder : string
@@ -331,6 +372,9 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     for i in range(len(skip_steps)):
     
         skip_steps[i] = skip_steps.lower()
+
+    # Lower-case pre-amp reset correction:
+    preamp_correction = preamp_correction.lower()
 
     # Create output dictionary:
     output_dictionary = {}
@@ -468,7 +512,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # Now reference pixel correction:
     if 'refpix' not in skip_steps:
 
-        if not loom:
+        if preamp_correction is 'stsci':
 
             output_filename = full_datapath + '_refpixstep.fits'
             if not os.path.exists(output_filename):
@@ -488,7 +532,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # Get some important data out of the current data:
     nintegrations, ngroups, nrows, ncolumns = output_dictionary['superbias'].data.shape
 
-    if loom:
+    if (preamp_correction is 'loom') or (preamp_correction is 'roeba'):
 
         # First, get last-minus-first frames:
         min_group, max_group = 0, ngroups - 1
@@ -508,38 +552,65 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
 
         # Now go through each group, and correct 1/f and odd-even with the LOOM: cc_uniluminated_outliers(data, mask, nsigma = 5)
         refpix = deepcopy(output_dictionary['superbias'])
-        looms = np.zeros([nintegrations, ngroups, nrows, ncolumns])
         lmf_after = np.zeros(lmf.shape)
 
-        output_filename = full_datapath + '_refpixstep_loom.fits'
-        if not os.path.exists(output_filename):
+        if preamp_correction is 'loom':
 
-            for i in range(nintegrations):
-        
-                for j in range(ngroups):
-        
-                    # Get mask with group-dependant outliers:
-                    group_mask = cc_uniluminated_outliers(refpix.data[i, j, :, :], mask)
+            output_filename = full_datapath + '_refpixstep_loom.fits'
+            if not os.path.exists(output_filename):
+    
+                looms = np.zeros([nintegrations, ngroups, nrows, ncolumns])
+                for i in range(nintegrations):
+            
+                    for j in range(ngroups):
+            
+                        # Get mask with group-dependant outliers:
+                        group_mask = cc_uniluminated_outliers(refpix.data[i, j, :, :], mask)
 
-                    # Get LOOM estimate:
-                    looms[i, j, :, :] = get_loom(refpix.data[i, j, :, :], group_mask)
+                        # Get LOOM estimate:
+                        looms[i, j, :, :] = get_loom(refpix.data[i, j, :, :], group_mask)
 
-                    # Substract it from the data:
-                    refpix.data[i, j, :, :] -= looms[i, j, :, :]
+                        # Substract it from the data:
+                        refpix.data[i, j, :, :] -= looms[i, j, :, :]
 
-                lmf_after[i, :, :] = refpix.data[i, max_group, :, :] - refpix.data[i, min_group, :, :]
+                    lmf_after[i, :, :] = refpix.data[i, max_group, :, :] - refpix.data[i, min_group, :, :]
 
-            refpix.save(output_filename)
+                refpix.save(output_filename)
 
-        else:
+            else:
 
-            print('\t >> refpix LOOM step products found, loading them...')
-            refpix = datamodels.open(output_filename)
-            lmf_after, _ = get_last_minus_first(refpix.data, min_group = min_group, max_group = max_group)
+                print('\t >> refpix LOOM step products found, loading them...')
+                refpix = datamodels.open(output_filename)
+                lmf_after, _ = get_last_minus_first(refpix.data, min_group = min_group, max_group = max_group)
+
+        if preamp_correction is 'roeba':
+
+            output_filename = full_datapath + '_refpixstep_roeba.fits'
+            if not os.path.exists(output_filename):
+
+                roebas = np.zeros([nintegrations, ngroups, nrows, ncolumns])
+                for i in range(nintegrations):
+
+                    for j in range(ngroups):
+    
+                        # ROEBA is outlier-resistant, so don't bother with group-masks:
+                        roebas[i, j, :, :] = get_roeba(refpix.data[i, j, :, :], mask)
+
+                        # Substract from the data:
+                        refpix.data[i, j, :, :] -= roebas[i, j, :, :]
+
+                    lmf_after[i, :, :] = refpix.data[i, max_group, :, :] - refpix.data[i, min_group, :, :]
+
+                refpix.save(output_filename)
+
+            else:
+
+                print('\t >> refpix ROEBA step products found, loading them...')
+                refpix = datamodels.open(output_filename)
+                lmf_after, _ = get_last_minus_first(refpix.data, min_group = min_group, max_group = max_group)
 
         # Save results:
         output_dictionary['refpix'] = refpix
-        output_dictionary['looms'] = looms[i, j, :, :]
         output_dictionary['lmf_before'] = lmf 
         output_dictionary['lmf_after'] = lmf_after
 
