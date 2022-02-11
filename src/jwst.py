@@ -371,7 +371,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # Lower-case all steps-to-be-skipped:
     for i in range(len(skip_steps)):
     
-        skip_steps[i] = skip_steps.lower()
+        skip_steps[i] = skip_steps[i].lower()
 
     # Lower-case pre-amp reset correction:
     preamp_correction = preamp_correction.lower()
