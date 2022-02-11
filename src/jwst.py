@@ -305,7 +305,7 @@ def get_uniluminated_mask(data, nsigma = 3):
     # Return mask:
     return mask
 
-def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'roeba', skip_steps = [], outputfolder = '', **kwargs):
+def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'loom', skip_steps = [], outputfolder = '', uniluminated_mask = None, **kwargs):
     """
     This function calibrates an *uncal.fits file through a "special" version of the JWST TSO CalWebb Stage 1, also passing the data through the assign WCS step to 
     get the wavelength map from Stage 2. With all this, this function by default returns the rates per integrations, errors on those rates, data-quality flags, 
@@ -333,13 +333,16 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         If 'all', multiprocessing will be used for the `jump` and `ramp_fit` steps using all available cores.
     skip_steps : list
         List of all the names (strings) of steps we should skip.
-    preamp_correction : 
+    preamp_correction : string
         String defining the method to use to correct for pre-amp reset corrections (i.e., odd/even and one-over-f). Can be 'roeba' for Evertt Schlawlin's ROEBA, 'loom' for the 
         Least-squares Odd-even, One-over-f Model (LOOM) or 'stsci' to let the STScI pipeline handle it through the refpix correction (if not skipped). 
     reference_files : list
         List of all the reference files (strings) we will be using for the reduction. These will supercede the default ones used by the pipeline. 
+    uniluminated_mask : numpy.array
+        (Optional) Array of the same size as the data groups and/or frames. Values of 1 indicate uniluminated pixels, while 0 indicate iluminated pixels. Uniluminated refers to 
+        "not iluminated by the main sources in the group/frame". 
     outputfolder : string
-        String indicating the folder where the outputs want to be saved. Default is current working directory.
+        (Optional) String indicating the folder where the outputs want to be saved. Default is current working directory.
 
     Returns
     -------
@@ -550,8 +553,14 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
 
         lmf, median_lmf = get_last_minus_first(output_dictionary['superbias'].data, min_group = min_group, max_group = max_group)
 
-        # Generate mask of uniluminated pixels from the median last-minus-first frame:
-        mask = get_uniluminated_mask(median_lmf)
+        # Generate mask of uniluminated pixels from the median last-minus-first frame, if not available:
+        if uniluminated_mask is None:
+
+            mask = get_uniluminated_mask(median_lmf)
+
+        else:
+
+            mask = uniluminated_mask
 
         # Now go through each group, and correct 1/f and odd-even with the LOOM: cc_uniluminated_outliers(data, mask, nsigma = 5)
         refpix = deepcopy(output_dictionary['superbias'])
@@ -613,6 +622,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
                 lmf_after, _ = get_last_minus_first(refpix.data, min_group = min_group, max_group = max_group)
 
         # Save results:
+        output_dictionary['mask'] = mask
         output_dictionary['refpix'] = refpix
         output_dictionary['lmf_before'] = lmf 
         output_dictionary['lmf_after'] = lmf_after
@@ -716,29 +726,39 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
 
     # And finally, the (unskippable) ramp-step:
 
-    if ('override_readnoise' in kwargs.keys()) and ('override_gain' in kwargs.keys()):
+    output_filename0 = full_datapath + '_0_rampfitstep.fits'
+    output_filename1 = full_datapath + '_1_rampfitstep.fits'
 
-        rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
-                                                                   maximum_cores = maximum_cores,
-                                                                   override_readnoise = kwargs['override_readnoise'],
-                                                                   override_gain = kwargs['override_gain'])
+    if not os.path.exists(output_filename0):
 
-    elif 'override_readnoise' in kwargs.keys():
+        if ('override_readnoise' in kwargs.keys()) and ('override_gain' in kwargs.keys()):
 
-        rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
-                                                                   maximum_cores = maximum_cores,
-                                                                   override_readnoise = kwargs['override_readnoise'])
+            rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
+                                                                       maximum_cores = maximum_cores,
+                                                                       override_readnoise = kwargs['override_readnoise'],
+                                                                       override_gain = kwargs['override_gain'])
 
-    elif 'override_gain':
+        elif 'override_readnoise' in kwargs.keys():
 
-        rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
-                                                                   maximum_cores = maximum_cores,
-                                                                   override_gain = kwargs['override_gain'])
+            rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
+                                                                       maximum_cores = maximum_cores,
+                                                                       override_readnoise = kwargs['override_readnoise'])
+
+        elif 'override_gain':
+
+            rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
+                                                                       maximum_cores = maximum_cores,
+                                                                       override_gain = kwargs['override_gain'])
+
+        else:
+
+            rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
+                                                                       maximum_cores = maximum_cores)
 
     else:
 
-        rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
-                                                                   maximum_cores = maximum_cores)
+        print('\t >> rampfit step products found, loading them...')
+        rampstep = [datamodels.open(output_filename0), datamodels.open(output_filename1)]
 
     output_dictionary['rampstep'] = rampstep
 
@@ -750,8 +770,16 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     #####################################################
 
     # Alright; now we perform the assign_wcs step to the rates per integration (the so-called "rateint" products):
-    assign_wcs = calwebb_spec2.assign_wcs_step.AssignWcsStep.call(rampstep[1], \
-                                                                  output_dir=outputfolder+'pipeline_outputs',save_results=True)
+    output_filename = full_datapath + '_1_assignwcsstep.fits'
+
+    if not os.path.exists(output_filename):
+
+        assign_wcs = calwebb_spec2.assign_wcs_step.AssignWcsStep.call(rampstep[1], \
+                                                                      output_dir=outputfolder+'pipeline_outputs',save_results=True)
+
+    else:
+
+        assign_wcs = datamodels.open(output_filename)
 
     # And get the wavelength map:
     if get_wavelength_map:
@@ -785,7 +813,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         
             output_dictionary.pop(skipped)
 
-    # Now we return oututs based on user inputs:
+    # Now we return outputs based on user inputs:
 
     output_dictionary['rateints'] = assign_wcs.data
     output_dictionary['rateints_err'] = assign_wcs.err
