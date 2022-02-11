@@ -595,6 +595,8 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
                 refpix = datamodels.open(output_filename)
                 lmf_after, _ = get_last_minus_first(refpix.data, min_group = min_group, max_group = max_group)
 
+            full_datapath += '_refpixstep_loom'
+
         if preamp_correction == 'roeba':
 
             output_filename = full_datapath + '_refpixstep_roeba.fits'
@@ -620,6 +622,8 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
                 print('\t >> refpix ROEBA step products found, loading them...')
                 refpix = datamodels.open(output_filename)
                 lmf_after, _ = get_last_minus_first(refpix.data, min_group = min_group, max_group = max_group)
+
+            full_datapath += '_refpixstep_roeba'
 
         # Save results:
         output_dictionary['mask'] = mask
