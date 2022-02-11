@@ -375,6 +375,9 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
 
     # Lower-case pre-amp reset correction:
     preamp_correction = preamp_correction.lower()
+    if preamp_correction not in ['roeba', 'loom', 'stsci']:
+
+        raise Exception('The preamp_correction flag has to be either "roeba", "loom" or "stsci" --- "'+str(preamp_correction)+'" is not a valid flag.')
 
     # Create output dictionary:
     output_dictionary = {}
@@ -512,7 +515,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # Now reference pixel correction:
     if 'refpix' not in skip_steps:
 
-        if preamp_correction is 'stsci':
+        if preamp_correction == 'stsci':
 
             output_filename = full_datapath + '_refpixstep.fits'
             if not os.path.exists(output_filename):
@@ -532,7 +535,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # Get some important data out of the current data:
     nintegrations, ngroups, nrows, ncolumns = output_dictionary['superbias'].data.shape
 
-    if (preamp_correction is 'loom') or (preamp_correction is 'roeba'):
+    if (preamp_correction == 'loom') or (preamp_correction == 'roeba'):
 
         # First, get last-minus-first frames:
         min_group, max_group = 0, ngroups - 1
@@ -554,7 +557,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         refpix = deepcopy(output_dictionary['superbias'])
         lmf_after = np.zeros(lmf.shape)
 
-        if preamp_correction is 'loom':
+        if preamp_correction == 'loom':
 
             output_filename = full_datapath + '_refpixstep_loom.fits'
             if not os.path.exists(output_filename):
@@ -583,7 +586,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
                 refpix = datamodels.open(output_filename)
                 lmf_after, _ = get_last_minus_first(refpix.data, min_group = min_group, max_group = max_group)
 
-        if preamp_correction is 'roeba':
+        if preamp_correction == 'roeba':
 
             output_filename = full_datapath + '_refpixstep_roeba.fits'
             if not os.path.exists(output_filename):
