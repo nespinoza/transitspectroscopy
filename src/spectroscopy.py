@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.ndimage import median_filter
 
 import Marsh
 
