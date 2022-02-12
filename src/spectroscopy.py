@@ -376,3 +376,118 @@ def getSimpleExtraction(data, x, y, aperture_radius, background_radius=50, error
         return flux, flux_error
     else:
         return flux
+
+def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, nsigma = 100, gauss_filter_width=10, xend=None, y_tolerance = 5, verbose = False):
+    """
+    Function that non-parametrically traces spectra. First, to get the centroid at xstart and ystart, it convolves the spatial profile with a gaussian filter, 
+    finding its peak through usual flux-weighted centroiding. Next, this centroid is used as a starting point to find the centroid of the left column through 
+    the same algorithm. 
+    
+    Parameters
+    ----------
+
+    image: numpy.array
+        The image that wants to be traced.
+    dqflags: ndarray
+        The data quality flags for each pixel in the image. Only pixels with DQ flags of zero will be used 
+        in the centroiding.
+    xstart: float
+        The x-position (column) on which the tracing algorithm will be started
+    ystart: float
+        The estimated y-position (row) of the center of the trace. An estimate within 10-20 pixels is enough.
+    profile_radius: float
+        Expected radius of the profile measured from its center. Only this region will be used to estimate 
+        the centroids of the spectrum.
+    nsigma : float
+        Median filters are applied to each column in search of outliers. This number defines how many n-sigma above the noise level 
+        the residuals of the median filter and the image should be considered outliers.
+    gauss_filter_width: float
+        Width of the gaussian filter used to perform the centroiding of the first column
+    xend: int
+        x-position at which tracing ends. If none, trace all the columns left to xstart.
+    y_tolerance: float
+        When tracing, if the difference between the two difference centroids at two contiguous columns is larger than this, 
+        then assume tracing failed (e.g., cosmic ray).
+    verbose: boolean
+        If True, print error messages.
+
+    Returns
+    -------
+
+    x : numpy.array
+        Columns at which the centroid is calculated.
+    y : numpy.array
+        Calculated centroids.
+    """
+    
+    # Define x-axis:
+    if xend is not None:
+        x = np.arange(xend, xstart + 1)
+    else:
+        x = np.arange(0, xstart + 1)
+        
+    # Define y-axis:
+    y = np.arange(image.shape[0])
+    
+    # Define status of good/bad for each centroid:
+    status = np.full(len(x), True, dtype=bool)
+    
+    # Define array that will save centroids at each x:
+    ycentroids = np.zeros(len(x))
+    
+    for i in range(len(x))[::-1]:
+        xcurrent = x[i]
+
+        # Perform median filter to identify nasty (i.e., cosmic rays) outliers in the column:
+        mf = median_filter(image[:,xcurrent], size = 5)
+        residuals = mf - image[:,xcurrent]
+        mad_sigma = get_mad_sigma(residuals)
+        column_nsigma = np.abs(residuals) / mad_sigma
+        
+        # Extract data-quality flags for current column; index good pixels --- mask nans as well:
+        idx_good = np.where((dqflags[:, xcurrent] == 0) & (~np.isnan(image[:, xcurrent]) & (column_nsigma < nsigma)))[0]        
+        idx_bad = np.where(~(dqflags[:, xcurrent] == 0) & (~np.isnan(image[:, xcurrent]) & (column_nsigma < nsigma)))[0]
+        
+        if len(idx_good) > 0:
+
+            # Replace bad values with the ones in the median filter:
+            column_data = np.copy(image[:, xcurrent])
+            column_data[idx_bad] = mf[idx_bad]
+
+            # Convolve column with a gaussian filter; remove median before convolving:
+            filtered_column = gaussian_filter1d(column_data - \
+                                                np.median(column_data), gauss_filter_width)
+    
+            # Find centroid within profile_radius pixels of the initial guess:
+            idx = np.where(np.abs(y - ystart) < profile_radius)[0]
+            ycentroids[i] = np.sum(y[idx] * filtered_column[idx]) / np.sum(filtered_column[idx])
+
+            # Get the difference of the current centroid with the previous one (if any):
+            if xcurrent != x[-1]:
+
+                previous_centroid = ycentroids[i + 1]
+                difference = np.abs(previous_centroid - ycentroids[i])
+
+                if (difference > y_tolerance):
+
+                    if verbose:
+                        print('Tracing failed at column',xcurrent,'; estimated centroid:',ycentroids[i],', previous one:',previous_centroid,'> than tolerance: ',y_tolerance,\
+                              '. Replacing with closest good trace position.')
+
+                    ycentroids[i] = previous_centroid
+                    
+
+            ystart = ycentroids[i]
+        else:
+            print(xcurrent,'is a bad column. Setting to previous centroid:')
+            ycentroids[i] = previous_centroid
+            status[i] = True
+    
+    # Return all centroids:
+    return x, ycentroids
+
+def get_mad_sigma(x):
+
+    x_median = np.nanmedian(x)
+
+    return 1.4826 * np.nanmedian( np.abs(x - x_median) )
