@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `stage1` master function to `jwst` to reduce SOSS data.
 - Added `LOOM` model to `stage1` --- this replaces the refpix step in this script.
 - Now `jwst` checks for already existing outputs so steps don't run again if products already produced.
+### Changed
+- Name of simple extraction in `transitspectroscopy.spectroscopy` from `getSimpleExtraction` to `getSimpleSpectrum`.
 
 ## [0.1] - 2021-01-28
 ### Added

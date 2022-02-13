@@ -22,7 +22,7 @@ x = np.arange(ncolumns)
 y = np.ones(ncolumns) * 50
 aperture_radius = 15
 correct_bkg = False
-simple_spectrum = spectroscopy.getSimpleExtraction(data, x, y, aperture_radius, correct_bkg = correct_bkg)
+simple_spectrum = spectroscopy.getSimpleSpectrum(data, x, y, aperture_radius, correct_bkg = correct_bkg)
 
 # Let's now try the *fast* simple extraction:
 fast_simple_spectrum = spectroscopy.getFastSimpleSpectrum(data, y, aperture_radius)
