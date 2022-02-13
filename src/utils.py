@@ -1,5 +1,21 @@
 import numpy as np
 
+def get_phases(t,P,t0):
+    """
+    Given input times, a period (or posterior dist of periods)
+    and time of transit center (or posterior), returns the 
+    phase at each time t.
+    """
+    if type(t) is not float:
+        phase = ((t - np.median(t0))/np.median(P)) % 1
+        ii = np.where(phase>=0.5)[0]
+        phase[ii] = phase[ii]-1.0
+    else:
+        phase = ((t - np.median(t0))/np.median(P)) % 1
+        if phase>=0.5:
+            phase = phase - 1.0
+    return phase
+
 def function_quantiles(X, alpha = 0.68, method = 'median'):
     """
     If `X` is a matrix of length N x M, where there are N evaluations of a model at M index-points, this function returns the 
