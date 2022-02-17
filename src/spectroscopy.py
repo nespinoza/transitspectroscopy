@@ -4,7 +4,7 @@ from scipy.ndimage import gaussian_filter1d
 
 import Marsh
 
-def getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, min_column = None, max_column = None, return_flat = False):
+def getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, min_column = None, max_column = None, return_flat = False, data_variance = None):
     """
     Given a 2D-spectrum, centroids over it and various properties of the noise, this function returns the light 
     fractions of a spectrum using the algorithm described in detail in Marsh (1989, PASP 101, 1032). 
@@ -44,6 +44,9 @@ def getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing
     return_flat : bool
         (Optional) If `True`, returns the flattened version of the light fractions. Default is `False`.
 
+    data_variance : numpy.array
+        (Optional) Array containing the variances of each of the points in the 2-D `data` array. If defined, the `ron` and `gain` will be ignored.
+
     Returns
     -------
 
@@ -66,21 +69,45 @@ def getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing
         max_column = ncolumns
 
     # Calculate the light fractions (P's):
-    flattened_P = Marsh.ObtainP(flattened_data,
-                                centroids,
-                                nrows,
-                                ncolumns,
-                                ncentroids,
-                                aperture_radius,
-                                ron,
-                                gain,
-                                nsigma,
-                                polynomial_spacing,
-                                polynomial_order,
-                                0,
-                                min_column,
-                                max_column
-                  )
+    if data_variance is None:
+
+        flattened_P = Marsh.ObtainP(flattened_data,
+                                    centroids,
+                                    nrows,
+                                    ncolumns,
+                                    ncentroids,
+                                    aperture_radius,
+                                    ron,
+                                    gain,
+                                    nsigma,
+                                    polynomial_spacing,
+                                    polynomial_order,
+                                    0,
+                                    min_column,
+                                    max_column
+                                   )
+
+    else:
+
+        flat_ones_array = np.ones(nrows * ncolumns).astype('double')
+        flattened_variance = data_variance.flatten().astype('double')
+        flattened_P = Marsh.SObtainP(flattened_data,
+                                    flat_ones_array,
+                                    flattened_variance,
+                                    centroids,
+                                    nrows,
+                                    ncolumns,
+                                    ncentroids,
+                                    aperture_radius,
+                                    ron,
+                                    gain,
+                                    nsigma,
+                                    polynomial_spacing,
+                                    polynomial_order,
+                                    0,  
+                                    min_column,
+                                    max_column
+                                   )  
 
     # Obtain the P's back:
     P = np.asarray(flattened_P).astype('double')
@@ -92,7 +119,7 @@ def getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing
     # Return light fractions:
     return P
 
-def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, min_column = None, max_column = None, P = None, return_P = False):
+def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, min_column = None, max_column = None, P = None, return_P = False, data_variance = None):
 
     """
     Given a 2D-spectrum, this function returns the optimal extracted spectrum using the algorithm detailed in Marsh (1989, PASP 101, 1032). 
@@ -138,6 +165,9 @@ def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, poly
     return_P : bool
         (Optional) If `True`, function also returns the light fractions (P's).
 
+    data_variance : numpy.array
+        (Optional) Array containing the variances of each of the points in the 2-D `data` array. If defined, the `ron` and `gain` will be ignored.
+
     Returns
     -------
 
@@ -153,8 +183,15 @@ def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, poly
 
     else:
 
-        flattened_P = getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, 
-                            min_column = min_column, max_column = max_column, return_flat = True)
+        if data_variance is None:
+
+            flattened_P = getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, 
+                               min_column = min_column, max_column = max_column, return_flat = True)
+
+        else:
+
+            flattened_P = getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order,
+                               min_column = min_column, max_column = max_column, return_flat = True, data_variance = data_variance)
 
     # Prepare inputs:
     flattened_data = data.flatten().astype('double')
@@ -170,20 +207,43 @@ def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, poly
         max_column = ncolumns
 
     # Obtain extracted spectrum:
-    flattened_spectrum, size = Marsh.ObtainSpectrum(flattened_data,
-                                                    centroids,
-                                                    flattened_P,
-                                                    nrows,
-                                                    ncolumns,
-                                                    ncentroids,
-                                                    aperture_radius,
-                                                    ron,
-                                                    gain,
-                                                    polynomial_spacing,
-                                                    nsigma,
-                                                    min_column,
-                                                    max_column
-                               )
+    if data_variance is None:
+
+        flattened_spectrum, size = Marsh.ObtainSpectrum(flattened_data,
+                                                        centroids,
+                                                        flattened_P,
+                                                        nrows,
+                                                        ncolumns,
+                                                        ncentroids,
+                                                        aperture_radius,
+                                                        ron,
+                                                        gain,
+                                                        polynomial_spacing,
+                                                        nsigma,
+                                                        min_column,
+                                                        max_column
+                                                       )
+
+    else:
+
+        flat_ones_array = np.ones(nrows * ncolumns).astype('double')
+        flattened_variance = data_variance.flatten().astype('double')
+        flattened_spectrum, size = Marsh.ObtainSpectrum(flattened_data,
+                                                        flat_ones_array,
+                                                        flattened_variance,
+                                                        centroids,
+                                                        flattened_P,
+                                                        nrows,
+                                                        ncolumns,
+                                                        ncentroids,
+                                                        aperture_radius,
+                                                        ron,
+                                                        gain,
+                                                        polynomial_spacing,
+                                                        nsigma,
+                                                        min_column,
+                                                        max_column
+                                                       )
                           
     spectrum = np.asarray(flattened_spectrum) 
     spectrum.resize(3, size) 

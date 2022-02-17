@@ -485,22 +485,13 @@ static PyObject *Marsh_ObtainSpectrum(PyObject *self, PyObject *args){
         return MyResult;
 }
 
-
-/*                  [INITIALIZATION OF A METHOD]
-*------------------------THE SOBTAINP METHOD-----------------------------
-* PyObject initialization: We define a PyObject which defines a Method 
-* for the Marsh module: The ObtainP method which returns the P[i][j] spatial
-* light fractions back to Python. BE CAREFUL WITH THE INDEXES, remember
-* that i=rows, j=columns. According to Marsh's (1989) variables, j=X and
-* i=Y.
-*----------------------------------------------------------------------
-*/
-
 static PyObject *Marsh_SObtainP(PyObject *self, PyObject *args){
         struct timeval tim;
         gettimeofday(&tim, NULL);
         double t1=tim.tv_sec+(tim.tv_usec/1000000.0);
-	double *m,*varianceimage,*bimage,dvalue=0;
+        double *m,dvalue=0;
+        double *varianceimage=0;
+        double *bimage=0;
         double *v,*pmin,*pmax; // pmin,pmax: FREED (on the MarshIteration function)
         double C,S,Length,RON,GAIN,NSigma;
         int len_v,K,N,len_cols,len_rows,mode,range=-1,debug,isvarimage=1;
@@ -1327,12 +1318,11 @@ static PyObject *Marsh_SimpleExtraction(PyObject *self, PyObject *args){
 
 static PyMethodDef MarshMethods[] = {
 	{"ObtainP", Marsh_ObtainP, METH_VARARGS, "First step in the Method for optimum spectra obtention from Echelle Spectrographs: The obtention of the light fractions P."},
-	{"SObtainP", Marsh_ObtainP, METH_VARARGS, "Special function same as ObtainP, but for the case when we have a variance image."},
+	{"SObtainP", Marsh_SObtainP, METH_VARARGS, "Special function same as ObtainP, but for the case when we have a variance image."},
 	{"BObtainSpectrum", Marsh_BObtainSpectrum, METH_VARARGS, "Final step in the Method for optimum spectra obtention from Echelle Spectrographs: The obtention of the spectrum."},
         {"ObtainSpectrum", Marsh_ObtainSpectrum, METH_VARARGS, "Final step in the Method for optimum spectra obtention from Echelle Spectrographs: The obtention of the spectrum."},
 	{"SimpleExtraction", Marsh_SimpleExtraction,METH_VARARGS, "Function that performs a simple extraction for comparison with the Optimal Extraction algorithm."},
-        {"SObtainSpectrum", Marsh_ObtainSpectrum, METH_VARARGS, "Special function, same as ObtainSpectrum but when we have a variance image."},
-	{"SSimpleExtraction", Marsh_SimpleExtraction,METH_VARARGS, "Special function, same as SObtainSpectrum, but when we have a variance image."},
+        {"SObtainSpectrum", Marsh_SObtainSpectrum, METH_VARARGS, "Special function, same as ObtainSpectrum but when we have a variance image."},
 	{NULL, NULL, 0, NULL}
 };
 
