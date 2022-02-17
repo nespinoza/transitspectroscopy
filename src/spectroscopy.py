@@ -228,7 +228,7 @@ def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, poly
 
         flat_ones_array = np.ones(nrows * ncolumns).astype('double')
         flattened_variance = data_variance.flatten().astype('double')
-        flattened_spectrum, size = Marsh.ObtainSpectrum(flattened_data,
+        flattened_spectrum, size = Marsh.SObtainSpectrum(flattened_data,
                                                         flat_ones_array,
                                                         flattened_variance,
                                                         centroids,
