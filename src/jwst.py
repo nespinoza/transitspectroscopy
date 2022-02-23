@@ -394,18 +394,18 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         os.mkdir(outputfolder+'pipeline_outputs')
 
     # Open the uncal files through a datamodel:
-    uncal_data = datamodels.open(datafile)
+    uncal_data = datamodels.RampModel(datafile)
 
     # This fixes a bug in some simulated datasets:
     try:
+
         uncal_data.meta.dither.dither_points = int(uncal_data.meta.dither.dither_points)
+
     except:
+
         print('\n\t \t >> Warning: model.meta.dither.dither_points gave ', uncal_data.meta.dither.dither_points)
         print('\n\t \t >> Setting manually to 1.')
         uncal_data.meta.dither.dither_points = 1
-
-    # Make sure dates are in acceptable format for the pipeline:
-    uncal_data.meta.observation.date = '2022-05-26'
 
     # Extract times from uncal file:
     if get_times:
@@ -456,7 +456,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         else:
 
             print('\t >> dqinit step products found, loading them...')
-            output_dictionary['dqinit'] = datamodels.open(output_filename)
+            output_dictionary['dqinit'] = datamodels.RampModel(output_filename)
 
     else:
 
@@ -482,7 +482,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         else:
 
             print('\t >> saturation step products found, loading them...')
-            output_dictionary['saturation'] = datamodels.open(output_filename)
+            output_dictionary['saturation'] = datamodels.RampModel(output_filename)
 
     else:
 
@@ -509,7 +509,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         else:
 
             print('\t >> superbias step products found, loading them...')
-            output_dictionary['superbias'] = datamodels.open(output_filename)
+            output_dictionary['superbias'] = datamodels.RampModel(output_filename)
 
     else:
 
@@ -529,7 +529,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
             else:
 
                 print('\t >> refpix step products found, loading them...')
-                output_dictionary['refpix'] = datamodels.open(output_filename)
+                output_dictionary['refpix'] = datamodels.RampModel(output_filename)
 
     else:
 
@@ -592,7 +592,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
             else:
 
                 print('\t >> refpix LOOM step products found, loading them...')
-                refpix = datamodels.open(output_filename)
+                refpix = datamodels.RampModel(output_filename)
                 lmf_after, _ = get_last_minus_first(refpix.data, min_group = min_group, max_group = max_group)
 
             full_datapath += '_refpixstep_loom'
@@ -620,7 +620,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
             else:
 
                 print('\t >> refpix ROEBA step products found, loading them...')
-                refpix = datamodels.open(output_filename)
+                refpix = datamodels.RampModel(output_filename)
                 lmf_after, _ = get_last_minus_first(refpix.data, min_group = min_group, max_group = max_group)
 
             full_datapath += '_refpixstep_roeba'
@@ -651,7 +651,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         else:
 
             print('\t >> linearity step products found, loading them...')
-            output_dictionary['linearity'] = datamodels.open(output_filename)
+            output_dictionary['linearity'] = datamodels.RampModel(output_filename)
 
     else:
 
@@ -677,7 +677,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         else:
             
             print('\t >> darkcurrent step products found, loading them...')
-            output_dictionary['darkcurrent'] = datamodels.open(output_filename)
+            output_dictionary['darkcurrent'] = datamodels.RampModel(output_filename)
 
     else:
 
@@ -722,7 +722,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         else:
 
             print('\t >> jump step products found, loading them...')
-            output_dictionary['jumpstep'] = datamodels.open(output_filename)
+            output_dictionary['jumpstep'] = datamodels.RampModel(output_filename)
 
     else:
 
@@ -762,7 +762,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     else:
 
         print('\t >> rampfit step products found, loading them...')
-        rampstep = [datamodels.open(output_filename0), datamodels.open(output_filename1)]
+        rampstep = [datamodels.RampModel(output_filename0), datamodels.RampModel(output_filename1)]
 
     output_dictionary['rampstep'] = rampstep
 
@@ -783,7 +783,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
 
     else:
 
-        assign_wcs = datamodels.open(output_filename)
+        assign_wcs = datamodels.RampModel(output_filename)
 
     # And get the wavelength map:
     if get_wavelength_map:
