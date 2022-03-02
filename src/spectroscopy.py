@@ -3,6 +3,7 @@ from scipy.ndimage import median_filter
 from scipy.ndimage import gaussian_filter1d
 
 import Marsh
+import CCF
 
 def getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, min_column = None, max_column = None, return_flat = False, data_variance = None):
     """
@@ -535,12 +536,19 @@ def get_ccf(x, y, function = 'gaussian', pixelation = False, lag_step = 0.001):
 
     # Create array of lags:
     lags = np.arange(np.min(x), np.max(x), lag_step) 
-    ccf = np.zeros(len(lags))
 
-    # Compute CCF for all lags:
-    for i in range(len(lags)):
+    # If function is gaussian, use c-version:
+    if function == 'gaussian':
+
+        ccf = CCF.Gaussian(x.astype('double'), y.astype('double'), lags.astype('double'), len(x), len(lags), 0., 1.)
+
+    else:
+
+        ccf = np.zeros(len(lags))
+        # Compute CCF for all lags:
+        for i in range(len(lags)):
         
-        ccf[i] = np.correlate( y, f(x - lags[i]) )[0]    
+            ccf[i] = np.correlate( y, f(x - lags[i]) )[0]    
 
     return lags, ccf 
 

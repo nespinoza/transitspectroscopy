@@ -24,13 +24,14 @@ double* MakeVector(int nelements);                                   /* Function
 
 static PyObject *CCF_Gaussian(PyObject *self, PyObject *args){
 
-        // Definition of general and to-be-imported variables:
+    // Definition of general and to-be-imported variables:
+    int i,j;
 
-        int i,j;
-        double mu, sigma;
-        int len_data, len_lags;
+    double *x, *y, *lags;
+    double mu, sigma;
+    int len_data, len_lags;
 
-        PyObject *input_xarray, *input_yarray, *input_lags;
+    PyObject *input_xarray, *input_yarray, *input_lags;
 
 /* 
  *--------------------------------THE DATA---------------------------------------
@@ -62,24 +63,24 @@ static PyObject *CCF_Gaussian(PyObject *self, PyObject *args){
 
     // Big for loop that computes the CCF (GCCF stands for "Gaussian CCF"):
     double* GCCF = MakeVector(len_lags);
-    double argument, gaussian, g_norm;
+    double argument, gaussian, g_norm, g_exp_constant;
 
-    g_norm = ( 1. / sqrt( 2. * 3.142857) ) * (1. / sigma)
-    g_exp_constant = 1. / ( 2. * pow(sigma,2) )
+    g_norm = ( 1. / sqrt( 2. * 3.142857) ) * (1. / sigma);
+    g_exp_constant = 1. / ( 2. * pow(sigma,2) );
 
-    for(i=0; i < len_lags; i++){
+    for (i=0; i < len_lags; i++){
 
         // Compute CCF for a given lag:
         argument = 0;
-        for(j=0; j < len_data; j++){
+        for (j=0; j < len_data; j++){
 
-            gaussian = g_norm * exp( - ( pow(x[j] - mean - lags[i], 2) * g_exp_constant )
-            argument = argument + gaussian * y[j] 
+            gaussian = g_norm * exp( - ( pow(x[j] - mu - lags[i], 2) * g_exp_constant ));
+            argument = argument + gaussian * y[j]; 
 
         }
 
         // Store CCF result at the given lag:
-        GCCF[i] = argument
+        GCCF[i] = argument;
 
     }
      
@@ -87,10 +88,13 @@ static PyObject *CCF_Gaussian(PyObject *self, PyObject *args){
 
     PyObject *lst = PyList_New(len_lags);
 
-    if (!lst)
-    return NULL;
+    if (!lst){
 
-    for(i=0; i < len_lags; i++){
+       return NULL;
+
+    }
+
+    for (i=0; i < len_lags; i++){
 
         PyObject *num = PyFloat_FromDouble(GCCF[i]);
         if (!num){
@@ -113,7 +117,7 @@ static PyObject *CCF_Gaussian(PyObject *self, PyObject *args){
 }
 
 static PyMethodDef CCFMethods[] = {
-	{"Gaussian", CCF_Gaussian,METH_VARARGS, "Function that performs simple CCF of an input array with a gaussian."},
+	{"Gaussian", CCF_Gaussian, METH_VARARGS, "Function that performs simple CCF of an input array with a gaussian."},
 	{NULL, NULL, 0, NULL}
 };
 
@@ -126,16 +130,15 @@ static struct PyModuleDef CCF =
     CCFMethods
 };
 
-PyMODINIT_FUNC PyInit_CCF(void)
-{
-    return PyModule_Create(&CCF);
-}
-
-
 /*********************************************************************
  *          [UTILITY CCF FUNCTIONS]                                  *
  *********************************************************************
  */
+
+PyMODINIT_FUNC PyInit_CCF(void){
+
+    return PyModule_Create(&CCF);
+}
 
 double* MakeVector(int nelements){
 
