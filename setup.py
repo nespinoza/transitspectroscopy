@@ -19,7 +19,7 @@ marsh_module = Extension('Marsh',
 
 ccf_module = Extension('CCF',
                        sources = ['src/c-code/Utilities/CCF.c'],
-                       libraries=['gsl', 'gslcblas', 'm'],
+                       libraries=['m'],
                        include_dirs=[numpy.get_include(),'/usr/local/include'])
 
 setup(name='transitspectroscopy',
