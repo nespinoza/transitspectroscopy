@@ -439,12 +439,117 @@ def getSimpleSpectrum(data, x, y, aperture_radius, background_radius=50, error_d
     else:
         return flux
 
-def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, nsigma = 100, gauss_filter_width=10, xend=None, y_tolerance = 5, verbose = False):
+def gaussian(x, mean = 0., sigma = 1.):
     """
-    Function that non-parametrically traces spectra. First, to get the centroid at xstart and ystart, it convolves the spatial profile with a gaussian filter, 
-    finding its peak through usual flux-weighted centroiding. Next, this centroid is used as a starting point to find the centroid of the left column through 
-    the same algorithm. 
-    
+    This function returns a gaussian evaluated at x
+
+    Parameters
+    ----------
+
+    x : numpy.array
+        Array containing where the gaussian will be evaluated
+    mean : double
+        Mean of the gaussian.
+    sigma : double
+        Standard-deviation of the gaussian
+
+    Returns
+    -------
+    Gaussian evaluated at `x`.
+
+    """
+
+    norm = 1. / ( np.sqrt(2. * np.pi) * sigma )
+
+    return norm * np.exp( - ( (x - mean)**2 ) / (2 * sigma**2) )
+
+def double_gaussian(x, mean1 = -7.9, mean2 = 7.9, sigma1 = 1., sigma2 = 1.):
+    """
+    This function returns the sum of two gaussians evaluated at x. This function reproduces the expected separation of 
+    the "horns" in a NIRISS/SOSS profile.
+
+    Parameters
+    ----------
+
+    x : numpy.array
+        Array containing where the gaussian will be evaluated
+    mean1 : double
+        Mean of the first gaussian.
+    mean2 : double  
+        Mean of the second gaussian.
+    sigma1 : double
+        Standard-deviation of the first gaussian.
+    sigma2 : double
+        Standard-deviation of the second gaussian.
+
+    Returns
+    -------
+    Double gaussian evaluated at `x`.
+    """
+
+    return gaussian(x, mean1, sigma1) + gaussian(x, mean2, sigma2)
+
+def get_ccf(x, y, function = 'gaussian', pixelation = False, lag_step = 0.001):
+    """
+    Function that obtains the CCF between input data defined between x and y and a pre-defined function.
+
+    Parameters
+    ----------
+
+    x : numpy.array
+        Array containing the values at which each of the y-values are defined.
+    y : numpy.array
+        Array containing the input values.
+    function : string or function
+        String containing the function against which the CCF wants to be computed. Default is 'gaussian'; can also be 'double gaussian'. Alternatively it can be 
+        a function of choice that needs to be able to be evaluated at `x`.
+    pixelation : bool
+        Boolean deciding whether to apply pixelation effects (i.e., integrating function over a pixel)
+    lag_step : double
+        Steps used to lag the `function` along all the input x-values. Default is 0.001.
+        
+
+    Returns
+    -------
+    ccf : numpy.array
+        Array containing the cross-correlation function between y and the selected function
+
+    """
+
+    # Define function that will be evaluated to compute the CCF:
+    if not pixelation:
+
+        if type(function) is str:
+
+            if function == 'gaussian':
+
+                f = gaussian
+
+            elif function == 'double gaussian':
+            
+                f = double_gaussian
+
+        else:
+
+                f = function
+
+    # Create array of lags:
+    lags = np.arange(np.min(x), np.max(x), lag_step) 
+    ccf = np.zeros(len(lags))
+
+    # Compute CCF for all lags:
+    for i in range(len(lags)):
+        
+        ccf[i] = np.correlate( y, f(x - lags[i]) )[0]    
+
+    return lags, ccf 
+
+def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_outliers = True, nsigma = 100, median_filter_radius = 5, method = 'ccf', ccf_function = 'gaussian', ccf_step = 0.001, gaussian_filter = False, gauss_filter_width=10, xend=None, y_tolerance = 5, verbose = False):
+    """
+    Function that non-parametrically traces spectra. There are various methods to trace the spectra. The default method is `ccf`, which performs cross-correlation 
+    to find the trace positions given a user-specified function (default is 'gaussian'; can also be 'double gaussian' or a user-specified function). Tracing happens from columns 
+    `xstart` until `xend` --- default for `xend` is `0`.
+ 
     Parameters
     ----------
 
@@ -452,23 +557,38 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, nsigma = 1
         The image that wants to be traced.
     dqflags: ndarray
         The data quality flags for each pixel in the image. Only pixels with DQ flags of zero will be used 
-        in the centroiding.
+        in the tracing.
     xstart: float
         The x-position (column) on which the tracing algorithm will be started
     ystart: float
         The estimated y-position (row) of the center of the trace. An estimate within 10-20 pixels is enough.
     profile_radius: float
         Expected radius of the profile measured from its center. Only this region will be used to estimate 
-        the centroids of the spectrum.
+        the trace position of the spectrum.
+    correct_outliers : bool
+        Decide if to correct outliers or not on each column. If True, outliers are detected via a median filter.
     nsigma : float
-        Median filters are applied to each column in search of outliers. This number defines how many n-sigma above the noise level 
-        the residuals of the median filter and the image should be considered outliers.
-    gauss_filter_width: float
-        Width of the gaussian filter used to perform the centroiding of the first column
+        Median filters are applied to each column in search of outliers if `correct_outliers` is `True`. `nsigma` defines 
+        how many n-sigma above the noise level the residuals of the median filter and the image should be considered outliers. 
+    median_filter_radius : int
+        Radius of the median filter in case `correct_outliers` is `True`. Needs to be an odd number. Default is `5`.
+    method : string
+        Method by which the tracing is expected to happen. Default is `ccf`; can also be `centroid`, which will use the centroid of each column 
+        to estimate the center of the trace.
+    ccf_function : string or function
+        Function to cross-correlate cross-dispersion profiles against. Default is `gaussian` (useful for most instruments) --- can also be `double gaussian` (useful for 
+        e.g., NIRISS/SOSS --- double gaussian separation tailored to that instrument). Alternatively, a function can be passed directly --- this function needs to be 
+        evaluated at a set of arrays `x`, and be centered at `x=0`.
+    ccf_step : double
+        Step at which the CCF will run. The smallest, the most accurate, but also the slower the CCF method is. Default is `0.001`.
+    gaussian_filter : bool
+        Flag that defines if each column will be convolved with a gaussian filter (good to smooth profile to match a gaussian better). Default is `False`.
+    gauss_filter_width : float
+        Width of the gaussian filter used to perform the centroiding of the first column, if `gaussian_filter` is `True`.
     xend: int
         x-position at which tracing ends. If none, trace all the columns left to xstart.
     y_tolerance: float
-        When tracing, if the difference between the two difference centroids at two contiguous columns is larger than this, 
+        When tracing, if the difference between the two difference traces at two contiguous columns is larger than this, 
         then assume tracing failed (e.g., cosmic ray).
     verbose: boolean
         If True, print error messages.
@@ -477,38 +597,58 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, nsigma = 1
     -------
 
     x : numpy.array
-        Columns at which the centroid is calculated.
+        Columns at which the trace position is being calculated.
     y : numpy.array
-        Calculated centroids.
+        Estimated trace position.
     """
     
     # Define x-axis:
     if xend is not None:
-        x = np.arange(xend, xstart + 1)
+
+        if xend < xstart:
+
+            x = np.arange(xend, xstart + 1)
+            indexes = range(len(x))[::-1]
+            direction = 'left'
+
+        else:
+
+            x = np.arange(xstart, xend + 1)
+            indexes = range(len(x))
+            direction = 'right'
+
     else:
+
         x = np.arange(0, xstart + 1)
         
     # Define y-axis:
     y = np.arange(image.shape[0])
     
-    # Define status of good/bad for each centroid:
+    # Define status of good/bad for each trace position:
     status = np.full(len(x), True, dtype=bool)
+   
+    # Define array that will save trace at each x:
+    ytraces = np.zeros(len(x))
     
-    # Define array that will save centroids at each x:
-    ycentroids = np.zeros(len(x))
-    
-    for i in range(len(x))[::-1]:
+    for i in indexes:
+
         xcurrent = x[i]
 
         # Perform median filter to identify nasty (i.e., cosmic rays) outliers in the column:
-        mf = median_filter(image[:,xcurrent], size = 5)
-        residuals = mf - image[:,xcurrent]
-        mad_sigma = get_mad_sigma(residuals)
-        column_nsigma = np.abs(residuals) / mad_sigma
+        if correct_outliers:
+      
+            mf = median_filter(image[:,xcurrent], size = median_filter_size)
+            residuals = mf - image[:,xcurrent]
+            mad_sigma = get_mad_sigma(residuals)
+            column_nsigma = np.abs(residuals) / mad_sigma
+
+        else:
+
+            column_sigma = np.ones(image.shape[0]) * nsigma
         
         # Extract data-quality flags for current column; index good pixels --- mask nans as well:
         idx_good = np.where((dqflags[:, xcurrent] == 0) & (~np.isnan(image[:, xcurrent]) & (column_nsigma < nsigma)))[0]        
-        idx_bad = np.where(~(dqflags[:, xcurrent] == 0) & (~np.isnan(image[:, xcurrent]) & (column_nsigma < nsigma)))[0]
+        idx_bad = np.where(~((dqflags[:, xcurrent] == 0) & (~np.isnan(image[:, xcurrent]) & (column_nsigma < nsigma))))[0]
         
         if len(idx_good) > 0:
 
@@ -516,37 +656,62 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, nsigma = 1
             column_data = np.copy(image[:, xcurrent])
             column_data[idx_bad] = mf[idx_bad]
 
-            # Convolve column with a gaussian filter; remove median before convolving:
-            filtered_column = gaussian_filter1d(column_data - \
-                                                np.median(column_data), gauss_filter_width)
-    
-            # Find centroid within profile_radius pixels of the initial guess:
-            idx = np.where(np.abs(y - ystart) < profile_radius)[0]
-            ycentroids[i] = np.sum(y[idx] * filtered_column[idx]) / np.sum(filtered_column[idx])
+            if gaussian_filter:
 
-            # Get the difference of the current centroid with the previous one (if any):
+                # Convolve column with a gaussian filter; remove median before convolving:
+                filtered_column = gaussian_filter1d(column_data - \
+                                                    np.median(column_data), gauss_filter_width)
+
+            else:
+
+                filtered_column = column_data - np.median(column_data)
+    
+            # Find trace depending on the method, only within pixels close to profile_radius:
+            idx = np.where(np.abs(y - ystart) < profile_radius)[0]
+            if method == 'ccf':
+
+                # Run CCF search using only the pixels within profile_radius:
+                lags, ccf = get_ccf(y[idx], filtered_column[idx], function = ccf_function, lag_step = ccf_step)
+                idx_max = np.where(ccf == np.max(ccf))[0]
+                
+                ytraces[i] = lags[idx_max]
+
+                print ('here goes the ccf method')
+
+            elif method == 'centroid':
+ 
+                # Find pixel centroid within profile_radius pixels of the initial guess:
+                ytraces[i] = np.sum(y[idx] * filtered_column[idx]) / np.sum(filtered_column[idx])
+
+            else:
+        
+                raise Exception('Cannot trace spectra with method "'+method+'": method not recognized. Available methods are "ccf" and "centroid"')
+
+            # Get the difference of the current trace position with the previous one (if any):
             if xcurrent != x[-1]:
 
-                previous_centroid = ycentroids[i + 1]
-                difference = np.abs(previous_centroid - ycentroids[i])
+                previous_trace = ytraces[i + 1]
+                difference = np.abs(previous_trace - ytraces[i])
 
                 if (difference > y_tolerance):
 
                     if verbose:
-                        print('Tracing failed at column',xcurrent,'; estimated centroid:',ycentroids[i],', previous one:',previous_centroid,'> than tolerance: ',y_tolerance,\
+                        print('Tracing failed at column',xcurrent,'; estimated trace position:',ytraces[i],', previous one:',previous_trace,'> than tolerance: ',y_tolerance,\
                               '. Replacing with closest good trace position.')
 
-                    ycentroids[i] = previous_centroid
+                    ytraces[i] = previous_trace
                     
 
-            ystart = ycentroids[i]
+            ystart = ytraces[i]
+
         else:
-            print(xcurrent,'is a bad column. Setting to previous centroid:')
-            ycentroids[i] = previous_centroid
+
+            print(xcurrent,'is a bad column. Setting to previous trace position:')
+            ytraces[i] = previous_trace
             status[i] = True
     
-    # Return all centroids:
-    return x, ycentroids
+    # Return all trace positions:
+    return x, ytraces
 
 def get_mad_sigma(x):
 
