@@ -637,7 +637,7 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
         # Perform median filter to identify nasty (i.e., cosmic rays) outliers in the column:
         if correct_outliers:
       
-            mf = median_filter(image[:,xcurrent], size = median_filter_size)
+            mf = median_filter(image[:,xcurrent], size = median_filter_radius)
             residuals = mf - image[:,xcurrent]
             mad_sigma = get_mad_sigma(residuals)
             column_nsigma = np.abs(residuals) / mad_sigma
