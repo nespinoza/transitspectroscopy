@@ -676,8 +676,6 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
                 
                 ytraces[i] = lags[idx_max]
 
-                print ('here goes the ccf method')
-
             elif method == 'centroid':
  
                 # Find pixel centroid within profile_radius pixels of the initial guess:
