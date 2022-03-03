@@ -570,7 +570,7 @@ def get_ccf(x, y, function = 'gaussian', parameters = None, pixelation = False, 
 
     return lags, ccf 
 
-def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_outliers = True, nsigma = 100, median_filter_radius = 5, method = 'ccf', ccf_function = 'gaussian', ccf_parameters = None, ccf_step = 0.001, gaussian_filter = False, gauss_filter_width=10, xend=None, y_tolerance = 5, verbose = False):
+def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_outliers = False, nsigma = 100, median_filter_radius = 5, method = 'ccf', ccf_function = 'gaussian', ccf_parameters = None, ccf_step = 0.001, gaussian_filter = False, gauss_filter_width=10, xend=None, y_tolerance = 5, verbose = False):
     """
     Function that non-parametrically traces spectra. There are various methods to trace the spectra. The default method is `ccf`, which performs cross-correlation 
     to find the trace positions given a user-specified function (default is 'gaussian'; can also be 'double gaussian' or a user-specified function). Tracing happens from columns 
@@ -672,7 +672,7 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
 
         else:
 
-            column_sigma = np.ones(image.shape[0]) * nsigma
+            column_nsigma = np.zeros(image.shape[0]) * nsigma
         
         # Extract data-quality flags for current column; index good pixels --- mask nans as well:
         idx_good = np.where((dqflags[:, xcurrent] == 0) & (~np.isnan(image[:, xcurrent]) & (column_nsigma < nsigma)))[0]        
