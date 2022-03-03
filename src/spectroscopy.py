@@ -570,7 +570,7 @@ def get_ccf(x, y, function = 'gaussian', parameters = None, pixelation = False, 
 
     return lags, ccf 
 
-def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_outliers = False, nsigma = 100, median_filter_radius = 5, method = 'ccf', ccf_function = 'gaussian', ccf_parameters = None, ccf_step = 0.001, gaussian_filter = False, gauss_filter_width=10, xend=None, y_tolerance = 5, verbose = False):
+def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_outliers = False, nsigma = 100, median_filter_radius = 5, method = 'ccf', ccf_function = 'gaussian', ccf_parameters = None, ccf_step = 0.001, gaussian_filter = False, gauss_filter_width=10, xend=None, y_tolerance = 2, verbose = False):
     """
     Function that non-parametrically traces spectra. There are various methods to trace the spectra. The default method is `ccf`, which performs cross-correlation 
     to find the trace positions given a user-specified function (default is 'gaussian'; can also be 'double gaussian' or a user-specified function). Tracing happens from columns 
@@ -587,7 +587,7 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
     xstart: float
         The x-position (column) on which the tracing algorithm will be started
     ystart: float
-        The estimated y-position (row) of the center of the trace. An estimate within 10-20 pixels is enough.
+        The estimated y-position (row) of the center of the trace. An estimate within a few pixels is enough (defined by y_tolerance).
     profile_radius: float
         Expected radius of the profile measured from its center. Only this region will be used to estimate 
         the trace position of the spectrum.
@@ -663,9 +663,10 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
         xcurrent = x[i]
 
         # Perform median filter to identify nasty (i.e., cosmic rays) outliers in the column:
+        mf = median_filter(image[:,xcurrent], size = median_filter_radius)
+
         if correct_outliers:
       
-            mf = median_filter(image[:,xcurrent], size = median_filter_radius)
             residuals = mf - image[:,xcurrent]
             mad_sigma = get_mad_sigma(residuals)
             column_nsigma = np.abs(residuals) / mad_sigma
@@ -677,15 +678,12 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
         # Extract data-quality flags for current column; index good pixels --- mask nans as well:
         idx_good = np.where((dqflags[:, xcurrent] == 0) & (~np.isnan(image[:, xcurrent]) & (column_nsigma < nsigma)))[0]        
         idx_bad = np.where(~((dqflags[:, xcurrent] == 0) & (~np.isnan(image[:, xcurrent]) & (column_nsigma < nsigma))))[0]
-        
+       
         if len(idx_good) > 0:
 
             # Replace bad values with the ones in the median filter:
             column_data = np.copy(image[:, xcurrent])
-
-            if correct_outliers:
-
-                column_data[idx_bad] = mf[idx_bad]
+            column_data[idx_bad] = mf[idx_bad]
 
             if gaussian_filter:
 
