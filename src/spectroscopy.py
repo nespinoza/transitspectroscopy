@@ -521,7 +521,7 @@ def get_ccf(x, y, function = 'gaussian', pixelation = False, lag_step = 0.001):
     lags = np.arange(np.min(x), np.max(x), lag_step) 
 
     # Define which functions to use. All are coded in C (see c-codes/Utilities/CCF.c)
-    if type(function) is 'str':
+    if type(function) is str:
 
         if function == 'gaussian':
 
