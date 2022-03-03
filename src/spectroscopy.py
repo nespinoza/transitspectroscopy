@@ -517,38 +517,35 @@ def get_ccf(x, y, function = 'gaussian', pixelation = False, lag_step = 0.001):
 
     """
 
-    # Define function that will be evaluated to compute the CCF:
-    if not pixelation:
-
-        if type(function) is str:
-
-            if function == 'gaussian':
-
-                f = gaussian
-
-            elif function == 'double gaussian':
-            
-                f = double_gaussian
-
-        else:
-
-                f = function
-
     # Create array of lags:
     lags = np.arange(np.min(x), np.max(x), lag_step) 
 
-    # If function is gaussian, use c-version:
-    if function == 'gaussian':
+    # Define which functions to use. All are coded in C (see c-codes/Utilities/CCF.c)
+    if type(function) is 'str':
 
-        ccf = CCF.Gaussian(x.astype('double'), y.astype('double'), lags.astype('double'), len(x), len(lags), 0., 1.)
+        if function == 'gaussian':
+
+            ccf = CCF.Gaussian(x.astype('double'), y.astype('double'), lags.astype('double'), len(x), len(lags), 0., 1.)
+
+        elif function == 'double gaussian':
+
+            ccf = CCF.DoubleGaussian(x.astype('double'), y.astype('double'), lags.astype('double'), len(x), len(lags), -7.9, 1., 7.9, 1.)
+
+        else:
+        
+            raise Exception('Function '+function+' not available for CCF. Try "gaussian", "double gaussian" or define your own function as input.')
 
     else:
 
-        ccf = np.zeros(len(lags))
-        # Compute CCF for all lags:
-        for i in range(len(lags)):
-        
-            ccf[i] = np.correlate( y, f(x - lags[i]) )[0]    
+        # Create matrix of dimensions [len(lags), len(x)]; each row contains x - lags[i]:
+        all_lags = np.tile( x.astype('double'), (len(lags), 1) )
+        all_lags = (all_lags.transpose() - lags).transpose()
+
+        # Evaluate input function at those lags:
+        evaluated_function = function(all_lags)
+
+        # Compute CCF in C:
+        ccf = CCF.AnyFunction(y.astype('double'), evaluated_function.flatten(), len(x), len(lags))
 
     return lags, ccf 
 
