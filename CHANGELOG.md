@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Option to trace spectra using CCF instead; implemented gaussian and double gaussian (useful for SOSS).
 - Various CCF utilities.
 - Set by default no gaussian filtering on the tracing; variable median filter window (and optional outlier detection with it).
+- Create c-functions that perform CCF against gaussian, double gaussian and arbitrary functions (x40, speed increase)
+- Made c-functions the default for CCF while tracing.
 ### Changed
 - Bumped version number.
 
