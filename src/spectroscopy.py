@@ -682,7 +682,10 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
 
             # Replace bad values with the ones in the median filter:
             column_data = np.copy(image[:, xcurrent])
-            column_data[idx_bad] = mf[idx_bad]
+
+            if correct_outliers:
+
+                column_data[idx_bad] = mf[idx_bad]
 
             if gaussian_filter:
 
