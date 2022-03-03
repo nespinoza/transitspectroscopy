@@ -490,7 +490,7 @@ def double_gaussian(x, mean1 = -7.9, mean2 = 7.9, sigma1 = 1., sigma2 = 1.):
 
     return gaussian(x, mean1, sigma1) + gaussian(x, mean2, sigma2)
 
-def get_ccf(x, y, function = 'gaussian', pixelation = False, lag_step = 0.001):
+def get_ccf(x, y, function = 'gaussian', parameters = None, pixelation = False, lag_step = 0.001):
     """
     Function that obtains the CCF between input data defined between x and y and a pre-defined function.
 
@@ -504,6 +504,11 @@ def get_ccf(x, y, function = 'gaussian', pixelation = False, lag_step = 0.001):
     function : string or function
         String containing the function against which the CCF wants to be computed. Default is 'gaussian'; can also be 'double gaussian'. Alternatively it can be 
         a function of choice that needs to be able to be evaluated at `x`.
+    parameters : list
+        Parameters for the input function. For the gaussian, the first item identifies the mean, the second the standard deviation. For the double gaussian, the first two 
+        are the mean and standard deviation of the first gaussian, the last two are the mean and standard deviation of the second gaussian. Default is None, in which case 
+        the 'gaussian' is set to mean 0 and standard deviaton of 1, and for the 'double gaussian', the standard deviations are also 1, but the mean of the first and second 
+        gaussians are set to -7.9 and +7.9 --- these are consistent with the distance between SOSS' horns.
     pixelation : bool
         Boolean deciding whether to apply pixelation effects (i.e., integrating function over a pixel)
     lag_step : double
@@ -525,11 +530,27 @@ def get_ccf(x, y, function = 'gaussian', pixelation = False, lag_step = 0.001):
 
         if function == 'gaussian':
 
-            ccf = CCF.Gaussian(x.astype('double'), y.astype('double'), lags.astype('double'), len(x), len(lags), 0., 1.)
+            if parameters is None:
+            
+                mean, sigma = 0., 1.
+
+            else:
+
+                mean, sigma = parameters
+
+            ccf = CCF.Gaussian(x.astype('double'), y.astype('double'), lags.astype('double'), len(x), len(lags), mean, sigma)
 
         elif function == 'double gaussian':
 
-            ccf = CCF.DoubleGaussian(x.astype('double'), y.astype('double'), lags.astype('double'), len(x), len(lags), -7.9, 1., 7.9, 1.)
+            if parameters is None:
+        
+                mean1, sigma1, mean2, sigma2 = -7.9, 1., 7.9, 1.
+
+            else:
+
+                mean1, sigma1, mean2, sigma2 = parameters
+
+            ccf = CCF.DoubleGaussian(x.astype('double'), y.astype('double'), lags.astype('double'), len(x), len(lags), mean1, sigma1, mean2, sigma2)
 
         else:
         
@@ -549,7 +570,7 @@ def get_ccf(x, y, function = 'gaussian', pixelation = False, lag_step = 0.001):
 
     return lags, ccf 
 
-def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_outliers = True, nsigma = 100, median_filter_radius = 5, method = 'ccf', ccf_function = 'gaussian', ccf_step = 0.001, gaussian_filter = False, gauss_filter_width=10, xend=None, y_tolerance = 5, verbose = False):
+def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_outliers = True, nsigma = 100, median_filter_radius = 5, method = 'ccf', ccf_function = 'gaussian', ccf_parameters = None, ccf_step = 0.001, gaussian_filter = False, gauss_filter_width=10, xend=None, y_tolerance = 5, verbose = False):
     """
     Function that non-parametrically traces spectra. There are various methods to trace the spectra. The default method is `ccf`, which performs cross-correlation 
     to find the trace positions given a user-specified function (default is 'gaussian'; can also be 'double gaussian' or a user-specified function). Tracing happens from columns 
@@ -584,6 +605,8 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
         Function to cross-correlate cross-dispersion profiles against. Default is `gaussian` (useful for most instruments) --- can also be `double gaussian` (useful for 
         e.g., NIRISS/SOSS --- double gaussian separation tailored to that instrument). Alternatively, a function can be passed directly --- this function needs to be 
         evaluated at a set of arrays `x`, and be centered at `x=0`.
+    ccf_parameters : list
+        Parameters of the function against which data will be CCF'ed. For details, see the get_ccf function; default is None, which defaults to the get_ccf defaults.
     ccf_step : double
         Step at which the CCF will run. The smallest, the most accurate, but also the slower the CCF method is. Default is `0.001`.
     gaussian_filter : bool
@@ -676,7 +699,7 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
             if method == 'ccf':
 
                 # Run CCF search using only the pixels within profile_radius:
-                lags, ccf = get_ccf(y[idx], filtered_column[idx], function = ccf_function, lag_step = ccf_step)
+                lags, ccf = get_ccf(y[idx], filtered_column[idx], function = ccf_function, parameters = ccf_parameters, lag_step = ccf_step)
                 idx_max = np.where(ccf == np.max(ccf))[0]
                 
                 ytraces[i] = lags[idx_max]
