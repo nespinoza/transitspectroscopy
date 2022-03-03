@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Set by default no gaussian filtering on the tracing; variable median filter window (and optional outlier detection with it).
 - Create c-functions that perform CCF against gaussian, double gaussian and arbitrary functions (x40, speed increase)
 - Made c-functions the default for CCF while tracing.
+- Added the `tests` folder; these could become unit tests.
 ### Changed
 - Bumped version number.
 
