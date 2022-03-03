@@ -33,7 +33,7 @@ gain = 1.
 nsigma = 10
 polynomial_spacing = 0.5
 polynomial_order = 2
-optimal_spectrum = spectroscopy.getOptimalSpectrum(data, y, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order)
+optimal_spectrum = spectroscopy.getOptimalSpectrum(data, y, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, data_variance = np.ones(data.shape))
 
 # Plot:
 plt.plot(x, simple_spectrum, label = 'Simple spectrum', alpha = 0.5)
