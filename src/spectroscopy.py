@@ -657,7 +657,8 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
    
     # Define array that will save trace at each x:
     ytraces = np.zeros(len(x))
-    
+   
+    first_time = True 
     for i in indexes:
 
         xcurrent = x[i]
@@ -715,19 +716,31 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
                 raise Exception('Cannot trace spectra with method "'+method+'": method not recognized. Available methods are "ccf" and "centroid"')
 
             # Get the difference of the current trace position with the previous one (if any):
-            if xcurrent != x[-1]:
+            if not first_time:
+    
+                if direction == 'left':
 
-                previous_trace = ytraces[i + 1]
-                difference = np.abs(previous_trace - ytraces[i])
+                    previous_trace = ytraces[i + 1]
 
-                if (difference > y_tolerance):
+                else:
 
-                    if verbose:
-                        print('Tracing failed at column',xcurrent,'; estimated trace position:',ytraces[i],', previous one:',previous_trace,'> than tolerance: ',y_tolerance,\
-                              '. Replacing with closest good trace position.')
+                    previous_trace = ytraces[i - 1]
 
-                    ytraces[i] = previous_trace
-                    
+            else:
+                
+                previous_trace = ystart
+                first_time = False
+
+
+            difference = np.abs(previous_trace - ytraces[i])
+
+            if (difference > y_tolerance):
+
+                if verbose:
+                    print('Tracing failed at column',xcurrent,'; estimated trace position:',ytraces[i],', previous one:',previous_trace,'> than tolerance: ',y_tolerance,\
+                          '. Replacing with closest good trace position.')
+
+                ytraces[i] = previous_trace
 
             ystart = ytraces[i]
 
