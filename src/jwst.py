@@ -89,9 +89,12 @@ def get_roeba(data, mask):
     # First compute odd-even model:
     roeba[::2,:] = np.nanmedian(nan_data[::2,:])
     roeba[1::2,:] = np.nanmedian(nan_data[1::2,:])
-
+    
+    slowread_model = np.copy(roeba)
+    odd_even_corr = nan_data - slowread_model
+    
     # Now do one-over-f:
-    roeba += np.nanmedian(nan_data, axis = 0)
+    roeba += np.nanmedian(odd_even_corr, axis = 0)
 
     # Return model:
     return roeba
