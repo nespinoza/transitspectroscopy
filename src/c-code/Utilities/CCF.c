@@ -264,7 +264,7 @@ static PyObject *CCF_AnyFunction(PyObject *self, PyObject *args){
 */
 
     // Read in python data:
-    PyArg_ParseTuple(args, "OOii", &input_xarray, &input_evaluated_function, &len_data, &len_lags);
+    PyArg_ParseTuple(args, "OOii", &input_yarray, &input_evaluated_function, &len_data, &len_lags);
 
     // Convert python objects back to C arrays:
     y = ARRAYD(input_yarray);
