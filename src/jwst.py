@@ -751,7 +751,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
                                                                        maximum_cores = maximum_cores,
                                                                        override_readnoise = kwargs['override_readnoise'])
 
-        elif 'override_gain':
+        elif 'override_gain' in kwargs.keys():
 
             rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
                                                                        maximum_cores = maximum_cores,
