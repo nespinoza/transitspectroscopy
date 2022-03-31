@@ -765,7 +765,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     else:
 
         print('\t >> rampfit step products found, loading them...')
-        rampstep = [datamodels.RampModel(output_filename0), datamodels.RampModel(output_filename1)]
+        rampstep = [datamodels.open(output_filename0), datamodels.open(output_filename1)]
 
     output_dictionary['rampstep'] = rampstep
 
@@ -786,7 +786,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
 
     else:
 
-        assign_wcs = datamodels.RampModel(output_filename)
+        assign_wcs = datamodels.open(output_filename)
 
     # And get the wavelength map:
     if get_wavelength_map:
