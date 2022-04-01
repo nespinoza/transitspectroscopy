@@ -265,7 +265,52 @@ def get_last_minus_first(data, min_group = None, max_group = None):
     # Return products:
     return lmf, median_lmf
 
-def get_uniluminated_mask(data, nsigma = 3):
+def spill_filter(mask, spill_length = 10, box_length = 20, fraction = 0.5):
+    """
+    Filter that "spills" a value of 0 in an image, around all pixels that have values of 0 --- except in the corner of the images. Only pixels on which a box around it of 
+    length box_length have more than `fraction` pixels with zeros are able to spill zeroes.
+
+    Parameters
+    ----------
+
+    mask : numpy.array
+        Numpy array with values of 0 and 1's.
+
+    spill_length : int
+        For each pixel with a value of 0, this sets the radius around which pixels will be also set as zero.
+
+    box_length : int
+        Box for checking fractions of zero-pixels
+    
+    fraction : float
+        Minimum fraction of zero pixels to activate the algorithm
+
+    """
+
+    new_mask = np.copy(mask)
+
+    rows, columns = mask.shape
+
+    idx = np.where( mask == 0 )
+
+    for i in range( len(idx[0]) ):
+
+        row, column = idx[0][i], idx[1][i]
+
+        if row > 5 and row < rows-5 and column > 5 and column < columns - 5:
+
+            box = mask[row - int(box_length*0.5) : row + int(box_length*0.5), column - int(box_length*0.5) : column + int(box_length*0.5)]
+
+            idx_box = np.where(box == 0.)[0]
+            current_fraction = np.double( len(idx_box) ) / np.double(box.shape[0] * box.shape[1])
+
+            if current_fraction > fraction:
+
+                new_mask[row-spill_length:row+spill_length, column-spill_length:column+spill_length] = 0
+
+    return new_mask 
+
+def get_uniluminated_mask(data, pixeldq = None, nsigma = 3, first_time = True, spill_length = 10):
     """
     Given a frame (or group, or average of integrations) --- this function masks all pixels that are uniluminated. The function 
     returns 1's on all uniluminated pixels, and 0's on all illuminated ones.
@@ -275,8 +320,19 @@ def get_uniluminated_mask(data, nsigma = 3):
 
     data : numpy.array
         Numpy array of dimension [npixels, npixels], i.e., a frame, group, average of integrations, etc.
+
+    pixeldq : numpy.array
+        Numpy array of same dimensions as data, containing pixel data-qualities. Only pixels with values of 0 will be used to 
+        perform calculations.
+
     nsigma : double
         (Optional) n-sigma to define above which, at each column, a pixel is illuminated.
+
+    first_time : bool
+        (Optional) If True, this is the first time this function is called (useful for recursions).
+
+    spill_length : int
+        (Optional) Number of pixels on which the mask will "spill" around.
 
     Returns
     ---------
@@ -285,17 +341,26 @@ def get_uniluminated_mask(data, nsigma = 3):
         Numpy array with masked pixels. 1's are uniluminated pixels; 0's are illuminated ones
 
     """
+    # Create output mask:
+    mask = np.ones(data.shape)
+
+    # Create bad-pixel mask, if pixeldq is available:
+    data_quality = np.ones(data.shape)
+
+    if pixeldq is not None:
+
+        idx_bad_pixels = np.where( pixeldq != 0 )
+        data_quality[idx_bad_pixels] = np.nan
+        mask[idx_bad_pixels] = 0 # Mask bad pixels out
 
     # Get column-to-column level (to account for 1/f):
-    cc = np.median(data, axis=0)
-    # Create mask:  
-    mask = np.ones(data.shape)
+    cc = np.nanmedian(data * data_quality, axis=0)
 
     # Iterate throughout columns to find uniluminated pixels:
     for i in range(len(cc)):
 
         # Get sigma:
-        column_residuals = data[:,i] - cc[i]
+        column_residuals = ( data[:, i] - cc[i] ) * data_quality[:, i]
         mad = np.nanmedian(np.abs(column_residuals - np.nanmedian(column_residuals)))
         sigma = mad * 1.4826
 
@@ -305,10 +370,18 @@ def get_uniluminated_mask(data, nsigma = 3):
         # Mask them:
         mask[idx, i] = 0
 
-    # Return mask:
-    return mask
+    # Mask all bad pixels:
+    mask[idx_bad_pixels] = 0
 
-def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'loom', skip_steps = [], outputfolder = '', uniluminated_mask = None, **kwargs):
+    # Run same algorithm one more time:
+    if first_time:
+    
+        mask = get_uniluminated_mask(data, pixeldq = mask - 1, nsigma = nsigma, first_time = False)
+    
+    # Return mask after spill-filter:
+    return spill_filter(mask, spill_length = spill_length)
+
+def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'loom', skip_steps = [], outputfolder = '', uniluminated_mask = None, instrument = 'niriss', **kwargs):
     """
     This function calibrates an *uncal.fits file through a "special" version of the JWST TSO CalWebb Stage 1, also passing the data through the assign WCS step to 
     get the wavelength map from Stage 2. With all this, this function by default returns the rates per integrations, errors on those rates, data-quality flags, 
@@ -559,7 +632,11 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         # Generate mask of uniluminated pixels from the median last-minus-first frame, if not available:
         if uniluminated_mask is None:
 
-            mask = get_uniluminated_mask(median_lmf)
+            mask = get_uniluminated_mask(median_lmf, pixeldq = output_dictionary['superbias'].pixeldq)
+
+            if instrument == 'niriss':
+
+                mask[0:150, 1000:] = 0.
 
         else:
 
