@@ -1,5 +1,7 @@
 import numpy as np
 
+from scipy.interpolate import splrep, splev
+
 def get_phases(t,P,t0):
     """
     Given input times, a period (or posterior dist of periods)
@@ -78,3 +80,77 @@ def get_quantiles(dist,alpha = 0.68, method = 'median'):
           param = ordered_dist[med_idx]
           return param,ordered_dist[med_idx+nsamples_at_each_side],\
                  ordered_dist[med_idx-nsamples_at_each_side]
+
+def fit_spline(x, y, nknots = None, x_knots = None):
+    """
+    This function fits a spline to data `x` and `y`. The code can be use in three ways: 
+
+    1.  Passing a value to `nknots`; in that case, `nknots` equally spaced knots will be placed along `x` 
+        to fit the data.
+
+    2.  Passing an array to `x_knots`. In this case, knots will be placed at `x_knots`.
+
+    3.  Passing a list of `nknots` and `x_knots`. In this case, each element of `x_knots` is assumed to be the lower and 
+        upper limits of a region; the corresponding element of `nknots` will be used to put equally spaced knots in 
+        that range.
+
+    Parameters
+    ----------
+
+    x : numpy.array
+        x-values for input data.
+        
+    y : numpy.array
+        y-values for input data.
+
+    nknots : int or list
+        Number of knots to be used.
+
+    x_knots : numpy.array or list
+        Position of the knots or regions of knots (see description)
+
+    Returns
+    -------
+
+    function : spline object
+        Function over which the spline can be evaluated at.
+    prediction : numpy.array
+        Array of same dimensions of `x` and `y` with the spline evaluated at the input `x`.
+
+    """
+
+    xmin, xmax = np.min(x), np.max(x)
+
+    if (nknots is not None) and (x_knots is not None): 
+
+        knots = np.array([])
+        for i in range( len(x_knots) ):
+
+            knots = np.append( knots, np.linspace(x_knots[i][0], x_knots[i][1], nknots[i])  )
+
+    elif x_knots is not None:
+
+        knots = x_knots
+
+    elif nknots is not None:
+
+        idx = np.argsort(x)
+
+        knots = np.linspace(x[idx][1], x[idx][-2], nknots)
+
+    # Check knots are well-positioned:
+    if np.min(knots) <= xmin:
+
+        raise Exception('Lower knot cannot be equal or smaller than the smallest x input value.')
+
+    if np.max(knots) >= xmax:
+
+        raise Exception('Higher knot cannot be equal or larger than the largest x input value.')
+
+    # Obtain spline representation:
+    tck = splrep(x, y, t = knots)
+    function = lambda x: splev(x, tck)
+
+    # Return it:
+    return function, function(x)
+
