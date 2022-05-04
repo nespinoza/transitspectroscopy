@@ -381,7 +381,7 @@ def get_uniluminated_mask(data, pixeldq = None, nsigma = 3, first_time = True, s
     # Return mask after spill-filter:
     return spill_filter(mask, spill_length = spill_length)
 
-def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'loom', skip_steps = [], outputfolder = '', uniluminated_mask = None, instrument = 'niriss', **kwargs):
+def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'loom', skip_steps = [], outputfolder = '', quicklook = False, uniluminated_mask = None, instrument = 'niriss', **kwargs):
     """
     This function calibrates an *uncal.fits file through a "special" version of the JWST TSO CalWebb Stage 1, also passing the data through the assign WCS step to 
     get the wavelength map from Stage 2. With all this, this function by default returns the rates per integrations, errors on those rates, data-quality flags, 
@@ -414,6 +414,8 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         Least-squares Odd-even, One-over-f Model (LOOM) or 'stsci' to let the STScI pipeline handle it through the refpix correction (if not skipped). 
     reference_files : list
         List of all the reference files (strings) we will be using for the reduction. These will supercede the default ones used by the pipeline. 
+    quicklook : bool
+        If True, pipeline processing stops at the linearity step and returns last-minus-first frames. Default is `False`.
     uniluminated_mask : numpy.array
         (Optional) Array of the same size as the data groups and/or frames. Values of 1 indicate uniluminated pixels, while 0 indicate iluminated pixels. Uniluminated refers to 
         "not iluminated by the main sources in the group/frame". 
@@ -736,6 +738,13 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     else:
 
         output_dictionary['linearity'] = output_dictionary['refpix']
+
+    # Generate LMF after linearity correction:
+    output_dictionary['linearity_lmf'], _ = get_last_minus_first(output_dictionary['linearity'].data, min_group = min_group, max_group = max_group) 
+
+    if quicklook:
+
+        return output_dictionary
 
     # DarkCurrent step:
     if 'darkcurrent' not in skip_steps:
