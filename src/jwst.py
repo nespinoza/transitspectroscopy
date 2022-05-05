@@ -5,6 +5,7 @@ from copy import deepcopy
 
 from astropy.utils.data import download_file
 from astropy import units as u
+from astropy.time import Time
 from astropy.timeseries import TimeSeries
 
 from jwst.pipeline import calwebb_detector1, calwebb_spec2
@@ -380,6 +381,94 @@ def get_uniluminated_mask(data, pixeldq = None, nsigma = 3, first_time = True, s
     
     # Return mask after spill-filter:
     return spill_filter(mask, spill_length = spill_length)
+
+def get_cds(data):
+    """
+    This function gets performs Correlated Double Sampling on an image or set of images, and return the CDS product. The function simply substracts group 2 minus 1, 
+    3 minus 2, etc. for all groups in every integration or exposure. Useful for quicklooks at data.
+
+    Parameters
+    ----------
+
+    data : `jwst.RampModel` object or list
+        Input `jwst.RampModel` object for which CDS will be performed. Can also be a list of objects, in which case it will be assumed this is segmented data that 
+        wants to be reduced. If a list, it is assumed the objects are chronologically ordered.
+
+    Returns
+    -------
+
+    times : `np.array`
+        Time-stamp for each of the `nint * (ngroups - 1)` CDS frames (spacecraft clock).
+
+    cds_frames : `np.array`
+        Numpy array containing the CDS frames of dimensions `(nint * (ngroups - 1), nx, ny)`, where the first dimension are all the possible CDS frames obtainable 
+        from the data, and `nx` and `ny` are the frame dimensions.
+
+    """
+
+    if type(data) is list:
+
+        nintegrations = 0
+        nsegments = len(data)
+
+        for i in range( nsegments ):
+
+            nintegration, ngroups = data[i].meta.exposure.nints, data[i].meta.exposure.ngroups
+            nintegrations += nintegration
+
+        times = np.zeros( ( ngroups - 1 ) * nintegrations )
+
+    else:
+
+        nintegrations, ngroups = data.meta.exposure.nints, data.meta.exposure.ngroups
+        data = [data]
+
+        times = np.zeros( ( ngroups - 1 ) * nintegrations )
+
+    # Set array that will save CDS frames:
+    cds_frames = np.zeros( [ (ngroups - 1) * nintegrations, \
+                             data[0].data.shape[2],\
+                             data[0].data.shape[3]  ] )
+
+    # Initialize some variables:
+    counter = 0
+    first_time = True
+
+    # Run through all data:
+    for dataset in data:
+
+        if first_time:
+
+            # For the first time, set time of exposure time:
+            second_to_day = 1. / (24. * 3600.)
+            frametime = dataset.meta.exposure.frame_time # seconds
+            grouptime = dataset.meta.exposure.group_time # seconds
+
+            time_start = uncal_data.meta.observation.date + 'T' + dataset.meta.observation.time
+            ts = Time(time_start)
+
+            #      v-orig-v   v-----skip reset------v
+            tstart = ts.jd + frametime * second_to_day 
+            first_time = False
+
+
+
+        for integration in range(dataset.shape[0]):
+
+            for current_group in range( ngroups - 1 ):
+            
+                cds_frames[counter, :, :] = dataset[integration, current_group + 1, :, :] - \
+                                            dataset[integration, current_group, :, :] 
+
+                # tstart here is the time just after the reset of the current integration.
+                times[counter] = tstart + (current_group + 1) * grouptime
+                counter += 1
+
+            # When we swap integrations, we add a group-time (to finish the last group time) and a frame time (to jump from the reset):
+            tstart = tstart + (current_group + 1) * grouptime + grouptime + frametime
+
+    return times, cds_frames
+ 
 
 def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'loom', skip_steps = [], outputfolder = '', quicklook = False, uniluminated_mask = None, instrument = 'niriss', **kwargs):
     """
