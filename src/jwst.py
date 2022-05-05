@@ -444,7 +444,7 @@ def get_cds(data):
             frametime = dataset.meta.exposure.frame_time # seconds
             grouptime = dataset.meta.exposure.group_time # seconds
 
-            time_start = uncal_data.meta.observation.date + 'T' + dataset.meta.observation.time
+            time_start = dataset.meta.observation.date + 'T' + dataset.meta.observation.time
             ts = Time(time_start)
 
             #      v-orig-v   v-----skip reset------v
