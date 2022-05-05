@@ -457,8 +457,8 @@ def get_cds(data):
 
             for current_group in range( ngroups - 1 ):
             
-                cds_frames[counter, :, :] = dataset[integration, current_group + 1, :, :] - \
-                                            dataset[integration, current_group, :, :] 
+                cds_frames[counter, :, :] = dataset.data[integration, current_group + 1, :, :] - \
+                                            dataset.data[integration, current_group, :, :] 
 
                 # tstart here is the time just after the reset of the current integration.
                 times[counter] = tstart + (current_group + 1) * grouptime
