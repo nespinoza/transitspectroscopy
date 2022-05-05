@@ -616,18 +616,17 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     # Get some important data out of the current data:
     nintegrations, ngroups, nrows, ncolumns = output_dictionary['superbias'].data.shape
 
+    min_group, max_group = 0, ngroups - 1 
+
+    if 'min_group' in kwargs.keys():
+
+        min_group = kwargs['min_group']
+
+    if 'max_group' in kwargs.keys():
+
+        max_group = kwargs['max_group'] 
+
     if (preamp_correction == 'loom') or (preamp_correction == 'roeba'):
-
-        # First, get last-minus-first frames:
-        min_group, max_group = 0, ngroups - 1
-
-        if 'min_group' in kwargs.keys():
-
-            min_group = kwargs['min_group']
-
-        if 'max_group' in kwargs.keys():
-
-            max_group = kwargs['max_group'] 
 
         lmf, median_lmf = get_last_minus_first(output_dictionary['superbias'].data, min_group = min_group, max_group = max_group)
 
