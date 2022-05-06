@@ -413,14 +413,14 @@ def get_cds(data):
 
         for i in range( nsegments ):
 
-            nintegration, ngroups = data[i].meta.exposure.nints, data[i].meta.exposure.ngroups
+            nintegration, ngroups = data[i].data.shape[0], data[i].meta.exposure.ngroups
             nintegrations += nintegration
 
         times = np.zeros( ( ngroups - 1 ) * nintegrations )
 
     else:
 
-        nintegrations, ngroups = data.meta.exposure.nints, data.meta.exposure.ngroups
+        nintegrations, ngroups = data.data.shape[0], data.meta.exposure.ngroups
         data = [data]
 
         times = np.zeros( ( ngroups - 1 ) * nintegrations )
