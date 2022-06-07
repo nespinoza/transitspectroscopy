@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - New function in `jwst.py`, `get_cds` to get Correlated Double Sampling frames from a dataset or set of segmented datasets.
 
+# [0.3.7] - 2022-06-06
+### Added
+- Now allow background fits with LOOM.
+
 # [0.3.6] - 2022-05-04
 ### Fixed
 - Fixed bug that didn't allow to import `transitspectroscopy.jwst`.
