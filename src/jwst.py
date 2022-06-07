@@ -100,7 +100,7 @@ def get_roeba(data, mask):
     return roeba
     
 
-def get_loom(data, mask, return_parameters = False):
+def get_loom(data, mask, background = None, return_parameters = False):
     """
     Least-squares Odd-even and One-over-f correction Model (LOOM)
 
@@ -117,6 +117,9 @@ def get_loom(data, mask, return_parameters = False):
     mask : numpy.array
         Numpy array of the same length as `data`; pixels that should be included in the calculation (expected to be non-iluminated by the main source) 
         should be set to 1 --- the rest should be zeros
+
+    background : numpy.array
+        Numpy array of the same length as `data` containing a background model to fit simultaneously to odd/even and 1/f.
 
     return_parameters : bool
         (Optional) If True, parameters of the LOOM are returned as well. Default is False.
@@ -136,60 +139,129 @@ def get_loom(data, mask, return_parameters = False):
     # Extract some basic information from the data:
     nrows, ncolumns = data.shape
 
-    # Now, initialize the A matrix and b vector:
-    A = np.zeros([ncolumns + 2, ncolumns + 2])
-    b = np.zeros(ncolumns + 2)
+    if background is None:
 
-    # Compute various numbers we will need to fill this matrix:
-    npix = np.sum(mask)                     # number of pixels used to compute model
-    nrows_j = np.sum(mask, axis = 0)        # number of pixels on each column j
-    neven_j = np.sum(mask[::2], axis = 0)   # number of even pixels on each column j
-    nodd_j = np.sum(mask[1::2], axis = 0)   # number of odd pixels on each column j
-    ncols_i = np.sum(mask, axis = 1)        # number of pixels on each row i
-    nE = np.sum(ncols_i[::2])               # number of total pixels on even rows
-    nO = np.sum(ncols_i[1::2])              # number of total pixels on odd rows
+        # Now, initialize the A matrix and b vector:
+        A = np.zeros([ncolumns + 2, ncolumns + 2])
+        b = np.zeros(ncolumns + 2)
 
-    # Start filling the A matrix and b vector. First column of A matrix are coefficients for mu, second for odd, third for even, and the rest are the coefficients for 
-    # each column a_j. Start with results from equation for the mu partial derivative:
+        # Compute various numbers we will need to fill this matrix:
+        npix = np.sum(mask)                     # number of pixels used to compute model
+        nrows_j = np.sum(mask, axis = 0)        # number of pixels on each column j
+        neven_j = np.sum(mask[::2], axis = 0)   # number of even pixels on each column j
+        nodd_j = np.sum(mask[1::2], axis = 0)   # number of odd pixels on each column j
+        ncols_i = np.sum(mask, axis = 1)        # number of pixels on each row i
+        nE = np.sum(ncols_i[::2])               # number of total pixels on even rows
+        nO = np.sum(ncols_i[1::2])              # number of total pixels on odd rows
 
-    #A[0,0], A[0,1], A[0,2], A[0,3:] = npix, nO, nE, nrows_j
+        # Start filling the A matrix and b vector. First column of A matrix are coefficients for mu, second for odd, third for even, and the rest are the coefficients for 
+        # each column a_j. Start with results from equation for the mu partial derivative:
 
-    #b[0] = np.sum(mask * data)
+        #A[0,0], A[0,1], A[0,2], A[0,3:] = npix, nO, nE, nrows_j
 
-    # Now equation for O partial derivative:
+        #b[0] = np.sum(mask * data)
 
-    A[0,0], A[0,1], A[0,2:] = nO, 0., nodd_j
+        # Now equation for O partial derivative:
 
-    b[0] = np.sum(mask[1::2, :] * data[1::2, :])
-     
-    # Same for E partial derivative:
+        A[0,0], A[0,1], A[0,2:] = nO, 0., nodd_j
 
-    A[1,0], A[1,1], A[1,2:] = 0., nE, neven_j
+        b[0] = np.sum(mask[1::2, :] * data[1::2, :])
+         
+        # Same for E partial derivative:
 
-    b[1] = np.sum(mask[::2, :] * data[::2, :])
+        A[1,0], A[1,1], A[1,2:] = 0., nE, neven_j
 
-    # And, finally, for the a_j partial derivatives:
+        b[1] = np.sum(mask[::2, :] * data[::2, :])
 
-    A[2:, 0], A[2:, 1] = nodd_j, neven_j
-    
-    for j in range(ncolumns):
+        # And, finally, for the a_j partial derivatives:
 
-        A[j + 2, j + 2] = nrows_j[j]
+        A[2:, 0], A[2:, 1] = nodd_j, neven_j
+        
+        for j in range(ncolumns):
 
-        b[j + 2] = np.sum(mask[:, j] * data[:, j])
+            A[j + 2, j + 2] = nrows_j[j]
 
-    # Solve system:
-    x = lsmr(A, b)[0]
+            b[j + 2] = np.sum(mask[:, j] * data[:, j])
 
-    # Create LOOM:
-    #loom = np.ones(data.shape) * x[0] # Set mean-level
-    loom = np.zeros(data.shape)
-    loom[1::2, :] += x[0]             # Add odd level
-    loom[::2, :] += x[1]              # Add even level
-   
-    # Add 1/f column pattern: 
-    for j in range(ncolumns):
-        loom[:, j] += x[j + 2]
+        # Solve system:
+        x = lsmr(A, b)[0]
+
+        # Create LOOM:
+        #loom = np.ones(data.shape) * x[0] # Set mean-level
+        loom = np.zeros(data.shape)
+        loom[1::2, :] += x[0]             # Add odd level
+        loom[::2, :] += x[1]              # Add even level
+       
+        # Add 1/f column pattern: 
+        for j in range(ncolumns):
+
+            loom[:, j] += x[j + 2]
+
+    else:
+
+        S_squared = np.sum( ( background * mask )**2 )
+        odd_S = np.sum( background[1::2, :] * mask[1::2, :] )
+        even_S = np.sum( background[::2, :] * mask[::2, :] )
+
+        # Now, initialize the A matrix and b vector:
+        A = np.zeros([ncolumns + 3, ncolumns + 3]) 
+        b = np.zeros(ncolumns + 3)
+
+        # Compute various numbers we will need to fill this matrix:
+        nrows_j = np.sum(mask, axis = 0)        # number of pixels on each column j
+        neven_j = np.sum(mask[::2], axis = 0)   # number of even pixels on each column j
+        nodd_j = np.sum(mask[1::2], axis = 0)   # number of odd pixels on each column j
+        ncols_i = np.sum(mask, axis = 1)        # number of pixels on each row i
+        nE = np.sum(ncols_i[::2])               # number of total pixels on even rows
+        nO = np.sum(ncols_i[1::2])              # number of total pixels on odd rows
+
+        # Start filling the A matrix and b vector. First column of A matrix are coefficients for mu, second for odd, third for even, and the rest are the coefficients for 
+        # each column a_j. Start with results from equation for the mu partial derivative:
+
+        A[0,0], A[0,1], A[0,2] = S_squared, odd_S, even_S
+
+        for i in range(ncolumns):
+
+            A[0, 3 + i] = np.sum( background[:, i] * mask[:, i] )
+
+        b[0] = np.sum( data * background * mask )
+
+        # Now equation for O partial derivative:
+
+        A[1,0], A[1,1], A[1,2], A[1,3:] = odd_S, nO, 0., nodd_j
+
+        b[1] = np.sum(mask[1::2, :] * data[1::2, :])
+
+        # Same for E partial derivative:
+
+        A[2,0], A[2,1], A[2,2], A[2,3:] = even_S, 0., nE, neven_j
+
+        b[2] = np.sum(mask[::2, :] * data[::2, :])
+
+        # And, finally, for the a_j partial derivatives:
+
+        A[3:, 1], A[3:, 2] = nodd_j, neven_j
+
+        for j in range(ncolumns):
+
+            A[j + 3, 0] = np.sum( background[:, j] * mask[:, j] )
+
+            A[j + 3, j + 3] = nrows_j[j]
+
+            b[j + 3] = np.sum(mask[:, j] * data[:, j])
+
+        # Solve system:
+        x = lsmr(A, b)[0]
+
+        # Create LOOM:
+        loom = background * x[0]
+        loom[1::2, :] += x[1]             # Add odd level
+        loom[::2, :] += x[2]              # Add even level
+
+        # Add 1/f column pattern: 
+        for j in range(ncolumns):
+
+            loom[:, j] += x[j + 3]
 
     # Return model (and parameters, if wanted):
     if not return_parameters:
@@ -381,7 +453,7 @@ def get_uniluminated_mask(data, pixeldq = None, nsigma = 3, first_time = True, s
     # Return mask after spill-filter:
     return spill_filter(mask, spill_length = spill_length)
 
-def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'loom', skip_steps = [], outputfolder = '', quicklook = False, uniluminated_mask = None, instrument = 'niriss', **kwargs):
+def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'loom', skip_steps = [], outputfolder = '', quicklook = False, uniluminated_mask = None, background_model = None, instrument = 'niriss', **kwargs):
     """
     This function calibrates an *uncal.fits file through a "special" version of the JWST TSO CalWebb Stage 1, also passing the data through the assign WCS step to 
     get the wavelength map from Stage 2. With all this, this function by default returns the rates per integrations, errors on those rates, data-quality flags, 
@@ -419,6 +491,8 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     uniluminated_mask : numpy.array
         (Optional) Array of the same size as the data groups and/or frames. Values of 1 indicate uniluminated pixels, while 0 indicate iluminated pixels. Uniluminated refers to 
         "not iluminated by the main sources in the group/frame". 
+    background_model : numpy.array
+        (Optional) Array of the same size as the data groups and/or frames containing a model background (if any) to scale.
     outputfolder : string
         (Optional) String indicating the folder where the outputs want to be saved. Default is current working directory.
 
@@ -636,10 +710,6 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
 
             mask = get_uniluminated_mask(median_lmf, pixeldq = output_dictionary['superbias'].pixeldq)
 
-            if instrument == 'niriss':
-
-                mask[0:150, 1000:] = 0.
-
         else:
 
             mask = uniluminated_mask
@@ -662,7 +732,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
                         group_mask = cc_uniluminated_outliers(refpix.data[i, j, :, :], mask)
 
                         # Get LOOM estimate:
-                        looms[i, j, :, :] = get_loom(refpix.data[i, j, :, :], group_mask)
+                        looms[i, j, :, :] = get_loom(refpix.data[i, j, :, :], group_mask, background = background_model)
 
                         # Substract it from the data:
                         refpix.data[i, j, :, :] -= looms[i, j, :, :]
