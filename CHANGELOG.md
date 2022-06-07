@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 # [0.3.8] - 2022-06-07
 ### Added
 - New function in `jwst.py`, `get_cds` to get Correlated Double Sampling frames from a dataset or set of segmented datasets.
+- The `jwst.stage` can now receive `rateints` products as inputs too.
 
 # [0.3.7] - 2022-06-06
 ### Added
