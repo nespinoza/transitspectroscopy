@@ -454,7 +454,6 @@ def get_uniluminated_mask(data, pixeldq = None, nsigma = 3, first_time = True, s
     # Return mask after spill-filter:
     return spill_filter(mask, spill_length = spill_length)
 
-<<<<<<< HEAD
 def get_cds(data):
     """
     This function gets performs Correlated Double Sampling on an image or set of images, and return the CDS product. The function simply substracts group 2 minus 1, 
