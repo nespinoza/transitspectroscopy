@@ -560,7 +560,8 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     ----------
 
     datafile : string
-        Input filename; it is expected to be of the form '/your/data/folder/dataname_uncal.fits'
+        Input filename; it is expected to be of the form '/your/data/folder/dataname_uncal.fits' or '/your/data/folder/dataname_rateints.fits'. If `rateints`, will ommit Stage 1 processing and will 
+        return wavelenght maps and time-stamps only.
     jump_threshold : int
         Number of sigmas used to detect jumps in the `jump` step of the CalWebb pipeline. Default is 15.
     get_times : bool
@@ -636,7 +637,15 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         os.mkdir(outputfolder+'pipeline_outputs')
 
     # Open the uncal files through a datamodel:
-    uncal_data = datamodels.RampModel(datafile)
+    uncal_flag = True
+    if 'rateints' in datafile:
+
+        uncal_data = datamodels.open(datafile)
+        uncal_flag = False
+
+    else:
+
+        uncal_data = datamodels.RampModel(datafile)
 
     # This fixes a bug in some simulated datasets:
     try:
@@ -683,336 +692,349 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
 
 
     # Extract filename before *uncal:
-    dataname = datafile.split('/')[-1].split('uncal.fits')[0][:-1]
+    if uncal_flag:
+
+        dataname = datafile.split('/')[-1].split('uncal.fits')[0][:-1]
+
+    else:
+
+        dataname = datafile.split('/')[-1].split('rateints.fits')[0][:-1]
+
     full_datapath = outputfolder+'pipeline_outputs' + '/' + dataname
 
-    # Run steps sequentially. First, the DQInitStep:
-    if 'dqinit' not in skip_steps:
+    if uncal_flag:
 
-        output_filename = full_datapath + '_dqinitstep.fits'
-        if not os.path.exists(output_filename):
+        # Run steps sequentially. First, the DQInitStep:
+        if 'dqinit' not in skip_steps:
 
-            dqinit = calwebb_detector1.dq_init_step.DQInitStep.call(uncal_data, output_dir=outputfolder+'pipeline_outputs', save_results = True)
-            output_dictionary['dqinit'] = dqinit
+            output_filename = full_datapath + '_dqinitstep.fits'
+            if not os.path.exists(output_filename):
 
-        else:
-
-            print('\t >> dqinit step products found, loading them...')
-            output_dictionary['dqinit'] = datamodels.RampModel(output_filename)
-
-    else:
-
-        output_dictionary['dqinit'] = uncal_data
-
-    # Next, saturation step:
-    if 'saturation' not in skip_steps:
-
-        output_filename = full_datapath + '_saturationstep.fits'
-        if not os.path.exists(output_filename):
-
-            if 'override_saturation' in kwargs.keys():
-
-                saturation = calwebb_detector1.saturation_step.SaturationStep.call(output_dictionary['dqinit'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
-                                                                                   override_saturation = kwargs['override_saturation'])
+                dqinit = calwebb_detector1.dq_init_step.DQInitStep.call(uncal_data, output_dir=outputfolder+'pipeline_outputs', save_results = True)
+                output_dictionary['dqinit'] = dqinit
 
             else:
 
-                saturation = calwebb_detector1.saturation_step.SaturationStep.call(output_dictionary['dqinit'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
-
-            output_dictionary['saturation'] = saturation
+                print('\t >> dqinit step products found, loading them...')
+                output_dictionary['dqinit'] = datamodels.RampModel(output_filename)
 
         else:
 
-            print('\t >> saturation step products found, loading them...')
-            output_dictionary['saturation'] = datamodels.RampModel(output_filename)
+            output_dictionary['dqinit'] = uncal_data
 
-    else:
+        # Next, saturation step:
+        if 'saturation' not in skip_steps:
 
-        output_dictionary['saturation'] = output_dictionary['dqinit']
+            output_filename = full_datapath + '_saturationstep.fits'
+            if not os.path.exists(output_filename):
 
-    # Next up, superbias step:
-    if 'superbias' not in skip_steps:
+                if 'override_saturation' in kwargs.keys():
+
+                    saturation = calwebb_detector1.saturation_step.SaturationStep.call(output_dictionary['dqinit'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
+                                                                                       override_saturation = kwargs['override_saturation'])
+
+                else:
+
+                    saturation = calwebb_detector1.saturation_step.SaturationStep.call(output_dictionary['dqinit'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
+
+                output_dictionary['saturation'] = saturation
+
+            else:
+
+                print('\t >> saturation step products found, loading them...')
+                output_dictionary['saturation'] = datamodels.RampModel(output_filename)
+
+        else:
+
+            output_dictionary['saturation'] = output_dictionary['dqinit']
+
+        # Next up, superbias step:
+        if 'superbias' not in skip_steps:
 
 
-        output_filename = full_datapath + '_superbiasstep.fits'
-        if not os.path.exists(output_filename):
+            output_filename = full_datapath + '_superbiasstep.fits'
+            if not os.path.exists(output_filename):
 
-            if 'override_superbias' in kwargs.keys():
+                if 'override_superbias' in kwargs.keys():
+            
+                    superbias = calwebb_detector1.superbias_step.SuperBiasStep.call(output_dictionary['saturation'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
+                                                                                    override_superbias = kwargs['override_superbias'])
+
+                else:
+
+                    superbias = calwebb_detector1.superbias_step.SuperBiasStep.call(output_dictionary['saturation'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
+
+                output_dictionary['superbias'] = superbias
+
+            else:
+
+                print('\t >> superbias step products found, loading them...')
+                output_dictionary['superbias'] = datamodels.RampModel(output_filename)
+
+        else:
+
+            output_dictionary['superbias'] = output_dictionary['saturation']
+
+        # Now reference pixel correction:
+        if 'refpix' not in skip_steps:
+
+            if preamp_correction == 'stsci':
+
+                output_filename = full_datapath + '_refpixstep.fits'
+                if not os.path.exists(output_filename):
+
+                    refpix = calwebb_detector1.refpix_step.RefPixStep.call(output_dictionary['superbias'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
+                    output_dictionary['refpix'] = refpix
+
+                else:
+
+                    print('\t >> refpix step products found, loading them...')
+                    output_dictionary['refpix'] = datamodels.RampModel(output_filename)
+
+        else:
+
+            output_dictionary['refpix'] = output_dictionary['superbias']
+
+        # Get some important data out of the current data:
+        nintegrations, ngroups, nrows, ncolumns = output_dictionary['superbias'].data.shape
+
+        min_group, max_group = 0, ngroups - 1 
+
+        if 'min_group' in kwargs.keys():
+
+            min_group = kwargs['min_group']
+
+        if 'max_group' in kwargs.keys():
+
+            max_group = kwargs['max_group'] 
+
+        if (preamp_correction == 'loom') or (preamp_correction == 'roeba'):
+
+            lmf, median_lmf = get_last_minus_first(output_dictionary['superbias'].data, min_group = min_group, max_group = max_group)
+
+            # Generate mask of uniluminated pixels from the median last-minus-first frame, if not available:
+            if uniluminated_mask is None:
+
+                mask = get_uniluminated_mask(median_lmf, pixeldq = output_dictionary['superbias'].pixeldq)
+
+            else:
+
+                mask = uniluminated_mask
+
+            # Now go through each group, and correct 1/f and odd-even with the LOOM: cc_uniluminated_outliers(data, mask, nsigma = 5)
+            refpix = deepcopy(output_dictionary['superbias'])
+            lmf_after = np.zeros(lmf.shape)
+
+            if preamp_correction == 'loom':
+
+                output_filename = full_datapath + '_refpixstep_loom.fits'
+                if not os.path.exists(output_filename):
         
-                superbias = calwebb_detector1.superbias_step.SuperBiasStep.call(output_dictionary['saturation'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
-                                                                                override_superbias = kwargs['override_superbias'])
+                    looms = np.zeros([nintegrations, ngroups, nrows, ncolumns])
+                    for i in range(nintegrations):
+                
+                        for j in range(ngroups):
+                
+                            # Get mask with group-dependant outliers:
+                            group_mask = cc_uniluminated_outliers(refpix.data[i, j, :, :], mask)
 
-            else:
+                            # Get LOOM estimate:
+                            looms[i, j, :, :] = get_loom(refpix.data[i, j, :, :], group_mask, background = background_model)
 
-                superbias = calwebb_detector1.superbias_step.SuperBiasStep.call(output_dictionary['saturation'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
+                            # Substract it from the data:
+                            refpix.data[i, j, :, :] -= looms[i, j, :, :]
 
-            output_dictionary['superbias'] = superbias
+                        lmf_after[i, :, :] = refpix.data[i, max_group, :, :] - refpix.data[i, min_group, :, :]
 
-        else:
+                    refpix.save(output_filename)
 
-            print('\t >> superbias step products found, loading them...')
-            output_dictionary['superbias'] = datamodels.RampModel(output_filename)
+                else:
 
-    else:
+                    print('\t >> refpix LOOM step products found, loading them...')
+                    refpix = datamodels.RampModel(output_filename)
+                    lmf_after, _ = get_last_minus_first(refpix.data, min_group = min_group, max_group = max_group)
 
-        output_dictionary['superbias'] = output_dictionary['saturation']
+                full_datapath += '_refpixstep_loom'
 
-    # Now reference pixel correction:
-    if 'refpix' not in skip_steps:
+            if preamp_correction == 'roeba':
 
-        if preamp_correction == 'stsci':
+                output_filename = full_datapath + '_refpixstep_roeba.fits'
+                if not os.path.exists(output_filename):
 
-            output_filename = full_datapath + '_refpixstep.fits'
+                    roebas = np.zeros([nintegrations, ngroups, nrows, ncolumns])
+                    for i in range(nintegrations):
+
+                        for j in range(ngroups):
+        
+                            # ROEBA is outlier-resistant, so don't bother with group-masks:
+                            roebas[i, j, :, :] = get_roeba(refpix.data[i, j, :, :], mask)
+
+                            # Substract from the data:
+                            refpix.data[i, j, :, :] -= roebas[i, j, :, :]
+
+                        lmf_after[i, :, :] = refpix.data[i, max_group, :, :] - refpix.data[i, min_group, :, :]
+
+                    refpix.save(output_filename)
+
+                else:
+
+                    print('\t >> refpix ROEBA step products found, loading them...')
+                    refpix = datamodels.RampModel(output_filename)
+                    lmf_after, _ = get_last_minus_first(refpix.data, min_group = min_group, max_group = max_group)
+
+                full_datapath += '_refpixstep_roeba'
+
+            # Save results:
+            output_dictionary['mask'] = mask
+            output_dictionary['refpix'] = refpix
+            output_dictionary['lmf_before'] = lmf 
+            output_dictionary['lmf_after'] = lmf_after
+
+        # Linearity step:
+        if 'linearity' not in skip_steps:
+
+            output_filename = full_datapath + '_linearitystep.fits'
             if not os.path.exists(output_filename):
 
-                refpix = calwebb_detector1.refpix_step.RefPixStep.call(output_dictionary['superbias'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
-                output_dictionary['refpix'] = refpix
+                if 'override_linearity' in kwargs.keys():
+
+                    linearity = calwebb_detector1.linearity_step.LinearityStep.call(output_dictionary['refpix'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
+                                                                                    override_linearity = kwargs['override_linearity'])
+
+                else:
+
+                   linearity = calwebb_detector1.linearity_step.LinearityStep.call(output_dictionary['refpix'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
+
+                output_dictionary['linearity'] = linearity
 
             else:
 
-                print('\t >> refpix step products found, loading them...')
-                output_dictionary['refpix'] = datamodels.RampModel(output_filename)
-
-    else:
-
-        output_dictionary['refpix'] = output_dictionary['superbias']
-
-    # Get some important data out of the current data:
-    nintegrations, ngroups, nrows, ncolumns = output_dictionary['superbias'].data.shape
-
-    min_group, max_group = 0, ngroups - 1 
-
-    if 'min_group' in kwargs.keys():
-
-        min_group = kwargs['min_group']
-
-    if 'max_group' in kwargs.keys():
-
-        max_group = kwargs['max_group'] 
-
-    if (preamp_correction == 'loom') or (preamp_correction == 'roeba'):
-
-        lmf, median_lmf = get_last_minus_first(output_dictionary['superbias'].data, min_group = min_group, max_group = max_group)
-
-        # Generate mask of uniluminated pixels from the median last-minus-first frame, if not available:
-        if uniluminated_mask is None:
-
-            mask = get_uniluminated_mask(median_lmf, pixeldq = output_dictionary['superbias'].pixeldq)
+                print('\t >> linearity step products found, loading them...')
+                output_dictionary['linearity'] = datamodels.RampModel(output_filename)
 
         else:
 
-            mask = uniluminated_mask
+            output_dictionary['linearity'] = output_dictionary['refpix']
 
-        # Now go through each group, and correct 1/f and odd-even with the LOOM: cc_uniluminated_outliers(data, mask, nsigma = 5)
-        refpix = deepcopy(output_dictionary['superbias'])
-        lmf_after = np.zeros(lmf.shape)
+        # Generate LMF after linearity correction:
+        output_dictionary['linearity_lmf'], _ = get_last_minus_first(output_dictionary['linearity'].data, min_group = min_group, max_group = max_group) 
 
-        if preamp_correction == 'loom':
+        if quicklook:
 
-            output_filename = full_datapath + '_refpixstep_loom.fits'
-            if not os.path.exists(output_filename):
-    
-                looms = np.zeros([nintegrations, ngroups, nrows, ncolumns])
-                for i in range(nintegrations):
-            
-                    for j in range(ngroups):
-            
-                        # Get mask with group-dependant outliers:
-                        group_mask = cc_uniluminated_outliers(refpix.data[i, j, :, :], mask)
+            return output_dictionary
 
-                        # Get LOOM estimate:
-                        looms[i, j, :, :] = get_loom(refpix.data[i, j, :, :], group_mask, background = background_model)
+        # DarkCurrent step:
+        if 'darkcurrent' not in skip_steps:
 
-                        # Substract it from the data:
-                        refpix.data[i, j, :, :] -= looms[i, j, :, :]
-
-                    lmf_after[i, :, :] = refpix.data[i, max_group, :, :] - refpix.data[i, min_group, :, :]
-
-                refpix.save(output_filename)
-
-            else:
-
-                print('\t >> refpix LOOM step products found, loading them...')
-                refpix = datamodels.RampModel(output_filename)
-                lmf_after, _ = get_last_minus_first(refpix.data, min_group = min_group, max_group = max_group)
-
-            full_datapath += '_refpixstep_loom'
-
-        if preamp_correction == 'roeba':
-
-            output_filename = full_datapath + '_refpixstep_roeba.fits'
+            output_filename = full_datapath + '_darkcurrentstep.fits'
             if not os.path.exists(output_filename):
 
-                roebas = np.zeros([nintegrations, ngroups, nrows, ncolumns])
-                for i in range(nintegrations):
+                if 'override_darkcurrent' in kwargs.keys():
 
-                    for j in range(ngroups):
-    
-                        # ROEBA is outlier-resistant, so don't bother with group-masks:
-                        roebas[i, j, :, :] = get_roeba(refpix.data[i, j, :, :], mask)
+                    darkcurrent = calwebb_detector1.dark_current_step.DarkCurrentStep.call(output_dictionary['linearity'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
+                                                                                           override_dark = kwargs['override_dark'])
 
-                        # Substract from the data:
-                        refpix.data[i, j, :, :] -= roebas[i, j, :, :]
+                else:
 
-                    lmf_after[i, :, :] = refpix.data[i, max_group, :, :] - refpix.data[i, min_group, :, :]
+                    darkcurrent = calwebb_detector1.dark_current_step.DarkCurrentStep.call(output_dictionary['linearity'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
 
-                refpix.save(output_filename)
+                output_dictionary['darkcurrent'] = darkcurrent
 
             else:
-
-                print('\t >> refpix ROEBA step products found, loading them...')
-                refpix = datamodels.RampModel(output_filename)
-                lmf_after, _ = get_last_minus_first(refpix.data, min_group = min_group, max_group = max_group)
-
-            full_datapath += '_refpixstep_roeba'
-
-        # Save results:
-        output_dictionary['mask'] = mask
-        output_dictionary['refpix'] = refpix
-        output_dictionary['lmf_before'] = lmf 
-        output_dictionary['lmf_after'] = lmf_after
-
-    # Linearity step:
-    if 'linearity' not in skip_steps:
-
-        output_filename = full_datapath + '_linearitystep.fits'
-        if not os.path.exists(output_filename):
-
-            if 'override_linearity' in kwargs.keys():
-
-                linearity = calwebb_detector1.linearity_step.LinearityStep.call(output_dictionary['refpix'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
-                                                                                override_linearity = kwargs['override_linearity'])
-
-            else:
-
-               linearity = calwebb_detector1.linearity_step.LinearityStep.call(output_dictionary['refpix'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
-
-            output_dictionary['linearity'] = linearity
+                
+                print('\t >> darkcurrent step products found, loading them...')
+                output_dictionary['darkcurrent'] = datamodels.RampModel(output_filename)
 
         else:
 
-            print('\t >> linearity step products found, loading them...')
-            output_dictionary['linearity'] = datamodels.RampModel(output_filename)
+            output_dictionary['darkcurrent'] = output_dictionary['linearity']
 
-    else:
+        # JumpStep:
+        if 'jumpstep' not in skip_steps:
 
-        output_dictionary['linearity'] = output_dictionary['refpix']
+            output_filename = full_datapath + '_jumpstep.fits'
+            if not os.path.exists(output_filename):
 
-    # Generate LMF after linearity correction:
-    output_dictionary['linearity_lmf'], _ = get_last_minus_first(output_dictionary['linearity'].data, min_group = min_group, max_group = max_group) 
+                if ('override_readnoise' in kwargs.keys()) and ('override_gain' in kwargs.keys()):
 
-    if quicklook:
+                    jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
+                                                                         rejection_threshold=jump_threshold,
+                                                                         maximum_cores = maximum_cores, 
+                                                                         override_readnoise = kwargs['override_readnoise'],
+                                                                         override_gain = kwargs['override_gain'])
 
-        return output_dictionary
+                elif 'override_readnoise' in kwargs.keys():
 
-    # DarkCurrent step:
-    if 'darkcurrent' not in skip_steps:
+                    jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
+                                                                         rejection_threshold=jump_threshold,
+                                                                         maximum_cores = maximum_cores, 
+                                                                         override_readnoise = kwargs['override_readnoise'])
 
-        output_filename = full_datapath + '_darkcurrentstep.fits'
-        if not os.path.exists(output_filename):
+                elif 'override_gain' in kwargs.keys():
 
-            if 'override_darkcurrent' in kwargs.keys():
+                    jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
+                                                                         rejection_threshold=jump_threshold,
+                                                                         maximum_cores = maximum_cores, 
+                                                                         override_gain = kwargs['override_gain'])
 
-                darkcurrent = calwebb_detector1.dark_current_step.DarkCurrentStep.call(output_dictionary['linearity'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
-                                                                                       override_dark = kwargs['override_dark'])
+                else:
+
+                    jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True, 
+                                                                         rejection_threshold=jump_threshold,
+                                                                         maximum_cores = maximum_cores)
+
+                output_dictionary['jumpstep'] = jumpstep
 
             else:
 
-                darkcurrent = calwebb_detector1.dark_current_step.DarkCurrentStep.call(output_dictionary['linearity'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
-
-            output_dictionary['darkcurrent'] = darkcurrent
+                print('\t >> jump step products found, loading them...')
+                output_dictionary['jumpstep'] = datamodels.RampModel(output_filename)
 
         else:
-            
-            print('\t >> darkcurrent step products found, loading them...')
-            output_dictionary['darkcurrent'] = datamodels.RampModel(output_filename)
 
-    else:
+            output_dictionary['jumpstep'] = output_dictionary['darkcurrent']
 
-        output_dictionary['darkcurrent'] = output_dictionary['linearity']
+        # And finally, the (unskippable) ramp-step:
 
-    # JumpStep:
-    if 'jumpstep' not in skip_steps:
+        output_filename0 = full_datapath + '_0_rampfitstep.fits'
+        output_filename1 = full_datapath + '_1_rampfitstep.fits'
 
-        output_filename = full_datapath + '_jumpstep.fits'
-        if not os.path.exists(output_filename):
+        if not os.path.exists(output_filename0):
 
             if ('override_readnoise' in kwargs.keys()) and ('override_gain' in kwargs.keys()):
 
-                jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
-                                                                     rejection_threshold=jump_threshold,
-                                                                     maximum_cores = maximum_cores, 
-                                                                     override_readnoise = kwargs['override_readnoise'],
-                                                                     override_gain = kwargs['override_gain'])
+                rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
+                                                                           maximum_cores = maximum_cores,
+                                                                           override_readnoise = kwargs['override_readnoise'],
+                                                                           override_gain = kwargs['override_gain'])
 
             elif 'override_readnoise' in kwargs.keys():
 
-                jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
-                                                                     rejection_threshold=jump_threshold,
-                                                                     maximum_cores = maximum_cores, 
-                                                                     override_readnoise = kwargs['override_readnoise'])
+                rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
+                                                                           maximum_cores = maximum_cores,
+                                                                           override_readnoise = kwargs['override_readnoise'])
 
             elif 'override_gain' in kwargs.keys():
 
-                jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
-                                                                     rejection_threshold=jump_threshold,
-                                                                     maximum_cores = maximum_cores, 
-                                                                     override_gain = kwargs['override_gain'])
+                rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
+                                                                           maximum_cores = maximum_cores,
+                                                                           override_gain = kwargs['override_gain'])
 
             else:
 
-                jumpstep = calwebb_detector1.jump_step.JumpStep.call(output_dictionary['darkcurrent'], output_dir=outputfolder+'pipeline_outputs', save_results = True, 
-                                                                     rejection_threshold=jump_threshold,
-                                                                     maximum_cores = maximum_cores)
-
-            output_dictionary['jumpstep'] = jumpstep
+                rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
+                                                                           maximum_cores = maximum_cores)
 
         else:
 
-            print('\t >> jump step products found, loading them...')
-            output_dictionary['jumpstep'] = datamodels.RampModel(output_filename)
+            print('\t >> rampfit step products found, loading them...')
+            rampstep = [datamodels.open(output_filename0), datamodels.open(output_filename1)]
+
+        output_dictionary['rampstep'] = rampstep
 
     else:
 
-        output_dictionary['jumpstep'] = output_dictionary['darkcurrent']
-
-    # And finally, the (unskippable) ramp-step:
-
-    output_filename0 = full_datapath + '_0_rampfitstep.fits'
-    output_filename1 = full_datapath + '_1_rampfitstep.fits'
-
-    if not os.path.exists(output_filename0):
-
-        if ('override_readnoise' in kwargs.keys()) and ('override_gain' in kwargs.keys()):
-
-            rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
-                                                                       maximum_cores = maximum_cores,
-                                                                       override_readnoise = kwargs['override_readnoise'],
-                                                                       override_gain = kwargs['override_gain'])
-
-        elif 'override_readnoise' in kwargs.keys():
-
-            rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
-                                                                       maximum_cores = maximum_cores,
-                                                                       override_readnoise = kwargs['override_readnoise'])
-
-        elif 'override_gain' in kwargs.keys():
-
-            rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
-                                                                       maximum_cores = maximum_cores,
-                                                                       override_gain = kwargs['override_gain'])
-
-        else:
-
-            rampstep = calwebb_detector1.ramp_fit_step.RampFitStep.call(output_dictionary['jumpstep'], output_dir=outputfolder+'pipeline_outputs', save_results = True,
-                                                                       maximum_cores = maximum_cores)
-
-    else:
-
-        print('\t >> rampfit step products found, loading them...')
-        rampstep = [datamodels.open(output_filename0), datamodels.open(output_filename1)]
-
-    output_dictionary['rampstep'] = rampstep
+        rampstep = [[], uncal_data]
 
     # This concludes our passage through Stage 1 (yay!):
     print('\n\t \t \t >> Finished Stage 1!\n')
