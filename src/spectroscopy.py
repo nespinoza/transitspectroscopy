@@ -325,7 +325,7 @@ def getFastSimpleSpectrum(data, centroids, aperture_radius, min_column = None, m
 
         return spectrum, aperture
 
-def getSimpleSpectrum(data, x, y, aperture_radius, background_radius=50, error_data=None, correct_bkg=True, method = 'sum'):
+def getSimpleSpectrum(data, x, y, aperture_radius, background_radius=50, error_data=None, correct_bkg=True, method = 'sum', bkg_method = 'all'):
     """
     This function takes as inputs two arrays (x,y) that follow the trace,
     and returns the added flux over the defined aperture radius (and its error, if an error matrix
@@ -353,6 +353,9 @@ def getSimpleSpectrum(data, x, y, aperture_radius, background_radius=50, error_d
     method : string
         Method used to perform the extraction. Default is `sum`; `average` takes the average of the non-fractional pixels 
         used to extract the spectrum. This latter one is useful if the input is a wavelength map.
+    bkg_method : string
+        Method for the background substraction. Currently accepts 'all' to use pixels at both sides, 'up' to use pixels "above" the spectrum and 
+        'down' to use pixels "below" the spectrum.
     """
 
     method = method.lower()
@@ -383,10 +386,24 @@ def getSimpleSpectrum(data, x, y, aperture_radius, background_radius=50, error_d
 
         # Extract background, being careful with edges:
         if correct_bkg:
+
             bkg_left = column[np.max([0, int(left_side_bkg)]) : np.max([0, int(left_side_ap)])]
             bkg_right = column[np.min([int(right_side_ap), max_column]) : np.max([int(right_side_bkg), max_column])]
-            bkg = np.median(np.append(bkg_left, bkg_right))
+
+            if bkg_method == 'all':
+
+                bkg = np.median(np.append(bkg_left, bkg_right))
+
+            elif bkg_method == 'up':
+
+                bkg = np.median(bkg_right)
+
+            elif bkg_method == 'down':
+
+                bkg = np.median(bkg_left)
+
         else:
+
             bkg = 0.
 
         # Substract it from the column:
