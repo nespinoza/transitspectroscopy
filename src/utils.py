@@ -1,6 +1,107 @@
 import numpy as np
 
+import jdcal
+from calendar import monthrange
+
+from math import modf
+
 from scipy.interpolate import splrep, splev
+
+from astropy.time import Time
+from astropy import units as q
+from astropy.constants import G, k_B, u, au, M_jup, R_jup, R_sun, M_sun
+
+def get_transpec_signal(Rp, Rstar, Mp, aR, Teff, mu = 2.3, albedo = 0., emissivity = 1.):
+    """
+    Given the planetary radius, mass, semi-major axis in stellar units and stellar effective temperature, 
+    this function calculates the atmospheric signal produced by an atmosphere in ppm for one scale-height. 
+    This has to be multiplied by a factor between 1-3 to estimate the real signal (see, e.g., 
+    Wakeford+2019; https://ui.adsabs.harvard.edu/abs/2019RNAAS...3....7W/abstract).
+
+    Parameters
+    -----
+
+    Rp : float
+        Radius of the planet in Jupiter units.
+
+    Mp : float
+        Mass of the planet in Jupiter units.
+
+    aR : float
+        Semi-major axis in stellar units (a/R*)
+
+    Teff : float
+        Stellar effective temperature
+
+    mu : float
+        Mean molecular weight of the atmosphere.
+
+    albedo : float
+        (optional) Planetary albedo.
+    
+    emissivity : float
+        (optional) Emmissivity of the planet.
+
+    Returns
+    ------
+
+    Atmospheric signal in transmission for one-scale height in ppm.
+
+    """    
+    H = get_scaleheight(Rp, Mp, aR, Teff, mu, albedo, emissivity)
+
+    atmospheric_signal = (2. * ( Rp * R_jup ) * ( H ) / ( Rstar * R_sun )**2 )*1e6
+
+    return atmospheric_signal.value
+
+def get_scaleheight(Rp, Mp, aR, Teff, mu = 2.3, albedo = 0., emissivity = 1.):
+    """
+    Given the planetary radius, mass, semi-major axis in stellar units and stellar effective temperature, 
+    this function calculates the atmospheric scale-height of an atmosphere:
+
+    Parameters
+    -----
+
+    Rp : float
+        Radius of the planet in Jupiter units.
+
+    Mp : float
+        Mass of the planet in Jupiter units.
+
+    aR : float
+        Semi-major axis in stellar units (a/R*)
+
+    Teff : float
+        Stellar effective temperature
+
+    mu : float
+        Mean molecular weight of the atmosphere.
+
+    albedo : float
+        (optional) Planetary albedo.
+    
+    emissivity : float
+        (optional) Emmissivity of the planet.
+
+    Returns
+    ------
+
+    H : astropy.unit
+        Planetary scale-height in km.
+
+    """
+
+    # Planetary gravity:
+    g = G * ( Mp * M_jup ) / ( Rp * R_jup )**2
+
+    # Calculate equilibrium temperature of planet (assuming zero-albedo)
+    Teq = (Teff * q.K) * ( (1. - albedo) / emissivity )**(1./4.) * np.sqrt( 0.5 / aR )
+
+    # Get scale-height:
+    H = k_B * Teq / ( mu * u * g )
+
+    return H.to(q.km)
+
 
 def get_phases(t,P,t0):
     """
@@ -154,3 +255,232 @@ def fit_spline(x, y, nknots = None, x_knots = None):
     # Return it:
     return function, function(x)
 
+def get_mad_sigma(x, median):
+    """
+    This function returns the MAD-based standard-deviation.
+    """
+
+    mad = np.nanmedian( np.abs ( x - median ) )
+
+    return 1.4826*mad
+
+def RA_to_deg(coords):
+    """
+    Given a RA string in hours (e.g., '11:12:12.11'), returns the corresponding 
+    coordinate in degrees.
+    """
+
+    hh,mm,ss = coords.split(':')
+
+    hours = np.double(hh) + np.double(mm)/60. + np.double(ss)/3600.
+
+    return hours * 360./24.
+
+def DEC_to_deg(coords):
+    """
+    Given a DEC string in degrees (e.g., '-30:12:12.11'), returns the corresponding 
+    coordinate in degrees.
+    """
+
+    dd,mm,ss = coords.split(':')
+
+    if dd[0] == '-':
+
+        return np.double(dd) - np.double(mm)/60. - np.double(ss)/3600.
+
+    else:
+
+        return np.double(dd) + np.double(mm)/60. + np.double(ss)/3600.
+
+def mag_to_flux(m, merr, nsim = 1000):
+    """
+    Convert magnitude to relative fluxes via Monte Carlo sampling 
+
+    Parameters
+    ----------
+
+    m : list or np.array
+        List or array of magnitudes
+
+    merr : list or np.array
+        List or array of errors on the magnitudes (same dimension as `m`).
+
+    Returns
+    -------
+
+    fluxes : np.array
+           Relative fluxes 
+
+    fluxes_err : np.array
+           Error on relative fluxes.Radius of the planet in Jupiter units.
+    """
+
+    fluxes = np.zeros(len(m))
+
+    fluxes_err = np.zeros(len(m))
+
+    for i in range(len(m)):
+
+        dist = 10**(- np.random.normal( m[i], merr[i], nsim) / 2.51)
+
+        fluxes[i] = np.mean( dist )
+
+        fluxes_err[i] = np.sqrt( np.var(dist) )
+
+    return fluxes,fluxes_err
+
+def getCalDay(JD):
+
+    year, month, day, hour= jdcal.jd2gcal(JD,0.0)
+    hour = hour*24
+    minutes = modf(hour)[0]*60.0
+    seconds = modf(minutes)[0]*60.0
+
+    hh = int(modf(hour)[1])
+    mm = int(modf(minutes)[1])
+    ss = seconds
+
+    if(hh<10):
+
+       hh = '0'+str(hh)
+
+    else:
+
+       hh = str(hh)
+
+    if(mm<10):
+
+       mm = '0'+str(mm)
+
+    else:
+
+       mm = str(mm)
+
+    if(ss<10):
+
+       ss = '0'+str(np.round(ss,1))
+
+    else:
+
+       ss = str(np.round(ss,1))
+
+    return year,month,day,hh,mm,ss
+
+def transit_predictor(year, month, P, t0, tduration, day=None):
+    """
+    This function predicts transits of a planet given input period `P`, duration `tduration` and time-of-transit 
+    center `t0` on a given month of a year. The script can also receive a day to predict transits of an 
+    exoplanet on a given day/month/year. Months run from 1 (January) to 12 (December). 
+
+    Parameters
+    ----------
+
+    year : float
+        Year on which you want to predict transits.
+    
+    month : float
+        Month on which you want to predict transits.
+
+    P : float
+        Period of the exoplanet in days.
+    
+    t0 : float
+        Time-of-transit center of the exoplanet in JD.
+
+    tduration : float
+        Transit duration in hours.
+
+    day : float (optional)
+        Day on which transits want to be predicted.
+
+    """
+   
+    # If no input day, get all days in the month:
+    if day is None:
+
+        first_w_day,max_d = monthrange(year, month)
+        days = range(1,max_d+1)
+
+    else:
+   
+        days = [day]
+
+    transits_t0 = np.array([]) 
+
+    for cday in days:
+
+        # Check closest transit to given day:
+
+        t = Time(str(int(year))+'-'+str(int(month))+'-'+str(int(cday))+' 00:00:00', \
+                 format='iso', scale='utc')
+
+        ntimes = int(np.ceil(1./P))
+
+        for n in range(ntimes):
+
+            c_t0 = float(t.jd) - P * get_phases(float(t.jd), P, t0) + n * P
+
+            # Check if mid-transit, egress or ingress happens whithin the 
+            # desired day. If it does, and we have not saved it, save the 
+            # JD of the transit event:
+
+            tyear,tmonth,tday,thh,tmm,tss = getCalDay(c_t0) 
+
+            if tday == cday and tmonth == month and tyear == year:
+
+                if c_t0 not in transits_t0:
+
+                    transits_t0 = np.append(transits_t0,c_t0)
+
+            else:
+
+                tyear, tmonth, tday, thh, tmm, tss = getCalDay( c_t0 + (tduration / 2.) )
+
+                if tday == cday and tmonth == month and tyear == year:
+
+                    if c_t0 not in transits_t0:
+
+                        transits_t0 = np.append(transits_t0, c_t0)
+
+                else:
+
+                    tyear, tmonth, tday, thh, tmm, tss = getCalDay( c_t0 - (tduration / 2.) )
+
+                    if tday == cday and tmonth == month and tyear == year:
+
+                        if c_t0 not in transits_t0:
+
+                            transits_t0 = np.append(transits_t0,c_t0)
+
+    # Now print the transits we found:
+    counter = 0
+    if len(transits_t0)>0:
+
+        print('Transits for this exoplanet')
+        print('--------------------------\n')
+
+    else:
+
+        print('No transits found for this planet in the input period')
+
+    for ct0 in transits_t0:
+
+        print('\t Transit number '+str(counter+1)+':')
+        print('\t ----------------------------')
+
+        tyear, tmonth, tday, thh, tmm, tss = getCalDay( ct0 - (tduration / (2. * 24.)) ) 
+
+        print('\t Ingress     : '+str(tyear)+'-'+str(tmonth)+'-'+str(tday)+' at '+str(thh)+\
+              ':'+str(tmm)+':'+str(tss)+' ('+str( ct0 - (tduration / (2. * 24.) ) )+' JD)')
+
+        tyear,tmonth,tday,thh,tmm,tss = getCalDay(ct0)
+
+        print('\t Mid-transit : '+str(tyear)+'-'+str(tmonth)+'-'+str(tday)+' at '+str(thh)+\
+              ':'+str(tmm)+':'+str(tss)+' ('+str(ct0)+' JD)')
+
+        tyear,tmonth,tday,thh,tmm,tss = getCalDay( ct0 + ( tduration/(2. * 24.) ) )
+
+        print('\t Egress      : '+str(tyear)+'-'+str(tmonth)+'-'+str(tday)+' at '+str(thh)+\
+              ':'+str(tmm)+':'+str(tss)+' ('+str( ct0 + (tduration / (2. * 24.) ) )+' JD)')
+
+        counter = counter + 1
