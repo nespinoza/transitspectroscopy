@@ -484,3 +484,80 @@ def transit_predictor(year, month, P, t0, tduration, day=None):
               ':'+str(tmm)+':'+str(tss)+' ('+str( ct0 + (tduration / (2. * 24.) ) )+' JD)')
 
         counter = counter + 1
+
+def bin_at_resolution(wavelengths, depths, R = 100, method = 'median'):
+    """
+    Function that bins input wavelengths and transit depths (or any other observable, like flux) to a given 
+    resolution `R`. Useful for binning transit depths down to a target resolution on a transit spectrum.
+
+    Parameters
+    ----------
+
+    wavelengths : np.array
+        Array of wavelengths
+    
+    depths : np.array
+        Array of depths at each wavelength.
+
+    R : int
+        Target resolution at which to bin (default is 100)
+
+    method : string
+        'mean' will calculate resolution via the mean --- 'median' via the median resolution of all points 
+        in a bin.
+
+    Returns
+    -------
+
+    wout : np.array
+        Wavelength of the given bin at resolution R.
+
+    dout : np.array
+        Depth of the bin.
+
+    derrout : np.array
+        Error on depth of the bin.
+    
+
+    """
+
+    # Sort wavelengths from lowest to highest:
+    idx = np.argsort(wavelengths)
+
+    ww = wavelengths[idx]
+    dd = depths[idx]
+
+    # Prepare output arrays:
+    wout, dout, derrout = np.array([]), np.array([]), np.array([])
+
+    oncall = False
+
+    # Loop over all (ordered) wavelengths:
+    for i in range(len(ww)):
+
+        if not oncall:
+
+            # If we are in a given bin, initialize it:
+            current_wavs = np.array([ww[i]])
+            current_depths = np.array(dd[i])
+            oncall = True
+
+        else:
+
+            # On a given bin, append next wavelength/depth:
+            current_wavs = np.append(current_wavs, ww[i])
+            current_depths = np.append(current_depths, dd[i])
+
+            # Calculate current mean R:
+            current_R = np.mean(current_wavs) / np.abs(current_wavs[0] - current_wavs[-1])
+
+            # If the current set of wavs/depths is below or at the target resolution, stop and move to next bin:
+            if current_R <= R:
+
+                wout = np.append(wout, np.mean(current_wavs))
+                dout = np.append(dout, np.mean(current_depths))
+                derrout = np.append(derrout, np.sqrt(np.var(current_depths)) / np.sqrt(len(current_depths)))
+
+                oncall = False
+
+    return wout, dout, derrout
