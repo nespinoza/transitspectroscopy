@@ -6,7 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # [0.3.11] - unreleased
 ### Added
-- Functions in `utils.py` to predict transits, perform calculations of atmospheric signals and scale-heights
+- Functions in `utils.py` to predict transits, perform calculations of atmospheric signals and scale-heights.
+- Function in `utils.py` to bin in resolution (`bin_at_resolution`).
 
 # [0.3.10] - 2022-06-07
 ### Added
