@@ -561,3 +561,41 @@ def bin_at_resolution(wavelengths, depths, R = 100, method = 'median'):
                 oncall = False
 
     return wout, dout, derrout
+
+def vacuum_to_air(wavelength):
+    """
+    Given wavelengths (in microns) in vacuum, convert them to 
+    air wavelengths following Morton (2000, ApJ, Suppl, 130, 403) 
+    as explained: https://www.astro.uu.se/valdwiki/Air-to-vacuum%20conversion#:~:text=The%20conversion%20is%20then%3A%20%CE%BB,0.045%25%20CO2%20by%20volume.
+    """
+
+    # Convert input in microns to angstroms:
+    w_ang = wavelength * 1e4
+
+    # Generate the s variable:
+    s = 1e4 / w_ang
+
+    # Compute refraction index:
+    n = 1 + 0.0000834254 + 0.02406147 / (130. - s**2) + 0.00015998 / (38.9 - s**2)
+
+    # Return converted wavelengths in microns:
+    return ( w_ang / n ) * 1e-4
+
+def air_to_vacuum(wavelength):
+    """
+    Given wavelengths (in microns) in air, convert them to vacuum following the 
+    explaination in https://www.astro.uu.se/valdwiki/Air-to-vacuum%20conversion#:~:text=The%20conversion%20is%20then%3A%20%CE%BB,0.045%25%20CO2%20by%20volume..
+    This is the not-as-trivial reversion of the vacuum_to_air function.
+    """
+
+    # Convert input in microns to angstroms:
+    w_ang = wavelength * 1e4 
+
+    # Generate the s variable:
+    s = 1e4 / w_ang
+
+    # Compute refraction index:
+    n = 1 + 0.00008336624212083 + 0.02408926869968 / (130.1065924522 - s**2) + 0.0001599740894897 / (38.92568793293 - s**2)
+
+    # Return converted wavelengths in microns:
+    return ( w_ang * n ) * 1e-4 
