@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Functions in `utils.py` to predict transits, perform calculations of atmospheric signals and scale-heights.
 - Function in `utils.py` to bin in resolution (`bin_at_resolution`).
 - Function in `utils.py` to convert wavelengths from vacuum to air and viceversa.
+- Added `transitfitting.py` which allows to perform transit fitting in parallel.
 
 # [0.3.10] - 2022-06-07
 ### Added
