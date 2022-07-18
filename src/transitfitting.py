@@ -97,7 +97,7 @@ def fit_lightcurves(data_dictionaries, priors, sampler = 'multinest', starting_p
             results[keyname] = notremote_fit_data( data_dictionaries[keyname], \
                                                    priors[keyname], output_folder = keyname, \
                                                    starting_point = starting_points[keyname], \
-                                                   sampler = sampler, **kwargs) )
+                                                   sampler = sampler, **kwargs) 
 
     return results
 
