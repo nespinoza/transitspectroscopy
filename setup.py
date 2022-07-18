@@ -31,7 +31,7 @@ setup(name='transitspectroscopy',
       license='MIT',
       packages=['transitspectroscopy'],
       package_dir={'transitspectroscopy': 'src'},
-      install_requires=['numpy','scipy', 'jwst', 'astropy'],
+      install_requires=['numpy','scipy', 'jwst', 'astropy', 'jdcal'],
       python_requires='>=3.0',
       ext_modules = [marsh_module, ccf_module],
       zip_safe=False)
