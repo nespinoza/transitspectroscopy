@@ -1,7 +1,14 @@
 import numpy as np
 
 import juliet
-import ray
+
+try:
+
+    import ray
+
+except:
+
+    print('Could not import the "ray" library. If you want to parallelize lightcurve fitting, please install by doing "pip install ray".')
 
 def fit_lightcurves(data_dictionaries, priors, sampler = 'multinest', starting_points = None, nthreads = None, **kwargs):
     """
