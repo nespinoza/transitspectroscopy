@@ -542,7 +542,7 @@ def get_cds(data):
     return times, cds_frames
  
 
-def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'loom', skip_steps = [], outputfolder = '', quicklook = False, uniluminated_mask = None, background_model = None, instrument = 'niriss', **kwargs):
+def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'stsci', skip_steps = [], outputfolder = '', quicklook = False, uniluminated_mask = None, background_model = None, instrument = 'niriss', **kwargs):
     """
     This function calibrates an *uncal.fits file through a "special" version of the JWST TSO CalWebb Stage 1, also passing the data through the assign WCS step to 
     get the wavelength map from Stage 2. With all this, this function by default returns the rates per integrations, errors on those rates, data-quality flags, 
@@ -862,31 +862,36 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
                 if not os.path.exists(output_filename):
 
                     roebas = np.zeros([nintegrations, ngroups, nrows, ncolumns])
-                    for i in range(nintegrations):
 
-                        for j in range(ngroups):
+                    # Do some special treatment for 512s, which doesn't have many background pixels:
+                    if instrument == 'nirspec-512s':
 
-                            # Create group-mask to scale and remove the background model if available:
-                            if background_model is not None:
+                        # First, remove possible bias jumps from each group using the background regions to the left and right of the detector:
+                        for i in range(nintegrations):
 
-                                group_mask = cc_uniluminated_outliers(refpix.data[i, j, :, :], mask)
+                            for j in range(ngroups):
 
-                                # Nan the entire group-mask so we can work with nanmedians later. Also nan 
-                                # reference pixels:
-                                #idx_mask = np.where( (group_mask == 0)&(refpix.dq[i, j, :, :] == ))
-                                #group_mask[idx_mask] = np.nan
+                                background = np.hstack(( refpix.data[i, j, :, 0:30], refpix.data[i, j, :, 500:] ))
+                                refpix.data[i, j, :, :] -= np.nanmedian( background )
 
-                                # Let nanmedian take care of non-background pixels:
-                                #data_median_background = np.median()
-                                
-        
-                            # ROEBA is outlier-resistant, so don't bother with group-masks:
-                            roebas[i, j, :, :] = get_roeba(refpix.data[i, j, :, :], mask)
+                    else:
 
-                            # Substract from the data:
-                            refpix.data[i, j, :, :] -= roebas[i, j, :, :]
+                        for i in range(nintegrations):
 
-                        lmf_after[i, :, :] = refpix.data[i, max_group, :, :] - refpix.data[i, min_group, :, :]
+                            for j in range(ngroups):
+
+                                # Create group-mask to scale and remove the background model if available:
+                                if background_model is not None:
+
+                                    group_mask = cc_uniluminated_outliers(refpix.data[i, j, :, :], mask)
+
+                                # ROEBA is outlier-resistant, so don't bother with group-masks:
+                                roebas[i, j, :, :] = get_roeba(refpix.data[i, j, :, :], mask)
+
+                                # Substract from the data:
+                                refpix.data[i, j, :, :] -= roebas[i, j, :, :]
+
+                            lmf_after[i, :, :] = refpix.data[i, max_group, :, :] - refpix.data[i, min_group, :, :]
 
                     refpix.save(output_filename)
 
