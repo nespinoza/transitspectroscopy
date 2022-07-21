@@ -542,7 +542,7 @@ def get_cds(data):
     return times, cds_frames
  
 
-def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'stsci', skip_steps = [], outputfolder = '', quicklook = False, uniluminated_mask = None, background_model = None, instrument = 'niriss', **kwargs):
+def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'stsci', skip_steps = [], outputfolder = '', quicklook = False, uniluminated_mask = None, background_model = None, manual_bias = False, instrument = 'niriss', **kwargs):
     """
     This function calibrates an *uncal.fits file through a "special" version of the JWST TSO CalWebb Stage 1, also passing the data through the assign WCS step to 
     get the wavelength map from Stage 2. With all this, this function by default returns the rates per integrations, errors on those rates, data-quality flags, 
@@ -751,25 +751,32 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         # Next up, superbias step:
         if 'superbias' not in skip_steps:
 
+           if not manual_bias: 
 
-            output_filename = full_datapath + '_superbiasstep.fits'
-            if not os.path.exists(output_filename):
+                output_filename = full_datapath + '_superbiasstep.fits'
+                if not os.path.exists(output_filename):
 
-                if 'override_superbias' in kwargs.keys():
-            
-                    superbias = calwebb_detector1.superbias_step.SuperBiasStep.call(output_dictionary['saturation'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
-                                                                                    override_superbias = kwargs['override_superbias'])
+                    if 'override_superbias' in kwargs.keys():
+
+                        superbias = calwebb_detector1.superbias_step.SuperBiasStep.call(output_dictionary['saturation'], output_dir=outputfolder+'pipeline_outputs', save_results = True, \
+                                                                                        override_superbias = kwargs['override_superbias'])
+
+                    else:
+
+                        superbias = calwebb_detector1.superbias_step.SuperBiasStep.call(output_dictionary['saturation'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
+
+                    output_dictionary['superbias'] = superbias
 
                 else:
 
-                    superbias = calwebb_detector1.superbias_step.SuperBiasStep.call(output_dictionary['saturation'], output_dir=outputfolder+'pipeline_outputs', save_results = True)
-
-                output_dictionary['superbias'] = superbias
+                    print('\t >> superbias step products found, loading them...')
+                    output_dictionary['superbias'] = datamodels.RampModel(output_filename)
 
             else:
 
-                print('\t >> superbias step products found, loading them...')
-                output_dictionary['superbias'] = datamodels.RampModel(output_filename)
+                output_dictionary['superbias'] = output_dictionary['saturation']
+                sbias = datamodels.open(kwargs['override_superbias'])
+                output_dictionary['superbias'].data -= sbias.data
 
         else:
 
