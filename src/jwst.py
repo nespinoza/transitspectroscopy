@@ -661,6 +661,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
     if get_times:
 
         try:
+
             times = uncal_data.int_times['int_mid_BJD_TDB']
 
         except:
@@ -864,6 +865,20 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
                     for i in range(nintegrations):
 
                         for j in range(ngroups):
+
+                            # Create group-mask to scale and remove the background model if available:
+                            if background_model is not None:
+
+                                group_mask = cc_uniluminated_outliers(refpix.data[i, j, :, :], mask)
+
+                                # Nan the entire group-mask so we can work with nanmedians later. Also nan 
+                                # reference pixels:
+                                #idx_mask = np.where( (group_mask == 0)&(refpix.dq[i, j, :, :] == ))
+                                #group_mask[idx_mask] = np.nan
+
+                                # Let nanmedian take care of non-background pixels:
+                                #data_median_background = np.median()
+                                
         
                             # ROEBA is outlier-resistant, so don't bother with group-masks:
                             roebas[i, j, :, :] = get_roeba(refpix.data[i, j, :, :], mask)
@@ -1063,14 +1078,17 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         if not os.path.exists(outputfolder+'pipeline_outputs/'+wmap_fname+'.npy'):
 
             rows, columns = assign_wcs.data[0,:,:].shape
-            wavelength_maps = np.zeros([2,rows,columns])
-            for order in [1,2]:
-                for row in range(rows):
-                    for column in range(columns):
-                        wavelength_maps[order-1,row,column] = assign_wcs.meta.wcs(column, row, order)[-1]
 
-            # Save it so we do this only once:
-            np.save(outputfolder+'pipeline_outputs/'+wmap_fname, wavelength_maps)
+            if instrument == 'niriss':
+
+                wavelength_maps = np.zeros([2,rows,columns])
+                for order in [1,2]:
+                    for row in range(rows):
+                        for column in range(columns):
+                            wavelength_maps[order-1,row,column] = assign_wcs.meta.wcs(column, row, order)[-1]
+
+                # Save it so we do this only once:
+                np.save(outputfolder+'pipeline_outputs/'+wmap_fname, wavelength_maps)
 
         else:
 
