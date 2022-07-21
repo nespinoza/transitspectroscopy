@@ -751,7 +751,7 @@ def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map =
         # Next up, superbias step:
         if 'superbias' not in skip_steps:
 
-           if not manual_bias: 
+            if not manual_bias: 
 
                 output_filename = full_datapath + '_superbiasstep.fits'
                 if not os.path.exists(output_filename):
