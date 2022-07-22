@@ -11,6 +11,30 @@ from astropy.timeseries import TimeSeries
 from jwst.pipeline import calwebb_detector1, calwebb_spec2
 from jwst import datamodels
 
+def correct_1f(median_frame, frame, x, y, min_bkg_row = 20, max_bkg_row = 35, mask = None):
+   
+    edge_row = median_frame.shape[0]
+ 
+    new_frame = np.copy(frame)
+    
+    ms = frame - median_frame
+    
+    # Go column-by-column substracting values around the trace:
+    for i in range(len(x)):
+        
+        column = x[i]
+        row = int(y[i])
+        
+        min_row = np.max([0, row - max_bkg_row])
+        max_row = np.min([edge_row, row + max_bkg_row])
+        
+        bkg = np.append(ms[min_row:row - min_bkg_row, column], ms[row + min_bkg_row:max_row, column])
+        idx = np.argsort(bkg)
+        npoints = len(idx)
+        new_frame[:, column] = new_frame[:, column] - np.nanmedian(bkg[idx][int(npoints*0.25):int(npoints*0.5)])
+        
+    return new_frame
+
 def cc_uniluminated_outliers(data, mask, nsigma = 5):
     """
     Column-to-column background outlier detection
