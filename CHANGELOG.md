@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Function in `utils.py` to convert wavelengths from vacuum to air and viceversa.
 - Added `transitfitting.py` which allows to perform transit fitting in parallel.
 
+### Changed
+- `getSimpleSpectrum` has `correct_bkg=False` by default now.
+
 # [0.3.10] - 2022-06-07
 ### Added
 - Now getSimpleSpectrum can use background on both sides or on only one side of the spectrum.
