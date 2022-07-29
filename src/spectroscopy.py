@@ -325,7 +325,7 @@ def getFastSimpleSpectrum(data, centroids, aperture_radius, min_column = None, m
 
         return spectrum, aperture
 
-def getSimpleSpectrum(data, x, y, aperture_radius, background_radius=50, error_data=None, correct_bkg=True, method = 'sum', bkg_method = 'all'):
+def getSimpleSpectrum(data, x, y, aperture_radius, background_radius=50, error_data=None, correct_bkg=False, method = 'sum', bkg_method = 'all'):
     """
     This function takes as inputs two arrays (x,y) that follow the trace,
     and returns the added flux over the defined aperture radius (and its error, if an error matrix
