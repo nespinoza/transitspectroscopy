@@ -25,7 +25,7 @@ Read the `LICENCE` file for licencing details on how to use the code.
 
 ## Citation
 
-You can cite the code via it's DOI: 10.5281/zenodo.6960923 (see https://zenodo.org/record/6960924#.YutMaezMLUI). Here's the citation snippet:
+You can cite this software via its DOI: 10.5281/zenodo.6960923 (see https://zenodo.org/record/6960924#.YutMaezMLUI). Here's the citation snippet:
 
     @software{espinoza_nestor_2022_6960924,
       author       = {Espinoza, Nestor},
