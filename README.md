@@ -20,3 +20,18 @@ Or via PyPi:
 ## Licence and attribution
 
 Read the `LICENCE` file for licencing details on how to use the code.
+
+## Citation
+
+You can cite the code via it's DOI: 10.5281/zenodo.6960923 (see https://zenodo.org/record/6960924#.YutMaezMLUI). Here's the citation snippet:
+
+    @software{espinoza_nestor_2022_6960924,
+      author       = {Espinoza, Nestor},
+      title        = {TransitSpectroscopy},
+      month        = aug,
+      year         = 2022,
+      publisher    = {Zenodo},
+      version      = {0.3.11},
+      doi          = {10.5281/zenodo.6960924},
+      url          = {https://doi.org/10.5281/zenodo.6960924}
+    }
