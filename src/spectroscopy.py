@@ -2,6 +2,8 @@ import numpy as np
 from scipy.ndimage import median_filter
 from scipy.ndimage import gaussian_filter1d
 
+from scipy.interpolate import splrep, sproot, splev
+
 import Marsh
 import CCF
 
@@ -769,6 +771,102 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
     
     # Return all trace positions:
     return x, ytraces
+
+def get_fwhm(x, y, k=3):
+    """
+    Given a profile (x,y), this function calculates the FWHM of the profile via spline 
+    interpolation. The idea is to interpolate the profile, and find where the profile 
+    minus half the maximum crosses zero via root-finding.
+
+    Parameters
+    ----------
+
+    x : numpy.array
+        Array containing the x-axis of the profile (e.g., pixels).
+    y : numpy.array
+        Array containing the y-axis of the profile (e.g., counts).
+    k : int
+        Interpolation degree
+
+    Returns
+    -------
+
+    The FWHM (a double) if there is a single root; 0 if it doesn't exist/there are more than one root.
+    """
+
+    half_max = np.max(y)/2.0
+    s = splrep(x, y - half_max, k=k)
+    roots = sproot(s)
+
+    if len(roots) > 2:
+        return 0.
+    
+    elif len(roots) < 2:
+        return 0.
+    else:
+        return abs(roots[1] - roots[0])
+    
+def trace_fwhm(tso, x, y, distance_from_trace = 15):
+    """
+    This function calculates the FWHM time-series accross a set of frames (the `tso` array), as a function of position/wavelength (the trace position 
+    `x` and `y`).
+
+    Parameters
+    ----------
+
+    tso : numpy.array
+          Array of shape `(time, rows, columns)` of a set of frames on which one wants to calculate the FWHM as a function of `time` and `columns`.
+    x : numpy.array
+          Trace column position.
+    y : int
+          Trace row position.
+    distance_from_trace : int
+          Distance from the trace at which the FWHM will be calculated.
+
+    Returns
+    -------
+
+    fwhms : numpy.array
+          Array of shape `(time, columns)` having the FWHM at each of the `x` columns and `times`.
+
+    superfwhm : numpy.array
+          The median FWHM accross all `x` columns
+    """
+ 
+    fwhms = np.zeros([tso.shape[0], tso.shape[2]])
+
+    row_index = np.arange(tso.shape[1])
+    min_row = 0
+    max_row = tso.shape[1]-1
+
+    for i in range(tso.shape[0]):
+
+        for j in range(tso.shape[2]):
+
+            if j in x:
+
+                idx = np.where(j == x)[0]
+                integer_row = int(y[idx])
+
+                lower_row = np.max([min_row, integer_row - distance_from_trace])
+                upper_row = np.min([max_row, integer_row + distance_from_trace])
+
+                fwhms[i, j] = get_fwhm(row_index[lower_row:upper_row], tso[i, lower_row:upper_row, j])
+                
+    normalized_fwhms = np.zeros(fwhms.shape)
+
+    # Nan the zeroes in fwhms:
+    idx = np.where(fwhms == 0.)
+    fwhms[idx] = np.nan
+
+    for i in range(tso.shape[2]):
+
+        # Normalize:
+        normalized_fwhms[:, i] = fwhms[:, i] - np.nanmedian( fwhms[:, i] )
+                
+    super_fwhm = np.nanmedian( normalized_fwhms, axis = 1 )
+    
+    return fwhms, super_fwhm
 
 def get_mad_sigma(x):
 
