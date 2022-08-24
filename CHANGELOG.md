@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # [0.3.12] - 2022-08-24
 ### Added
-- Function to compute FWHM.
+- Function to compute FWHM: `ts.spectroscopy.get_fwhm(x,y)` and `ts.spectroscopy.trace_fwhm(tso, x, y)`.
 
 # [0.3.11] - 2022-08-02
 ### Added
