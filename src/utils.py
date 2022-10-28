@@ -544,6 +544,11 @@ def bin_at_resolution(wavelengths, depths, depths_errors = None, R = 100, method
             # If we are in a given bin, initialize it:
             current_wavs = np.array([ww[i]])
             current_depths = np.array(dd[i])
+            
+            if depths_errors is not None:
+
+                current_depth_errors = np.array(dderr[i])
+
             oncall = True
 
         else:
