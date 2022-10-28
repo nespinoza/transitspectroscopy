@@ -485,7 +485,7 @@ def transit_predictor(year, month, P, t0, tduration, day=None):
 
         counter = counter + 1
 
-def bin_at_resolution(wavelengths, depths, R = 100, method = 'median'):
+def bin_at_resolution(wavelengths, depths, depths_errors = None, R = 100, method = 'mean'):
     """
     Function that bins input wavelengths and transit depths (or any other observable, like flux) to a given 
     resolution `R`. Useful for binning transit depths down to a target resolution on a transit spectrum.
@@ -527,6 +527,10 @@ def bin_at_resolution(wavelengths, depths, R = 100, method = 'median'):
     ww = wavelengths[idx]
     dd = depths[idx]
 
+    if depths_errors is not None:
+
+        dderr = depths_errors[idx]
+
     # Prepare output arrays:
     wout, dout, derrout = np.array([]), np.array([]), np.array([])
 
@@ -547,16 +551,41 @@ def bin_at_resolution(wavelengths, depths, R = 100, method = 'median'):
             # On a given bin, append next wavelength/depth:
             current_wavs = np.append(current_wavs, ww[i])
             current_depths = np.append(current_depths, dd[i])
+    
+            if depths_errors is not None:
+
+                current_depth_errors = np.append(current_depth_errors, dderr[i])
 
             # Calculate current mean R:
-            current_R = np.mean(current_wavs) / np.abs(current_wavs[0] - current_wavs[-1])
+            if method == 'mean':
 
-            # If the current set of wavs/depths is below or at the target resolution, stop and move to next bin:
+                current_R = np.mean(current_wavs) / np.abs(current_wavs[0] - current_wavs[-1])
+
+            elif method == 'median':
+
+                current_R = np.median(current_wavs) / np.abs(current_wavs[0] - current_wavs[-1])
+
+            else:
+
+                raise Exception('Method '+method+' not supported. Try "mean" or "median".' )
+
+                
+
+            # If the current set of wavs/depths is below or at the target resolution, stop, save 
+            # and move to next bin:
             if current_R <= R:
 
                 wout = np.append(wout, np.mean(current_wavs))
                 dout = np.append(dout, np.mean(current_depths))
-                derrout = np.append(derrout, np.sqrt(np.var(current_depths)) / np.sqrt(len(current_depths)))
+
+                if depths_errors is None:
+
+                    derrout = np.append(derrout, np.sqrt(np.var(current_depths)) / np.sqrt(len(current_depths)))
+
+                else:
+
+                    errors = np.sqrt( np.sum( current_depth_errors**2 ) ) / len(current_depth_errors)
+                    derrout = np.append(derrout, errors )
 
                 oncall = False
 

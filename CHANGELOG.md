@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [0.3.13] - 2022-10-28
+### Added
+- Resolution binning can now consider data errorbars to compute binned errorbars.
+
 # [0.3.12] - 2022-08-24
 ### Added
 - Function to compute FWHM.
