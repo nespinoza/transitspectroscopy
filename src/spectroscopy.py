@@ -509,6 +509,74 @@ def double_gaussian(x, mean1 = -7.9, mean2 = 7.9, sigma1 = 1., sigma2 = 1.):
 
     return gaussian(x, mean1, sigma1) + gaussian(x, mean2, sigma2)
 
+def get_pm_ccf(x1, y1, x2, y2, max_shift = 5, delta = 0.1, method = 'abs'):
+    """
+    This function gets you the "poor man's CCF" of a pair of arrays. x1 and x2 might be time or wavelength, 
+    y1 and y2 might be an observable (e.g., flux). The function returns the lags and the "CCF", which is really 
+    the absolute value of the sum of the substraction between the y1's minus the shifted y2's, with both interpolated 
+    to a common grid. This can also return the standard CCF if method = 'standard'.
+
+    Parameters
+    ----------
+
+    x1 : numpy.array
+        Input array containing the values at which each of the y1-values are defined.
+    y1 : numpy.array
+        Array containing the input values for x1.
+    x2 : numpy.array
+        Input array containing the values at which each of the y2-values are defined.
+    y2 : numpy.array
+        Array containing the input values for x2.
+    max_shift : double
+        Maximum value by which x2 will be shifted to match (x1, y1)
+    delta : double
+        Steps at which max_shift will be tried.
+    method : string
+        Set to 'abs' by default, which calculates the absolute difference between the shifted arrays. 
+        To return the standard CCF (assuming data has been normalized), set to 'standard'.
+        Boolean deciding whether to apply pixelation effects (i.e., integrating function over a pixel)
+
+    Returns
+    -------
+
+    shifts : Values at which y2 has been shifted.
+
+    ccf : numpy.array
+        Array containing the (abs or standard) cross-correlation function between y1 and y2. 
+
+    """
+    shifts = np.arange(-max_shift, max_shift, delta)
+    residuals = np.zeros( len(shifts) )
+    
+    # Pad edges with zeroes:
+    new_x1 = np.append(np.min(np.append(x1,x2))-max_shift*2, x1)
+    new_x1 = np.append(new_x1, np.max(np.append(x1,x2))+max_shift*2)
+    new_x2 = np.append(np.min(np.append(x1,x2))-max_shift*2, x2)
+    new_x2 = np.append(new_x2, np.max(np.append(x1,x2))+max_shift*2)
+    
+    new_y1 = np.append(y1, 0.)
+    new_y1 = np.append(0., new_y1)
+    
+    new_y2 = np.append(y2, 0.)
+    new_y2 = np.append(0., new_y2)
+    
+    # Interpoalte both series:
+    f1 = interpolate.interp1d( new_x1, new_y1 )
+    f2 = interpolate.interp1d( new_x2, new_y2 )
+    
+    # Evaluate absolute difference on a common grid:    
+    for i in range( len(shifts) ):
+
+        if method == 'abs':
+        
+            residuals[i] = np.sum( np.abs( f1(x2) - f2(x2 - shifts[i]) ) )
+
+        elif method == 'standard':
+
+            residuals[i] = np.sum( f1(x2) * f2(x2 - shifts[i]) )    
+    
+    return shifts, residuals  
+
 def get_ccf(x, y, function = 'gaussian', parameters = None, pixelation = False, lag_step = 0.001):
     """
     Function that obtains the CCF between input data defined between x and y and a pre-defined function.
