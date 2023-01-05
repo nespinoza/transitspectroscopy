@@ -291,11 +291,15 @@ class load(object):
 
                 self.output_folder = input_folder
 
-        # Read priors if a file is given; read it if it's already a dictionary:
+        # Read priors if a file is given; read it if it's already a dictionary. Raise exception if None:
         if type(priors) == str:
 
             self.prior_fname = priors
             self.priors = self.read_priors(priors)
+
+        elif priors is None:
+
+            raise Exception('INPUT ERROR: Priors were not given; these need to be ingested via retrievals.load(..., priors = priors).')
 
         else:
 
