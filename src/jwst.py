@@ -639,9 +639,9 @@ def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
     # Now, get CDSs:
     cds_data = np.zeros([data.shape[0], data.shape[1]-1, data.shape[2], data.shape[3]])
 
-    for i in range(data.shape[0]):
+    for i in range(cds_data.shape[0]):
         
-        for j in range(data.shape[1]):
+        for j in range(cds_data.shape[1]):
             
             cds_data[i, j, :, :] = data[i, j+1, :, :] - data[i, j, :, :]
 
@@ -692,9 +692,9 @@ def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
     # Substract from the data:
     cds_bkg = np.nanmedian(cds_2D_background, axis = 0)
 
-    for integration in range(data.shape[0]):
+    for integration in range(cds_data.shape[0]):
 
-        for group in range(data.shape[1]-1):
+        for group in range(cds_data.shape[1]-1):
 
             cds_data[integration, group, :, :] = cds_data[integration, group, :, :] - cds_bkg 
 
@@ -702,9 +702,9 @@ def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
     new_median_cds = np.nanmedian(cds_data, axis = (0,1))
 
     # Now, 1/f noise. We do a "local" 1/f noise removal:
-    for integration in range(data.shape[0]):
+    for integration in range(cds_data.shape[0]):
 
-        for group in range(data.shape[1]-1):
+        for group in range(cds_data.shape[1]-1):
 
             cds_data[integration, group, :, :], _ = correct_1f(cds_data[integration, group, :, :], \
                                                                new_median_cds, \
