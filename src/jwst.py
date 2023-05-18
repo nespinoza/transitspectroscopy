@@ -652,7 +652,7 @@ def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
     if instrument.lower() == 'nirspec/g395h':
 
         xstart, xend, nknots = 2043, 500, 60
-        median_edge_psf = np.nanmedian(median_ds[:, xstart-200:xstart], axis = 1)
+        median_edge_psf = np.nanmedian(median_cds[:, xstart-200:xstart], axis = 1)
 
     centroid = np.sum ( median_edge_psf * np.arange(len(median_edge_psf))  ) / np.sum( median_edge_psf )
 
