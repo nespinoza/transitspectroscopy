@@ -2,6 +2,8 @@ import os
 import numpy as np
 from scipy.sparse.linalg import lsmr
 from copy import deepcopy
+from scipy.ndimage import median_filter
+
 
 from astropy.utils.data import download_file
 from astropy import units as u
@@ -10,6 +12,9 @@ from astropy.timeseries import TimeSeries
 
 from jwst.pipeline import calwebb_detector1, calwebb_spec2
 from jwst import datamodels
+
+from .utils import *
+from .spectroscopy import *
 
 def correct_1f(median_frame, frame, x, y, min_bkg_row = 20, max_bkg_row = 35, mask = None):
    
@@ -564,7 +569,150 @@ def get_cds(data):
             tstart = tstart + (current_group + 1) * grouptime + grouptime + frametime
 
     return times, cds_frames
+
+def correct_local_1f(input_frame, template_frame, x_trace, y_trace, ommited_radius = 3, outer_radius = 10):
+    
+    # Get the detector frame by substractin the template:
+    detector = input_frame - template_frame
+    
+    # Iterate through the trace, remove median of non-ommited pixels:
+    for i in range( len(x_trace) ):
+        
+        signal = detector[:, x_trace[i]]
+        
+        signal[int(y_trace[i])-ommited_radius:int(y_trace[i])+ommited_radius] = np.nan
+        signal[:int(y_trace[i]-10)] = np.nan
+        signal[int(y_trace[i]+10):] = np.nan
+        
+    one_f = np.nanmedian(detector, axis = 0)
+        
+    return input_frame - one_f, det
+
+def old_correct_1f(input_frame, x_trace, y_trace, outer_radius = 10):
+    
+    # Create the frame we'll play with:
+    detector = np.copy(input_frame)
+    
+    # Iterate through the trace, mark as nans pixels we won't be using:
+    for i in range( len(x_trace) ):
+        
+        signal = detector[:, x_trace[i]]
+        
+        signal[int(y_trace[i])-outer_radius:int(y_trace[i])+outer_radius] = np.nan
+        
+    one_f = np.nanmedian(detector, axis = 0)
+        
+    return input_frame - one_f, detector
+
+def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
+    """
+    Initial version of a CDS-based Stage 1 pipeline. Inputs are `*ramp*` files. This assumes the `datafiles` are ordered.
+    """
+
+    if instrument.lower() == 'nirspec/g395h':
+
+        rows = 32
+        columns = 2048
+
+    else:
+
+        print('Nedd instrument name. Ending.')
+        sys.exit()
+
+    # First, extract data and time-stamps from the datamodel:
+    data, err = np.zeros([nintegrations, ngroups, rows, columns]), np.zeros([nintegrations, ngroups, rows, columns])
+    times = np.zeros(nintegrations)
+
+    past_nints = 0
+    for i in range( len(datafiles) ):
+
+        dm = datamodels.RampModel(datafiles[i])
+
+        current_nints = dm.data.shape[0]
+
+        times[past_nints:past_nints+current_nints] = np.copy(dm.int_times['int_mid_BJD_TDB'])
+        data[past_nints:past_nints+current_nints, :, :, :] = np.copy(dm.data)
+        err[past_nints:past_nints+current_nints, :, :, :] = np.copy(dm.err)
+
+        past_nints = past_nints + current_nints
  
+    # Now, get CDSs:
+    cds_data = np.zeros([data.shape[0], data.shape[1]-1, data.shape[2], data.shape[3]])
+
+    for i in range(data.shape[0]):
+        
+        for j in range(data.shape[1]):
+            
+            cds_data[i, j, :, :] = data[i, j+1, :, :] - data[i, j, :, :]
+
+    # Get median and trace:
+    median_cds = np.nanmedian(cds_data, axis = (0,1))
+
+    # Get initial centroid of right-most part of the spectrum:
+    if instrument.lower() == 'nirspec/g395h':
+
+        xstart, xend, nknots = 2043, 500, 60
+        median_edge_psf = np.nanmedian(median_ds[:, xstart-200:xstart], axis = 1)
+
+    centroid = np.sum ( median_edge_psf * np.arange(len(median_edge_psf))  ) / np.sum( median_edge_psf )
+
+    x1, y1 = trace_spectrum(median_cds, np.zeros(median_cds.shape), 
+                            xstart = xstart, ystart = centroid, xend = xend)
+
+    # Handle outliers. First, get standard deviation:
+    mf = median_filter(y1, 3)
+    sigma = np.nanmedian( np.abs(mf - y1) ) * 1.4826
+
+    # Identify values above 5-sigma from that, replace them by the median filter:
+    idx = np.where( np.abs(mf - y1) > 5*sigma )[0]
+    new_y1 = np.copy(y1)
+    new_y1[idx] = mf[idx] 
+
+    # Smooth trace:
+    _, ysmooth = fit_spline(x1, new_y1, nknots = nknots)
+
+    # All right. Now, let's do some background substraction using this median CDS frame:
+    if instrument.lower() == 'nirspec/g395h':
+
+        trace_radius = 10
+
+    # To estimate it, let's use the background counts measured by the median CDS frame outside from around 
+    # trace_radius from the trace:
+    cds_2D_background = np.copy(median_cds)
+    cds_background = np.zeros(len(x1))
+    rows = np.arange(median_cds.shape[0])
+
+    for i in range(len(x1)):
+        
+        idx = np.where(np.abs(rows - ysmooth[i])>trace_radius)[0]
+        idx_in = np.where(np.abs(rows - ysmooth[i])<=trace_radius)[0]
+        cds_2D_background[idx_in, x1[i]] = np.nan
+        cds_background[i] = np.nanmedian( median_cds[idx, x1[i]] )  
+
+    # Substract from the data:
+    cds_bkg = np.nanmedian(cds_2D_background, axis = 0)
+
+    for integration in range(data.shape[0]):
+
+        for group in range(data.shape[1]-1):
+
+            cds_data[integration, group, :, :] = cds_data[integration, group, :, :] - cds_bkg 
+
+    # Create new, bkg-substracted median:
+    new_median_cds = np.nanmedian(cds_data, axis = (0,1))
+
+    # Now, 1/f noise. We do a "local" 1/f noise removal:
+    for integration in range(data.shape[0]):
+
+        for group in range(data.shape[1]-1):
+
+            cds_data[integration, group, :, :], _ = correct_1f(cds_data[integration, group, :, :], \
+                                                               new_median_cds, \
+                                                               x1, ysmooth, \
+                                                               ommited_radius = 3, outer_radius = trace_radius)
+
+    # For now, return CDS, backgroud and 1/f-noise-corrected data and time-stamps:
+    return times, cds_data
 
 def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'stsci', skip_steps = [], outputfolder = '', quicklook = False, uniluminated_mask = None, background_model = None, manual_bias = False, instrument = 'niriss', **kwargs):
     """
