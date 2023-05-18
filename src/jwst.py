@@ -706,10 +706,10 @@ def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
 
         for group in range(cds_data.shape[1]-1):
 
-            cds_data[integration, group, :, :], _ = correct_1f(cds_data[integration, group, :, :], \
-                                                               new_median_cds, \
-                                                               x1, ysmooth, \
-                                                               ommited_radius = 3, outer_radius = trace_radius)
+            cds_data[integration, group, :, :], _ = correct_local_1f(cds_data[integration, group, :, :], \
+                                                                     new_median_cds, \
+                                                                     x1, ysmooth, \
+                                                                     ommited_radius = 3, outer_radius = trace_radius)
 
     # For now, return CDS, backgroud and 1/f-noise-corrected data and time-stamps:
     return times, cds_data
