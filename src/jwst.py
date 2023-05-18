@@ -581,12 +581,12 @@ def correct_local_1f(input_frame, template_frame, x_trace, y_trace, ommited_radi
         signal = detector[:, x_trace[i]]
         
         signal[int(y_trace[i])-ommited_radius:int(y_trace[i])+ommited_radius] = np.nan
-        signal[:int(y_trace[i]-10)] = np.nan
-        signal[int(y_trace[i]+10):] = np.nan
+        signal[:int(y_trace[i]-outer_radius)] = np.nan
+        signal[int(y_trace[i]+outer_radius):] = np.nan
         
     one_f = np.nanmedian(detector, axis = 0)
         
-    return input_frame - one_f, det
+    return input_frame - one_f, detector
 
 def old_correct_1f(input_frame, x_trace, y_trace, outer_radius = 10):
     
