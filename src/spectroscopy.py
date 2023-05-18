@@ -1,11 +1,14 @@
 import numpy as np
-from scipy.ndimage import median_filter
-from scipy.ndimage import gaussian_filter1d
 
-from scipy.interpolate import splrep, sproot, splev
+from astropy.convolution import convolve_fft
+from astropy.modeling.models import Gaussian1D
 
-import Marsh
+from scipy.interpolate import splev, splrep, sproot, interp1d
+from scipy.ndimage import gaussian_filter1d, median_filter
+from scipy.optimize import fminbound
+
 import CCF
+import Marsh
 
 def getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, min_column = None, max_column = None, return_flat = False, data_variance = None):
     """
@@ -509,6 +512,42 @@ def double_gaussian(x, mean1 = -7.9, mean2 = 7.9, sigma1 = 1., sigma2 = 1.):
 
     return gaussian(x, mean1, sigma1) + gaussian(x, mean2, sigma2)
 
+def get_ccf_convolve(signal, ccf_parameters=[-7.5, 3.0, 7.5, 3.0]):
+    """
+    Function that obtains the CCF by convolution using the signal, represented as the column 
+    of pixel from the detector, and a double gaussian kernel. This method is an improvement
+    over the ` get_ccf ` below.
+
+    Parameters
+    ----------
+
+    signal : numpy.array
+        Array contain the column signal of the detector
+
+    ccf_parameters : list 
+        List of floats related the double gaussian kernel parametes: [mu1, sig1, mu2, sig2]
+
+    Returns
+    -------
+    ccf : numpy.array
+        Array containing the cross-correlation function between y and the selected function
+
+    """
+    mu1, sig1, mu2, sig2 = ccf_parameters
+    
+    npix = len(signal)
+    
+    # gaussian kernel
+    x = np.linspace(0, npix, npix+1) # must be odd
+    g1 = Gaussian1D(amplitude=1, mean=mu1+npix/2, stddev=sig1)
+    g2 = Gaussian1D(amplitude=1, mean=mu2+npix/2, stddev=sig2)
+    kernel = g1 + g2 
+
+    # convolve kernel and signal 
+    ccf = convolve_fft(signal, kernel(x))
+    
+    return ccf
+
 def get_pm_ccf(x1, y1, x2, y2, max_shift = 5, delta = 0.1, method = 'abs'):
     """
     This function gets you the "poor man's CCF" of a pair of arrays. x1 and x2 might be time or wavelength, 
@@ -575,7 +614,7 @@ def get_pm_ccf(x1, y1, x2, y2, max_shift = 5, delta = 0.1, method = 'abs'):
 
             residuals[i] = np.sum( f1(x2) * f2(x2 - shifts[i]) )    
     
-    return shifts, residuals  
+    return shifts, residuals
 
 def get_ccf(x, y, function = 'gaussian', parameters = None, pixelation = False, lag_step = 0.001):
     """
@@ -792,6 +831,21 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
                 idx_max = np.where(ccf == np.max(ccf))[0]
                 
                 ytraces[i] = lags[idx_max]
+            
+            elif method == 'convolve':
+                # Run CCF using using convolution method applied to entire column
+                ccf = get_ccf_convolve(filtered_column, ccf_parameters=ccf_parameters)
+
+                # Find where the minimum occurs within the profile_radius
+                # by finding the peak. A cubic spline interpolations is 
+                # used to smooth the ccf. The interpolated ccf has been 
+                # compared to numerically computed ccf with fine sampling 
+                # and yield similar results. By applying a miminization 
+                # scheme we can idenitfy the optimal position where the peak
+                # occurs in the region of interest
+                # 
+                y1, y2 = y[idx][[0,-1]]
+                ytraces[i] = fminbound(interp1d(y, -1*ccf, kind='cubic'), y1, y2)
 
             elif method == 'centroid':
  
