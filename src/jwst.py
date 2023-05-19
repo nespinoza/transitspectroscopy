@@ -570,10 +570,10 @@ def get_cds(data):
 
     return times, cds_frames
 
-def correct_local_1f(input_frame, template_frame, x_trace, y_trace, ommited_radius = 3, outer_radius = 10):
+def correct_local_1f(input_frame, template_frame, relative_flux, x_trace, y_trace, ommited_radius = 3, outer_radius = 10):
     
-    # Get the detector frame by substractin the template:
-    detector = input_frame - template_frame
+    # Get the detector frame by substracting the template, accounting for the relative flux:
+    detector = input_frame - (template_frame * relative_flux)
     
     # Iterate through the trace, remove median of non-ommited pixels:
     for i in range( len(x_trace) ):
@@ -606,13 +606,14 @@ def old_correct_1f(input_frame, x_trace, y_trace, outer_radius = 10):
 
 def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
     """
-    Initial version of a CDS-based Stage 1 pipeline. Inputs are `*ramp*` files. This assumes the `datafiles` are ordered.
+    Initial version of a CDS-based Stage 1 pipeline. Inputs are `*ramp*` files. This assumes the `datafiles` is a list with ordered segments (e.g., first element is first segment, etc.).
     """
 
     if instrument.lower() == 'nirspec/g395h':
 
         rows = 32
         columns = 2048
+        initial_1f = True
 
     else:
 
@@ -678,36 +679,62 @@ def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
 
     # To estimate it, let's use the background counts measured by the median CDS frame outside from around 
     # trace_radius from the trace:
-    cds_2D_background = np.copy(median_cds)
-    cds_background = np.zeros(len(x1))
+    in_trace_pixels = np.zeros(median_cds.shape)
+    in_trace_pixels[:] = np.nan
+    out_of_trace_pixels = np.ones(median_cds.shape)
     rows = np.arange(median_cds.shape[0])
 
     for i in range(len(x1)):
         
-        idx = np.where(np.abs(rows - ysmooth[i])>trace_radius)[0]
-        idx_in = np.where(np.abs(rows - ysmooth[i])<=trace_radius)[0]
-        cds_2D_background[idx_in, x1[i]] = np.nan
-        cds_background[i] = np.nanmedian( median_cds[idx, x1[i]] )  
+        idx_in = np.where( np.abs( rows - ysmooth[i] ) <= trace_radius)[0]
+        out_of_trace_pixels[idx_in, x1[i]] = np.nan
+        in_trace_pixels[idx_in, x1[i]] = 1.
 
-    # Substract from the data:
-    cds_bkg = np.nanmedian(cds_2D_background, axis = 0)
+    # Substract from the data --- and also get an initial version of the 1/f noise-corrected data (using only outside pixels), 
+    # and a corresponding white-light lightcurve out of that:
+    cds_bkg = np.nanmedian(median_cds * out_of_trace_pixels, axis = 0)
+    cds_initial1fcorrected = np.zeros(cds_data.shape)
+    initial_whitelight = np.zeros(cds_data.shape[0])
+
+    if not initial_1f:
+
+        cds_initial1fcorrected = np.copy(cds_data) 
 
     for integration in range(cds_data.shape[0]):
 
         for group in range(cds_data.shape[1]):
 
+            # Background corrected data:
             cds_data[integration, group, :, :] = cds_data[integration, group, :, :] - cds_bkg 
+
+            if initial_1f:
+
+                # 1/f corrected data using out-of-trace pixels only:
+                onef_2D = out_of_trace_pixels * cds_data[integration, group, :, :]
+                cds_initial1fcorrected[integration, group, :, :] = cds_data[integration, group, :, :] - np.nanmedian( onef_2D, axis = 0 )
+
+        # Get initial white-light lightcurve. First, get median frame for the current integration accross groups:
+        median_integration = np.nanmedian( cds_initial1fcorrected[integration, :, :, :], axis = 0 )
+        # Now sum all the in-trace pixels in this median integration:
+        initial_whitelight[integration] = np.nansum( median_integration * in_trace_pixels )
+
+    # Create relative flux white-light:
+    initial_whitelight = initial_whitelight / np.nanmedian(initial_whitelight)
+
+    # Get smoothed version via median-filter to remove any outliers:
+    smooth_wl = median_filter(initial_whitelight, 5)
 
     # Create new, bkg-substracted median:
     new_median_cds = np.nanmedian(cds_data, axis = (0,1))
 
-    # Now, 1/f noise. We do a "local" 1/f noise removal:
+    # Now, 1/f noise. We do a "local" 1/f noise removal --- we include the white-light lightcurve to scale the template (hence why we need 
+    # background-removed lightcurves):
     for integration in range(cds_data.shape[0]):
 
         for group in range(cds_data.shape[1]):
 
             cds_data[integration, group, :, :], _ = correct_local_1f(cds_data[integration, group, :, :], \
-                                                                     new_median_cds, \
+                                                                     new_median_cds, smooth_wl, \
                                                                      x1, ysmooth, \
                                                                      ommited_radius = 3, outer_radius = trace_radius)
 
