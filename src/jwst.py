@@ -694,7 +694,7 @@ def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
 
     for integration in range(cds_data.shape[0]):
 
-        for group in range(cds_data.shape[1]-1):
+        for group in range(cds_data.shape[1]):
 
             cds_data[integration, group, :, :] = cds_data[integration, group, :, :] - cds_bkg 
 
@@ -704,7 +704,7 @@ def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
     # Now, 1/f noise. We do a "local" 1/f noise removal:
     for integration in range(cds_data.shape[0]):
 
-        for group in range(cds_data.shape[1]-1):
+        for group in range(cds_data.shape[1]):
 
             cds_data[integration, group, :, :], _ = correct_local_1f(cds_data[integration, group, :, :], \
                                                                      new_median_cds, \
