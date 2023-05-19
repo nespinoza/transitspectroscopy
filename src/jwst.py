@@ -734,7 +734,7 @@ def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
         for group in range(cds_data.shape[1]):
 
             cds_data[integration, group, :, :], _ = correct_local_1f(cds_data[integration, group, :, :], \
-                                                                     new_median_cds, smooth_wl, \
+                                                                     new_median_cds, smooth_wl[integration], \
                                                                      x1, ysmooth, \
                                                                      ommited_radius = 3, outer_radius = trace_radius)
 
