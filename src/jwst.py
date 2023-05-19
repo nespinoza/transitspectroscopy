@@ -739,7 +739,7 @@ def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
                                                                      ommited_radius = 3, outer_radius = trace_radius)
 
     # For now, return CDS, backgroud and 1/f-noise-corrected data and time-stamps:
-    return times, cds_data
+    return times, cds_data, initial_whitelight, smooth_wl
 
 def stage1(datafile, jump_threshold = 15, get_times = True, get_wavelength_map = True, maximum_cores = 'all', preamp_correction = 'stsci', skip_steps = [], outputfolder = '', quicklook = False, uniluminated_mask = None, background_model = None, manual_bias = False, instrument = 'niriss', **kwargs):
     """
