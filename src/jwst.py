@@ -652,7 +652,7 @@ def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
     # Get initial centroid of right-most part of the spectrum:
     if instrument.lower() == 'nirspec/g395h':
 
-        if 'nrs1' in datafiles[i]:
+        if 'nrs1' in datafiles[0]:
 
             xstart, xend, nknots = 2043, 500, 60
             median_edge_psf = np.nanmedian(median_cds[:, xstart-200:xstart], axis = 1)
