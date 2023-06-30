@@ -5,6 +5,7 @@ from calendar import monthrange
 
 from math import modf
 
+from scipy import stats
 from scipy.interpolate import splrep, splev
 
 from astropy.time import Time
@@ -263,6 +264,79 @@ def get_mad_sigma(x, median):
     mad = np.nanmedian( np.abs ( x - median ) )
 
     return 1.4826*mad
+
+def coords_to_deg(ra_coords, dec_coords):
+    """
+    Given RA and DEC in coordinates (e.g., '11:12:12.11'), this function returns those to degrees.
+    """
+    
+    return RA_to_deg(ra_coords), DEC_to_deg(dec_coords)
+
+def deg_to_coords(ra, dec):
+    """
+    Given RA and DEC in degrees, this returns those back to coordinates (e.g., '11:12:12.11')
+    """
+
+    # First, convert ra in degrees to hours:
+    ra_hours = ra * (24./360.)
+    
+    # Get RA hours first:
+    ra_residual, ra_hh = np.modf(ra_hours)
+
+    # Now get minutes; repeat the process:
+    ra_residual, ra_mm = np.modf(ra_residual * 60.)
+
+    # Get seconds:
+    ra_ss = ra_residual * 60.
+
+    # Now, do the same for declination:
+    dec_residual, dec_dd = np.modf(dec)
+    dec_residual, dec_mm = np.modf(np.abs(dec_residual)*60.)
+    dec_ss = dec_residual * 60.
+
+    # Form strings:
+    if ra_hh < 10:
+    
+        ra_hh_string = '0'+str(int(ra_hh))
+
+    else:
+
+        ra_hh_string = str(int(ra_hh))
+
+    if ra_mm < 10:
+
+        ra_mm_string = '0'+str(int(ra_mm))
+
+    else:
+
+        ra_mm_string = str(int(ra_mm))
+
+    if np.abs(dec_dd) < 10:
+
+        if dec_dd < 0:
+
+            dec_dd_string = '-0'+str(int(np.abs(dec_dd)))   
+ 
+        else:
+
+            dec_dd_string = '0'+str(int(np.abs(dec_dd)))
+
+    else:
+
+        dec_dd_string = str(int(dec_dd))
+
+    if dec_mm < 10:
+
+        dec_mm_string = '0'+str(int(dec_mm))
+
+    else:
+
+        dec_mm_string = str(int(dec_mm))
+
+    ra_coords = '{0:}:{1:}:{2:.5f}'.format(ra_hh_string, ra_mm_string, ra_ss)
+    dec_coords = '{0:}:{1:}:{2:.5f}'.format(dec_dd_string, dec_mm_string, dec_ss)
+
+    return ra_coords, dec_coords
 
 def RA_to_deg(coords):
     """
@@ -633,3 +707,16 @@ def air_to_vacuum(wavelength):
 
     # Return converted wavelengths in microns:
     return ( w_ang * n ) * 1e-4 
+
+def chi_square_test(data, errors, model, nparameters):
+    """
+    This function performs a simple chi-square test to data
+    """
+
+    dof = len(data) - nparameters
+
+    x2 = np.sum( (data - model)**2 / errors**2 )
+   
+    pvalue = 1. - stats.chi2.cdf(x2, dof)
+
+    return pvalue 

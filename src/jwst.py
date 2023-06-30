@@ -1,7 +1,7 @@
 import os
 import numpy as np
 from scipy.sparse.linalg import lsmr
-from copy import deepcopy
+from copy import copy, deepcopy
 from scipy.ndimage import median_filter
 
 
@@ -15,6 +15,119 @@ from jwst import datamodels
 
 from .utils import *
 from .spectroscopy import *
+from .timeseries import *
+
+def tso_jumpstep(tso_list, window, nsigma = 10)
+    """ 
+    This function performs the same functionality as the jump step on a *set* of JWST datamodels (from, e.g., segmented data), repurposed to 
+    take advantage of the uniqueeness of TSOs; it however works with any multi-integration exposure. The assumptions are:
+
+    1. You are locked on the same target in all the sets of exposures given to this function.
+    2. Adding all exposures together, the number of integrations is > 1.
+    2. The number of groups per integration is > 1.
+    
+    For every pixel, a group difference is calculated for every integration in the TSO between groups i+1 and i; this defines the time-series of this group-difference. 
+    Then, a median filter with an input `window` is substracted from this time-series. This is expected to leave only noise on the time-series. 
+    Outliers are detected on this group difference time-series, and those are identified as jumps. Those are then marked for group i+1 in the `groupdq` extension 
+    with a value of 4 --- indicating a jump has been detected. This is repeated from group 1 to the second-to-last group (Ngroups -1).
+
+    Parameters
+    ----------
+
+    tso_list : list
+        List of JWST datamodels for a given exposure (e.g., `tso_list = [datamodels.open(file1), datamodels.open(file2)]`). 
+        Typically, these would be the segments of a TSO. The algorithm expects those to be ordered chronologically.
+
+    window : int
+        Window for the median filter. It is expected that the number of integrations >> window (a factor of window/nints ~ 1/20 or 1/50 works well for transits/eclipses/phase curves).
+
+    nsigma (optional) : float
+        Number of sigmas used to identify outliers.
+
+    Returns
+    -------
+
+    output_tso_list : numpy.array
+        Same as the `tso_list`, but with the `groupdq` updated to reflect the jump detection. Note this is a shallow copy of `tso_list`, so changing attributes of `tso_list` will also 
+        change those of the output and viceversa.
+
+    """
+
+    # Do a shallow copy of the input list. While at it, extract number of groups and integrations in the input list:
+    output_tso_list = []
+    # Create list to save the ingrations per segment:
+    ips = []
+    # Various bookeeping variables:
+    input_nints = 0
+    input_ngroups = tso_list[0].data.shape[1]
+    nrows = tso_list[0].data.shape[2]
+    ncolumns = tso_list[0].data.shape[3]
+
+    for i in range( len(tso_list) ):
+
+        # Shallow copy of input list:
+        output_tso_list.append( copy(tso_list[i]) )
+        # Modify groupdq attribute of the output_tso_list elements so its a deepcopy of the original --- so we can 
+        # change it later if needed by our algorithm:
+        output_tso_list[-1].groupdq = deepcopy(output_tso_list[-1].groupdq)
+
+        input_nints += tso_list[i].data.shape[0]
+        ips.append(tso_list[i].data.shape[0])
+
+    # All right. Now, generate the difference image array:
+    di = np.zeros([input_nints,
+                   input_ngroups - 1,
+                   nrows,
+                   ncolumns
+                  ])
+
+    # We generate it by performing difference imaging on each element of the input list. For free we get the cummulative number 
+    # of integrations to a given segment (will be useful in the next for loop):
+    cis = []  # Cummulative number of integrations up to a given segment
+    ci = 0    # Current integration counter
+    for i in range( len(tso_list) ):
+
+        for j in range(input_ngroups - 1):
+
+            di[ci:ci+ips[i], j, :, :] = tso_list[i].data[:, j+1, :, :] - tso_list[i].data[:, j, :, :]
+
+        ci += ips[i]
+        cis.append(ci)
+                   
+    # All right, now that we have the difference image, we perform outlier detection. This could be easily parallelized BTW:
+    for i in range(nrows):
+        
+        for j in range(ncolumns):
+            
+            for k in range(input_ngroups - 1): 
+               
+                # Find outliers for pixel (i,j): 
+                idx = outlier_detector(di[:, k, i, j], nsigma = nsigma, window = window)
+                
+                # If outliers are detected, iterate through them and add them to the corresponding groupdq in the output list:
+                if len(idx) > 0:
+                    
+                    for outlier_index in idx:
+                        
+                        # For each detected outlier in the difference image, we need to map its location to a segment (and index 
+                        # in that segment). We do that by searching segment by segment until the outlier_index surpasses the number 
+                        # of cummulative integrations --- when it surpasses it, it means we found the segment:
+                        for ii in range( len(output_tso_list) ):
+
+                            index_difference = outlier_index - cis[ii]
+
+                            # If this is the very first segment check and difference is less than zero, we got it:
+                            if index_difference <= 0:
+
+                                if ii == 0:
+
+                                    output_tso_list[ii].groupdq[outlier_index, k+1, i, j] = 4
+
+                                else:
+
+                                    output_tso_list[ii].groupdq[outlier_index - cis[ii-1] - 1, k+1, i, j] = 4
+
+    return output_tso_list
 
 def correct_1f(median_frame, frame, x, y, min_bkg_row = 20, max_bkg_row = 35, mask = None):
    
@@ -604,9 +717,54 @@ def old_correct_1f(input_frame, x_trace, y_trace, outer_radius = 10):
         
     return input_frame - one_f, detector
 
-def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
+def cds_stage1(datafiles, nintegrations, ngroups, trace_radius = 10, ommited_trace_radius = 3, instrument = 'nirspec/g395h', background_model = None, background_mask = None):
     """
     Initial version of a CDS-based Stage 1 pipeline. Inputs are `*ramp*` files. This assumes the `datafiles` is a list with ordered segments (e.g., first element is first segment, etc.).
+
+    Parameters
+    ----------
+
+    datafiles : `list` of strings
+        List containing the data filenames to ingest. These should be ramps, and they are assumed to be ordered.
+
+    nintegrations : int
+        Number of integrations in the exposure.
+
+    ngroups : int
+        Number of groups per integration.
+
+    trace_radius : int
+        Radius of the trace's PSF.
+
+    ommited_trace_radius : int
+        Radius from the center of the trace for which pixels will be ommited when doing the local 1/f correction (typically pixels too close to the center 
+        of the trace where the PSF removal is not too good).
+
+    instrumnet : string
+        Currently supports 'nirspec/g395h' and `niriss/soss/substrip256`.
+
+    background_model : `np.array`
+        Background model of the same size as the data. This will be scaled against the data using non-iluminated pixels in the `background_mask`.
+    
+    background_mask : `np.array`
+        Array containing pixels that will be used to scale the background. Values of 0 are assumed to be illuminated pixels, values of 1 are background pixels.
+
+    Returns
+    -------
+
+    times : `np.array`
+        Time-stamp for each of the integrations.
+
+    cds_data : `np.array`
+        Numpy array containing the CDS frames of dimensions `(nint * (ngroups - 1), nx, ny)`, where the first dimension are all the possible CDS frames obtainable 
+        from the data, and `nx` and `ny` are the frame dimensions.
+
+    initial_whitelight: `np.array`
+        Initial white-light lightcurve obtained from the average CDSs per integration.
+
+    smooth_wl : `np.array`
+        Smoothed version of the `initial_whitelight`, obtained to find the weights that went into the local 1/f corrections.
+
     """
 
     if instrument.lower() == 'nirspec/g395h':
@@ -615,9 +773,15 @@ def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
         columns = 2048
         initial_1f = True
 
+    elif instrument.lower == 'niriss/soss/substrip256':
+
+        rows = 256
+        columns = 2048
+        initial_1f = True
+
     else:
 
-        print('Nedd instrument name. Ending.')
+        print('Need instrument name. Ending.')
         sys.exit()
 
     # First, extract data and time-stamps from the datamodel:
@@ -662,7 +826,17 @@ def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
             xstart, xend, nknots = 5, 2043, 60
             median_edge_psf = np.nanmedian(median_cds[:, xstart:xstart+200], axis = 1)
 
-    centroid = np.sum ( median_edge_psf * np.arange(len(median_edge_psf))  ) / np.sum( median_edge_psf )
+    elif 'niriss/soss' in instrument.lower():
+
+        xstart, xend, nknots = 2043, 5, 30
+        median_edge_psf = np.nanmedian(median_cds[:100, xstart-200:xstart], axis = 1)
+
+        xstart2, xend2, nknots2 = 700, 1755, 30
+        median_edge_psf2 = np.nanmedian(median_cds[75:110, xstart:xstart+200], axis = 1)
+
+        
+
+    centroid = np.nansum ( median_edge_psf * np.arange(len(median_edge_psf))  ) / np.nansum( median_edge_psf )
 
     x1, y1 = trace_spectrum(median_cds, np.zeros(median_cds.shape), 
                             xstart = xstart, ystart = centroid, xend = xend)
@@ -679,7 +853,31 @@ def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
     # Smooth trace:
     _, ysmooth = fit_spline(x1, new_y1, nknots = nknots)
 
-    # All right. Now, let's do some background substraction using this median CDS frame:
+    # If substrip256, get Order 2 as well:
+    if 'substrip256' in instrument.lower():
+
+        xstart2, xend2, nknots2 = 700, 1755, 30
+        median_edge_psf2 = np.nanmedian(median_cds[75:110, xstart2:xstart2+200], axis = 1)
+
+        centroid2 = np.nansum ( median_edge_psf2 * np.arange(75,110,1)  ) / np.nansum( median_edge_psf2 )
+
+        x2, y2 = trace_spectrum(median_cds, np.zeros(median_cds[].shape),
+                                xstart = xstart2, ystart = centroid2, xend = xend2)
+
+        # Handle outliers. First, get standard deviation:
+        mf2 = median_filter(y2, 3)
+        sigma2 = np.nanmedian( np.abs(mf2 - y2) ) * 1.4826
+
+        # Identify values above 5-sigma from that, replace them by the median filter:
+        idx2 = np.where( np.abs(mf - y2) > 5*sigma2 )[0]
+        new_y2 = np.copy(y2)
+        new_y2[idx] = mf2[idx] 
+
+        # Smooth trace:
+        _, ysmooth2 = fit_spline(x2, new_y2, nknots = nknots2)
+
+    # All right. Now, let's do some background substraction using this median CDS frame. If using NIRISS/SOSS, we use the 
+    # input background_model and background_mask:
     if instrument.lower() == 'nirspec/g395h':
 
         trace_radius = 10
@@ -743,7 +941,7 @@ def cds_stage1(datafiles, nintegrations, ngroups, instrument = 'nirspec/g395h'):
             cds_data[integration, group, :, :], _ = correct_local_1f(cds_data[integration, group, :, :], \
                                                                      new_median_cds, smooth_wl[integration], \
                                                                      x1, ysmooth, \
-                                                                     ommited_radius = 3, outer_radius = trace_radius)
+                                                                     ommited_radius = ommited_trace_radius, outer_radius = trace_radius)
 
     # For now, return CDS, backgroud and 1/f-noise-corrected data and time-stamps:
     return times, cds_data, initial_whitelight, smooth_wl
