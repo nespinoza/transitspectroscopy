@@ -1156,7 +1156,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
         # Save results:
         for i in range( len(jump_data) ):
 
-            jump_data[i].save(datanames[i]+'_tsojump', dir_path = outputfolder+'pipeline_outputs')
+            jump_data[i].save(datanames[i]+'_tsojump.fits', dir_path = outputfolder+'pipeline_outputs')
 
     else:
 
