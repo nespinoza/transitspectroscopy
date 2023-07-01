@@ -7,11 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 # [0.4.0] - 
 ### Added
 - Initial a-la-`juliet` retrieval functionality.
+- 'convolve' methodology for CCF's added by @tbainesUA in #2.
+- Function to get background and 1/f-corrected CDS to `ts.jwst`.
+- Re-vamping `stage1` into `ts.jwst`.
 
 # [0.3.13] - 2022-10-28
 ### Added
 - Resolution binning can now consider data errorbars to compute binned errorbars.
-- "Poor man's CCF" calculation in `spectroscopy.get_pm_ccf`.
+- "Poor man's CCF" calculation in `ts.spectroscopy.get_pm_ccf`.
 
 # [0.3.12] - 2022-08-24
 ### Added
