@@ -1024,7 +1024,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
         raise Exception('\t Error: Instrument/Grating/Filter: '+instrument_name+'/'+instrument_grating+'/'+instrument_filter+' not yet supported!')
 
-    if not os.path.exists(datanames[-1]+'_linearitystep.fits'):
+    if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+'_linearitystep.fits'):
 
         # First, perform standard processing in the first few steps of the JWST pipeline. First, the DQ step:
         dq_data = []
