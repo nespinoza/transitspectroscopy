@@ -1181,6 +1181,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
                                                                            output_dir=outputfolder+'pipeline_outputs',
                                                                            save_results = True,
                                                                            suffix = suffix )
+                        )
 
         if i == 0:
 
