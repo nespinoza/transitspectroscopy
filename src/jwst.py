@@ -17,7 +17,7 @@ from .utils import *
 from .spectroscopy import *
 from .timeseries import *
 
-def tso_jumpstep(tso_list, window, nsigma = 10)
+def tso_jumpstep(tso_list, window, nsigma = 10):
     """ 
     This function performs the same functionality as the jump step on a *set* of JWST datamodels (from, e.g., segmented data), repurposed to 
     take advantage of the uniqueeness of TSOs; it however works with any multi-integration exposure. The assumptions are:
