@@ -1018,7 +1018,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
     if instrument_name == 'NIRSPEC' and instrument_grating == 'PRISM':
 
-        print('\t    - Instrument/Mode: NIRSpec/PRISM')
+        print('\t    - Instrument/Mode: NIRSpec/PRISM\n')
 
         mode = 'nirspec/prism'
 
@@ -1127,7 +1127,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
         linearity_data = []
         for i in range( len(uncal_filenames) ):
 
-            linearity_data.append( datamodels.RampModel(datanames[i]+'_linearitystep.fits') )
+            linearity_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+'_linearitystep.fits') )
 
     # Now, instead of passing this through the normal jump step, we pass it through our own jump step detection:
     if mode == 'nirspec/prism':
