@@ -861,7 +861,7 @@ def cds_stage1(datafiles, nintegrations, ngroups, trace_radius = 10, ommited_tra
 
         centroid2 = np.nansum ( median_edge_psf2 * np.arange(75,110,1)  ) / np.nansum( median_edge_psf2 )
 
-        x2, y2 = trace_spectrum(median_cds, np.zeros(median_cds[].shape),
+        x2, y2 = trace_spectrum(median_cds, np.zeros(median_cds.shape),
                                 xstart = xstart2, ystart = centroid2, xend = xend2)
 
         # Handle outliers. First, get standard deviation:
