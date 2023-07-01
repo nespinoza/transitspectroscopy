@@ -126,10 +126,12 @@ def tso_jumpstep(tso_list, window, nsigma = 10):
                                 if ii == 0:
 
                                     output_tso_list[ii].groupdq[outlier_index, k+1, i, j] = 4
+                                    break
 
                                 else:
 
                                     output_tso_list[ii].groupdq[outlier_index - cis[ii-1] - 1, k+1, i, j] = 4
+                                    break
 
     return output_tso_list
 
