@@ -115,6 +115,10 @@ def tso_jumpstep(tso_list, window, nsigma = 10):
                         for ii in range( len(output_tso_list) ):
 
                             index_difference = outlier_index - cis[ii]
+                            print('outlier_index:',outlier_index)
+                            print('cis:',cis)
+                            print('ii:',ii)
+
 
                             # If difference is less than zero, ii is the index of the segment for the outlier:
                             if index_difference <= 0:
@@ -1020,96 +1024,106 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
         raise Exception('\t Error: Instrument/Grating/Filter: '+instrument_name+'/'+instrument_grating+'/'+instrument_filter+' not yet supported!')
 
-    # First, perform standard processing in the first few steps of the JWST pipeline. First, the DQ step:
-    dq_data = []
-    for i in range( len(uncal_data) ):
+    if not os.path.exists(datanames[-1]+'_linearitystep.fits'):
 
-        dq_data.append( calwebb_detector1.dq_init_step.DQInitStep.call(uncal_data[i]) )
+        # First, perform standard processing in the first few steps of the JWST pipeline. First, the DQ step:
+        dq_data = []
+        for i in range( len(uncal_data) ):
 
-    # Saturation step:
-    saturation_data = []
-    for i in range( len(dq_data) ):
+            dq_data.append( calwebb_detector1.dq_init_step.DQInitStep.call(uncal_data[i]) )
 
-        if 'override_saturation' in kwargs.keys():
+        # Saturation step:
+        saturation_data = []
+        for i in range( len(dq_data) ):
+
+            if 'override_saturation' in kwargs.keys():
+            
+                saturation_data.append( calwebb_detector1.saturation_step.SaturationStep.call(dq_data[i], 
+                                                                                              override_saturation = kwargs['override_saturation']) 
+                                      )
+
+            else:
+
+                saturation_data.append( calwebb_detector1.saturation_step.SaturationStep.call(dq_data[i]) 
+                                      )
+
+        # Superbias step:
+        superbias_data = []
+        for i in range( len(saturation_data) ):
+
+            if 'override_superbias' in kwargs.keys():
+         
+                superbias_data.append( calwebb_detector1.superbias_step.SuperBiasStep.call(saturation_data[i], 
+                                                                                           override_superbias = kwargs['override_superbias']) 
+                                     )    
+
+            else:
+
+                superbias_data.append( calwebb_detector1.superbias_step.SuperBiasStep.call(saturation_data[i]) 
+                                     )
+
         
-            saturation_data.append( calwebb_detector1.saturation_step.SaturationStep.call(dq_data[i], 
-                                                                                          override_saturation = kwargs['override_saturation']) 
-                                  )
+        # Depending on the instrument/mode, we perform our own reference pixel step:
+        refpix_data = []
+        if mode == 'nirspec/prism':
+
+            for i in range( len(superbias_data) ): 
+
+                refpix_data.append( copy(superbias_data[i]) )
+                refpix_data[-1].data = deepcopy(superbias_data[i].data)
+
+                # Go integration per integration, group by group:
+                for integration in range(refpix_data[-1].data.shape[0]):
+
+                    for group in range(refpix_data[-1].data.shape[1]):
+
+                        # Background will be pixels to the left of 25 and the last 25 columns:
+                        background = np.hstack( ( refpix_data[-1].data[integration, group, :, :25],
+                                                  refpix_data[-1].data[integration, group, :, -25:]
+                                                )
+                                              )
+
+                        # Substract that from the data to remove pedestal changes:
+                        refpix_data[-1].data[integration, group, :, :] -= np.nanmedian( background )
+
+                        # TODO: Get fancy and remove odd/even, too.
 
         else:
 
-            saturation_data.append( calwebb_detector1.saturation_step.SaturationStep.call(dq_data[i]) 
+            for i in range( len(superbias_data) ):
+
+                refpix_data.append( calwebb_detector1.refpix_step.RefPixStep.call(superbias_data[i])
                                   )
 
-    # Superbias step:
-    superbias_data = []
-    for i in range( len(saturation_data) ):
+                
+        # Linearity step:
+        linearity_data = []
+        for i in range( len(refpix_data) ):
 
-        if 'override_superbias' in kwargs.keys():
-     
-            superbias_data.append( calwebb_detector1.superbias_step.SuperBiasStep.call(saturation_data[i], 
-                                                                                       override_superbias = kwargs['override_superbias']) 
-                                 )    
+            if 'override_linearity' in kwargs.keys():
 
-        else:
+                linearity_data.append( calwebb_detector1.linearity_step.LinearityStep.call(refpix_data[i],
+                                                                                           override_linearity = kwargs['override_linerity'], 
+                                                                                           output_dir=outputfolder+'pipeline_outputs', \
+                                                                                           save_results = True 
+                                                                                          )
+                                     )
 
-            superbias_data.append( calwebb_detector1.superbias_step.SuperBiasStep.call(saturation_data[i]) 
-                                 )
+            else:
 
-    
-    # Depending on the instrument/mode, we perform our own reference pixel step:
-    refpix_data = []
-    if mode == 'nirspec/prism':
+                linearity_data.append( calwebb_detector1.linearity_step.LinearityStep.call(refpix_data[i],
+                                                                                           output_dir=outputfolder+'pipeline_outputs', \
+                                                                                           save_results = True 
+                                                                                          )
+                                     )
 
-        for i in range( len(superbias_data) ): 
-
-            refpix_data.append( copy(superbias_data[i]) )
-            refpix_data[-1].data = deepcopy(superbias_data[i].data)
-
-            # Go integration per integration, group by group:
-            for integration in range(refpix_data[-1].data.shape[0]):
-
-                for group in range(refpix_data[-1].data.shape[1]):
-
-                    # Background will be pixels to the left of 25 and the last 25 columns:
-                    background = np.hstack( ( refpix_data[-1].data[integration, group, :, :25],
-                                              refpix_data[-1].data[integration, group, :, -25:]
-                                            )
-                                          )
-
-                    # Substract that from the data to remove pedestal changes:
-                    refpix_data[-1].data[integration, group, :, :] -= np.nanmedian( background )
-
-                    # TODO: Get fancy and remove odd/even, too.
 
     else:
 
-        for i in range( len(superbias_data) ):
+        linearity_data = []
+        for i in range( len(uncal_filenames) ):
 
-            refpix_data.append( calwebb_detector1.refpix_step.RefPixStep.call(superbias_data[i])
-                              )
-
-            
-    # Linearity step:
-    linearity_data = []
-    for i in range( len(refpix_data) ):
-
-        if 'override_linearity' in kwargs.keys():
-
-            linearity_data.append( calwebb_detector1.linearity_step.LinearityStep.call(refpix_data[i],
-                                                                                       override_linearity = kwargs['override_linerity'], 
-                                                                                       output_dir=outputfolder+'pipeline_outputs', \
-                                                                                       save_results = True 
-                                                                                      )
-                                 )
-
-        else:
-
-            linearity_data.append( calwebb_detector1.linearity_step.LinearityStep.call(refpix_data[i],
-                                                                                       output_dir=outputfolder+'pipeline_outputs', \
-                                                                                       save_results = True 
-                                                                                      )
-                                 )
+            linearity_data.append( datamodels.RampModel(datanames[i]+'_linearitystep.fits') )
 
     # Now, instead of passing this through the normal jump step, we pass it through our own jump step detection:
     if mode == 'nirspec/prism':
