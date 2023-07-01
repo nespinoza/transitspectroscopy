@@ -115,9 +115,9 @@ def tso_jumpstep(tso_list, window, nsigma = 10):
                         for ii in range( len(output_tso_list) ):
 
                             index_difference = outlier_index - cis[ii]
-                            print('outlier_index:',outlier_index)
-                            print('cis:',cis)
-                            print('ii:',ii)
+                            #print('outlier_index:',outlier_index)
+                            #print('cis:',cis)
+                            #print('ii:',ii)
 
 
                             # If difference is less than zero, ii is the index of the segment for the outlier:
