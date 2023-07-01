@@ -1120,6 +1120,8 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
     else:
 
+        print('\t >> Linearity files found. Loading them...\n')
+
         linearity_data = []
         for i in range( len(uncal_filenames) ):
 
