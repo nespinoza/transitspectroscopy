@@ -121,7 +121,7 @@ def tso_jumpstep(tso_list, window, nsigma = 10):
 
 
                             # If difference is less than zero, ii is the index of the segment for the outlier:
-                            if index_difference <= 0:
+                            if index_difference < 0:
 
                                 if ii == 0:
 
@@ -130,7 +130,7 @@ def tso_jumpstep(tso_list, window, nsigma = 10):
 
                                 else:
 
-                                    output_tso_list[ii].groupdq[outlier_index - cis[ii-1] - 1, k+1, i, j] = 4
+                                    output_tso_list[ii].groupdq[outlier_index - cis[ii-1], k+1, i, j] = 4
                                     break
 
     return output_tso_list
