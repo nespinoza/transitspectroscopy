@@ -952,7 +952,7 @@ def cds_stage1(datafiles, nintegrations, ngroups, trace_radius = 10, ommited_tra
     # For now, return CDS, backgroud and 1/f-noise-corrected data and time-stamps:
     return times, cds_data, initial_whitelight, smooth_wl
 
-def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outputfolder = '', use_tso_jump = True, **kwargs):
+def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outputfolder = '', use_tso_jump = True, suffix = '', **kwargs):
     """
     This function calibrates a set of *uncal.fits files through a "special" version of the JWST TSO CalWebb Stage 1. It has been tested thoroughly for NIRISS/SOSS, NIRSpec/G395H and NIRSpec/Prism.
 
@@ -971,6 +971,8 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
     use_tso_jump : bool
         (Optional) If `True`, use the TSO jump detection algorithm implemented here. If `False`, will use the standard STScI one. The TSO Jump is controlled by 
         parameters `jump_nsigma` and `jump_window`.
+    suffix  : string
+        (Optional) Suffix to add to each out the outputs.
 
     Returns
     -------
@@ -979,6 +981,15 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
         Dictionary containing by default the `times`, `rateints`, `errors` and `dataquality` (data-quality flags). 
     
     """
+
+    # Add _ if suffix is given to the actual_suffix:
+    if suffix != '':
+
+        actual_suffix = '_'+suffix
+
+    else:
+
+        actual_suffix = ''
 
     # Define output folder if empty:
     if outputfolder != '':
@@ -1026,7 +1037,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
         raise Exception('\t Error: Instrument/Grating/Filter: '+instrument_name+'/'+instrument_grating+'/'+instrument_filter+' not yet supported!')
 
-    if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+'_linearitystep.fits'):
+    if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+'_linearitystep'+actual_suffix+'.fits'):
 
         # First, perform standard processing in the first few steps of the JWST pipeline. First, the DQ step:
         dq_data = []
@@ -1105,9 +1116,10 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
             if 'override_linearity' in kwargs.keys():
 
                 linearity_data.append( calwebb_detector1.linearity_step.LinearityStep.call(refpix_data[i],
-                                                                                           override_linearity = kwargs['override_linerity'], 
+                                                                                           override_linearity = kwargs['override_linearity'], 
                                                                                            output_dir=outputfolder+'pipeline_outputs', \
-                                                                                           save_results = True 
+                                                                                           save_results = True, \
+                                                                                           suffix = suffix, 
                                                                                           )
                                      )
 
@@ -1115,7 +1127,8 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
                 linearity_data.append( calwebb_detector1.linearity_step.LinearityStep.call(refpix_data[i],
                                                                                            output_dir=outputfolder+'pipeline_outputs', \
-                                                                                           save_results = True 
+                                                                                           save_results = True, \
+                                                                                           suffix = suffix, 
                                                                                           )
                                      )
 
@@ -1127,7 +1140,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
         linearity_data = []
         for i in range( len(uncal_filenames) ):
 
-            linearity_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+'_linearitystep.fits') )
+            linearity_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+'_linearitystep'+actual_suffix+'.fits') )
 
     # Now, instead of passing this through the normal jump step, we pass it through our own jump step detection:
     if mode == 'nirspec/prism':
@@ -1151,12 +1164,26 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
     if use_tso_jump:
 
-        jump_data = tso_jumpstep(linearity_data, window = jump_window, nsigma = jump_nsigma)
-        
-        # Save results:
-        for i in range( len(jump_data) ):
+        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+'_tsojump'+actual_suffix+'.fits'):
 
-            jump_data[i].save(datanames[i]+'_tsojump.fits', dir_path = outputfolder+'pipeline_outputs')
+            jump_data = tso_jumpstep(linearity_data, window = jump_window, nsigma = jump_nsigma)
+            
+            # Save results:
+            for i in range( len(jump_data) ):
+
+                jump_data[i].save(datanames[i]+'_tsojump'+actual_suffix+'.fits', dir_path = outputfolder+'pipeline_outputs')
+
+        else:
+
+            print('\t >> TSO-jump files found. Loading them...\n')
+
+            jump_data = []
+
+            for i in range( len(linearity_data) ):
+
+                jump_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+'_tsojump'+actual_suffix+'.fits') )
+
+        actual_suffix = '_tsojump'+actual_suffix
 
     else:
 
@@ -1168,26 +1195,32 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
             jump_threshold = kwargs['jump_threshold']
 
-        jump_data = []
-        for i in range( len(linearity_data) ):
 
-            jump_data.append( calwebb_detector1.jump_step.JumpStep.call(linearity_data[i], 
-                                                                        output_dir=outputfolder+'pipeline_outputs', 
-                                                                        save_results = True,
-                                                                        rejection_threshold = jump_threshold,
-                                                                        maximum_cores = maximum_cores)
-                            )
+        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+actual_suffix+'_jumpstep.fits'):
 
-    # Finally, do ramp-fitting:
+            jump_data = []
+            for i in range( len(linearity_data) ):
+
+                jump_data.append( calwebb_detector1.jump_step.JumpStep.call(linearity_data[i], 
+                                                                            output_dir=outputfolder+'pipeline_outputs', 
+                                                                            save_results = True,
+                                                                            rejection_threshold = jump_threshold,
+                                                                            maximum_cores = maximum_cores,
+                                                                            suffix = suffix)
+                                )
+
+        else:
+
+            print('\t >> Jump files found. Loading them...\n')
+
+            jump_data = [] 
+
+            for i in range( len(linearity_data) ):
+
+                jump_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+actual_suffix+'_jumpstep.fits') ) 
+
+    # Finally, do (or load products of the) ramp-fitting:
     ramp_data = []
-
-    if use_tso_jump:
-        
-        suffix = 'tso_jump'
-
-    else:
-
-        suffix = ''
 
     output_dictionary['rateints'] = np.array([])
     output_dictionary['errors'] = np.array([])
@@ -1195,23 +1228,29 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
     for i in range( len(jump_data) ):
 
-        ramp_data.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(jump_data[i], 
-                                                                           output_dir=outputfolder+'pipeline_outputs',
-                                                                           save_results = True,
-                                                                           suffix = suffix )
-                        )
+        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+actual_suffix+'_1_rampfitstep.fits'):
 
-        if i == 0:
-
-            output_dictionary['rateints'] = ramp_data[-1][1].data
-            output_dictionary['errors'] = ramp_data[-1][1].err
-            output_dictionary['dataquality'] = ramp_data[-1][1].dq
+            ramp_data.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(jump_data[i], 
+                                                                               output_dir=outputfolder+'pipeline_outputs',
+                                                                               save_results = True,
+                                                                              )[1]
+                            )
 
         else:
 
-            output_dictionary['rateints'] = np.vstack(( output_dictionary['rateints'], ramp_data[-1][1].data ))
-            output_dictionary['errors'] = np.vstack(( output_dictionary['errors'], ramp_data[-1][1].err ))
-            output_dictionary['dataquality'] = np.vstack(( output_dictionary['dataquality'], ramp_data[-1][1].dq ))
+            ramp_data.append( datamodels.open(outputfolder+'pipeline_outputs/'+datanames[i]+actual_suffix+'_1_rampfitstep.fits') )
+
+        if i == 0:
+
+            output_dictionary['rateints'] = ramp_data[-1].data
+            output_dictionary['errors'] = ramp_data[-1].err
+            output_dictionary['dataquality'] = ramp_data[-1].dq
+
+        else:
+
+            output_dictionary['rateints'] = np.vstack(( output_dictionary['rateints'], ramp_data[-1].data ))
+            output_dictionary['errors'] = np.vstack(( output_dictionary['errors'], ramp_data[-1].err ))
+            output_dictionary['dataquality'] = np.vstack(( output_dictionary['dataquality'], ramp_data[-1].dq ))
 
     # Having finished, pack outputs into the dictionary:
     output_dictionary['times'] = times
