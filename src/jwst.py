@@ -997,7 +997,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
     # Add _ if suffix is given to the actual_suffix:
     if suffix != '':
 
-        actual_suffix = '_'+suffix
+        actual_suffix = suffix+'_'
 
     else:
 
@@ -1138,7 +1138,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
                                                                                            override_linearity = kwargs['override_linearity'], 
                                                                                            output_dir=outputfolder+'pipeline_outputs', \
                                                                                            save_results = True, \
-                                                                                           suffix = suffix, 
+                                                                                           suffix = actual_suffix+'linearitystep', 
                                                                                           )
                                      )
 
@@ -1147,7 +1147,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
                 linearity_data.append( calwebb_detector1.linearity_step.LinearityStep.call(refpix_data[i],
                                                                                            output_dir=outputfolder+'pipeline_outputs', \
                                                                                            save_results = True, \
-                                                                                           suffix = suffix, 
+                                                                                           suffix = actual_suffix+'linearitystep', 
                                                                                           )
                                      )
 
@@ -1159,7 +1159,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
         linearity_data = []
         for i in range( len(uncal_filenames) ):
 
-            linearity_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+'_linearitystep'+actual_suffix+'.fits') )
+            linearity_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+'linearitystep.fits') )
 
     # Now, instead of passing this through the normal jump step, we pass it through our own jump step detection:
     if mode == 'nirspec/prism':
@@ -1183,14 +1183,14 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
     if use_tso_jump:
 
-        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+'_tsojump'+actual_suffix+'.fits'):
+        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+'_'+actual_suffix+'tsojumpstep.fits'):
 
             jump_data = tso_jumpstep(linearity_data, window = jump_window, nsigma = jump_nsigma)
             
             # Save results:
             for i in range( len(jump_data) ):
 
-                jump_data[i].save(datanames[i]+'_tsojump'+actual_suffix+'.fits', dir_path = outputfolder+'pipeline_outputs')
+                jump_data[i].save(datanames[i]+'_'+actual_suffix+'tsojumpstep.fits', dir_path = outputfolder+'pipeline_outputs')
 
         else:
 
@@ -1200,7 +1200,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
             for i in range( len(linearity_data) ):
 
-                jump_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+'_tsojump'+actual_suffix+'.fits') )
+                jump_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+'tsojumpstep.fits') )
 
         actual_suffix = '_tsojump'+actual_suffix
 
@@ -1215,7 +1215,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
             jump_threshold = kwargs['jump_threshold']
 
 
-        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+actual_suffix+'_jumpstep.fits'):
+        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+'_'+actual_suffix+'jumpstep.fits'):
 
             jump_data = []
             for i in range( len(linearity_data) ):
@@ -1225,7 +1225,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
                                                                             save_results = True,
                                                                             rejection_threshold = jump_threshold,
                                                                             maximum_cores = maximum_cores,
-                                                                            suffix = suffix)
+                                                                            suffix = actual_suffix+'jumpstep')
                                 )
 
         else:
@@ -1236,7 +1236,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
             for i in range( len(linearity_data) ):
 
-                jump_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+actual_suffix+'_jumpstep.fits') ) 
+                jump_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+'jumpstep.fits') ) 
 
     # Finally, do (or load products of the) ramp-fitting step --- return those, the jump-step products, the times and other metadata 
     # of interest:
@@ -1244,17 +1244,19 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
     ints_per_segment = []
     for i in range( len(jump_data) ):
 
-        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+actual_suffix+'_1_rampfitstep.fits'):
+        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+'_'+actual_suffix+'_1_rampfitstep.fits'):
 
             ramp_data.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(jump_data[i], 
                                                                                output_dir=outputfolder+'pipeline_outputs',
                                                                                save_results = True,
+                                                                               maximum_cores = maximum_cores,
+                                                                               suffix = actual_suffix+'rampfitstep'
                                                                               )[1]
                             )
 
         else:
 
-            ramp_data.append( datamodels.open(outputfolder+'pipeline_outputs/'+datanames[i]+actual_suffix+'_1_rampfitstep.fits') )
+            ramp_data.append( datamodels.open(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+'_1_rampfitstep.fits') )
 
         ints_per_segment.append(ramp_data[-1].data.shape[0])
 
