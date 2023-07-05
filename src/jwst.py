@@ -1,10 +1,11 @@
 import os
+import time
 import numpy as np
 from scipy.sparse.linalg import lsmr
 from copy import copy, deepcopy
 from scipy.ndimage import median_filter
 
-
+import tqdm
 from astropy.utils.data import download_file
 from astropy import units as u
 from astropy.time import Time
@@ -16,6 +17,17 @@ from jwst import datamodels
 from .utils import *
 from .spectroscopy import *
 from .timeseries import *
+
+ray_is_installed = True
+try:
+
+    import ray 
+    
+except:
+
+    print('Could not import the "ray" library. If you want to parallelize tracing and spectral extraction, please install by doing "pip install ray".')
+
+    ray_is_installed = False
 
 def tso_jumpstep(tso_list, window, nsigma = 10):
     """ 
@@ -978,7 +990,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
     -------
 
     output_dictionary : dict
-        Dictionary containing by default the `times`, `rateints`, `errors` and `dataquality` (data-quality flags). 
+        Dictionary containing datamodels for the jump step, rampfit step and associated meta-data, including the times of each integration in BJD.
     
     """
 
@@ -998,7 +1010,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
     # Create output dictionary:
     output_dictionary = {}
-
+    output_dictionary['metadata'] = {}
     #####################################################
     #                       STAGE 1                     #
     #####################################################
@@ -1022,6 +1034,13 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
     instrument_name = uncal_data[-1].meta.instrument.name
     instrument_filter = uncal_data[-1].meta.instrument.filter
     instrument_grating = uncal_data[-1].meta.instrument.grating
+
+    output_dictionary['metadata']['instrument_name'] = instrument_name
+    output_dictionary['metadata']['instrument_filter'] = instrument_filter
+    output_dictionary['metadata']['instrument_grating'] = instrument_grating
+    output_dictionary['metadata']['instrument_subarray'] = uncal_data[-1].meta.subarray.name
+    output_dictionary['metadata']['date_beg'] = uncal_data[-1].meta.observation.date_beg
+    output_dictionary['metadata']['date_end'] = uncal_data[-1].meta.observation.date_end
 
     # Print some information to the user:
     print('\t >> Processing '+str(len(uncal_data))+' *uncal files.\n')
@@ -1219,13 +1238,10 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
                 jump_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+actual_suffix+'_jumpstep.fits') ) 
 
-    # Finally, do (or load products of the) ramp-fitting:
+    # Finally, do (or load products of the) ramp-fitting step --- return those, the jump-step products, the times and other metadata 
+    # of interest:
     ramp_data = []
-
-    output_dictionary['rateints'] = np.array([])
-    output_dictionary['errors'] = np.array([])
-    output_dictionary['dataquality'] = np.array([])
-
+    ints_per_segment = []
     for i in range( len(jump_data) ):
 
         if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+actual_suffix+'_1_rampfitstep.fits'):
@@ -1240,19 +1256,213 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
             ramp_data.append( datamodels.open(outputfolder+'pipeline_outputs/'+datanames[i]+actual_suffix+'_1_rampfitstep.fits') )
 
-        if i == 0:
+        ints_per_segment.append(ramp_data[-1].data.shape[0])
 
-            output_dictionary['rateints'] = ramp_data[-1].data
-            output_dictionary['errors'] = ramp_data[-1].err
-            output_dictionary['dataquality'] = ramp_data[-1].dq
-
-        else:
-
-            output_dictionary['rateints'] = np.vstack(( output_dictionary['rateints'], ramp_data[-1].data ))
-            output_dictionary['errors'] = np.vstack(( output_dictionary['errors'], ramp_data[-1].err ))
-            output_dictionary['dataquality'] = np.vstack(( output_dictionary['dataquality'], ramp_data[-1].dq ))
-
-    # Having finished, pack outputs into the dictionary:
     output_dictionary['times'] = times
+    output_dictionary['ints_per_segment'] = np.array(ints_per_segment)
+    output_dictionary['nints'] = ramp_data[-1].meta.exposure.nints
+    output_dictionary['ngroups'] = ramp_data[-1].meta.exposure.ngroups  
+    output_dictionary['rampstep'] = ramp_data
+    output_dictionary['jumpstep'] = jump_data
+
+    output_dictionary['metadata']['calwebb_version'] = ramp_data[-1].meta.calibration_software_version
+    output_dictionary['metadata']['param_context'] = ramp_data[-1].meta.ref_file.crds.context_used
 
     return output_dictionary
+
+def stage2(input_dictionary, nthreads = None, scale_1f = True, outputfolder = '', suffix = '', **kwargs):
+    """
+    This function takes an `input_dictionary` having as keys the `rampstep` products on a (chronologically-ordered) list, `times` having the times at 
+    each integration in BJD and the integrations per segment `ints_per_segment`. Using those, it performs wavelength calibration, spectral tracing and 
+    extraction --- returning the products in another dictionary.
+
+    Parameters
+    ----------
+
+    input_dictionary : list
+        A dictionary with at least three keys: `rampstep` products on a (chronologically-ordered) list, `times` having the times at each integration in BJD 
+        and the integrations per segment `ints_per_segment`.
+    nthreads : int
+        (Optional) Number of threads to use to parallellize the scripts.
+    scale_1f : bool
+        (Optional) If True, the "scale 1/f" noise technique will be used to remove 1/f noise at the ramp level. This removes the scaled median frame from each ramp, 
+        and estimates (and removes) the 1/f noise from the resultant frame on the original frame.
+    outputfolder : string
+        (Optional) String indicating the folder where the outputs want to be saved. Default is current working directory.
+    suffix  : string
+        (Optional) Suffix to add to each out the outputs.
+
+    Returns
+    -------
+
+    output_dictionary : dict
+        Dictionary containing the traces, FWHM, extracted spectra as well as lightcurves at the resolution-level of the instrument     
+ 
+    """
+
+    # Add _ if suffix is given to the actual_suffix:
+    if suffix != '':
+
+        actual_suffix = '_'+suffix
+
+    else:
+
+        actual_suffix = ''
+
+    # Define output folder if empty:
+    if outputfolder != '':
+        if outputfolder[-1] != '/':
+            outputfolder += '/'
+
+    # Create output dictionary:
+    output_dictionary = {}
+    output_dictionary['metadata'] = {}
+
+    #####################################################
+    #                       STAGE 2                     #
+    #####################################################
+
+    # Create folder that will store pipeline outputs:
+    if not os.path.exists(outputfolder+'pipeline_outputs'):
+        os.mkdir(outputfolder+'pipeline_outputs')
+
+    # Set the mode:
+    print('\t >> Processing through spectral tracing and extraction:\n')
+    print('\t    - TSO total duration: {0:.1f} hours'.format((np.max(input_dictionary['times'])-np.min(input_dictionary['times']))*24.))
+
+    # Extract some useful meta-data:
+    instrument_name = input_dictionary['rampstep'][0].meta.instrument.name
+    instrument_filter = input_dictionary['rampstep'][0].meta.instrument.filter
+    instrument_grating = input_dictionary['rampstep'][0].meta.instrument.grating
+
+    if instrument_name == 'NIRSPEC' and instrument_grating == 'PRISM':
+
+        print('\t    - Instrument/Mode: NIRSpec/PRISM\n')
+
+        mode = 'nirspec/prism'
+
+    else:
+
+        raise Exception('\t Error: Instrument/Grating/Filter: '+instrument_name+'/'+instrument_grating+'/'+instrument_filter+' not yet supported!')
+
+    # First things first, save the results from the rates in a single array for the rates and the errors:
+    nints = np.sum( input_dictionary['ints_per_segment'] )
+    tso = np.zeros([nints, input_dictionary['rampstep'][0].data.shape[1], input_dictionary['rampstep'][0].data.shape[2]])
+    tso_err = np.zeros([nints, input_dictionary['rampstep'][0].data.shape[1], input_dictionary['rampstep'][0].data.shape[2]])
+
+    current_integration = 0
+    for i in range( len(input_dictionary['rampstep']) ):
+
+        tso[current_integration:input_dictionary['ints_per_segment'][i], :, :] = input_dictionary['rampstep'].data
+        tso_err[current_integration:input_dictionary['ints_per_segment'][i], :, :] = input_dictionary['rampstep'].err
+        current_integration = input_dictionary['ints_per_segment'][i]
+
+    # Great. Now that we have all the rates, perform spectral tracing. We do the same for all instruments: we choose a set of pixels in one edge of 
+    # the detector, take the median of the spectrum in that edge, and then trace the spectra left or the right of that calculated position. For this 
+    # initial position check, performing the analysis on the median rates is very useful:
+    median_rate = np.nanmedian(tso, axis = 0)
+
+    if mode == 'nirspec/prism':
+
+        xstart = 50
+        xend = 490
+        trace_outlier_nsigma = 5
+        trace_outlier_window = 10
+        nknots = 8
+        
+        # For NIRspec/Prism, take the starting point from the average spectral shape between columns 50 to 100:
+        lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, 50:100], axis = 1) )
+
+    # Find maximum of the initial CCF:
+    idx = np.where(ccf == np.max(ccf))[0]
+    center_pixel = lags[idx]
+
+    # Prepare output dictionaries. First, trace the median spectrum as a test:
+    tic = time.time()
+
+    x1, y1 = ts.spectroscopy.trace_spectrum(median_rate, np.zeros(median_rate.shape), 
+                                    xstart = xstart, ystart = center_pixel, xend = xend, 
+                                    y_tolerance = 5, method = 'convolve')
+
+    toc = time.time()
+
+    total_time = (toc-tic)/3600.
+
+    # Now, create output dicts:
+    output_dictionary['traces'] = {} 
+    output_dictionary['traces']['x'] = x1 
+    output_dictionary['traces']['y'] = np.zeros([ tso.shape[0], len(y1) ])
+    output_dictionary['traces']['ycorrected'] = np.zeros([ tso.shape[0], len(y1) ])
+    output_dictionary['traces']['ysmoothed'] = np.zeros([ tso.shape[0], len(y1) ])
+
+
+
+    # Then use this to trace the entire spectrum. Be smart about tracing and do it via ray, i.e., using multi-processing if `nthreads` is set:
+    if nthreads is None:
+    
+        print('\t >> Warning: tracing will be done WITHOUT parallelization:')
+        print('\t    - It should take about {0:.2f} hours to trace all {1:} integrations.'.format(total_time, str(tso.shape[0])))
+
+        # First, perform normal tracing:
+        tic = time.time()
+        for i in tqdm(range(tso.shape[0])):
+
+            _, output_dictionary['traces']['y'][i, :] = trace_spectrum(median_rate, np.zeros(median_rate.shape),
+                                                                       xstart = xstart, ystart = center_pixel, xend = xend,
+                                                                       y_tolerance = 5, method = 'convolve')
+        toc = time.time()
+        total_time = (toc-tic)/3600.
+        # Next, go trace by trace correcting outliers and smoothing traces via a spline::
+        print('\t    - Done! Took {0:.2f} hours. Correcting outliers and smoothing traces...'.format(total_time))
+
+        for i in tqdm(range(tso.shape[0])):
+
+            # Find outliers:
+            idx_outliers, mfilter = outlier_detector(output_dictionary['traces']['y'][i, :], 
+                                                     nsigma = trace_outlier_nsigma,
+                                                     window = trace_outlier_window, 
+                                                     return_filter = True)
+
+            # Fix them if present:
+            if len(idx_outliers) > 0:
+
+                output_dictionary['traces']['ycorrected'][i, :] = deepcopy(output_dictionary['traces']['y'][i, :])
+                output_dictionary['traces']['ycorrected'][i, idx_outliers] = mfilter[idx_outliers]
+
+            else:
+
+                output_dictionary['traces']['ycorrected'][i, :] = output_dictionary['traces']['y'][i, :]
+
+            # Smooth trace:
+            _, output_dictionary['traces']['ysmoothed'][i, :] = fit_spline(x1, output_dictionary['traces']['ycorrected'][i, :], 
+                                                                           nknots = nknots)  
+
+    else:
+
+        # Initialize ray:
+        ray.init(address='local', num_cpus = nthreads) 
+
+        print('\t >> Tracing will be done via the ray library:')
+        print('\t    - It should take about {0:.2f} hours to trace all {1:} integrations.'.format(total_time/nthreads, str(tso.shape[0])))
+
+        tic = time.time()
+        # First, decorate the tracing function to make it ray-amenable:
+        ray_trace_spectrum = ray.remote(trace_spectrum)
+
+        # Prepare the handle for all traces:
+        all_traces = []
+        for i in range( tso.shape[0] ):
+
+            all_traces.append( ray_trace_spectrum(median_rate, np.zeros(median_rate.shape), 
+                                                  xstart = xstart, ystart = center_pixel, xend = xend,
+                                                  y_tolerance = 5, method = 'convolve'
+                                                 ) 
+                             )
+
+        # Run the process with ray:
+        trace_results = ray.get(all_traces)
+        toc = time.time()
+        total_time = (toc-tic)/3600.
+
+        # Save to the output dictionaries:
+        print('\t    - Done! Took {0:.2f} hours. Correcting outliers and smoothing traces...'.format(total_time))
