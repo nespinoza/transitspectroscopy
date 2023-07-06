@@ -1013,6 +1013,11 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
         mode = 'nirspec/prism'
 
+    elif instrument_name == 'NIRSPEC' and instrument_grating == 'G395H':
+
+        print('\t    - Instrument/Mode: NIRSpec/G395H\n')
+        mode = 'nirspec/g395h'
+
     else:
 
         raise Exception('\t Error: Instrument/Grating/Filter: '+instrument_name+'/'+instrument_grating+'/'+instrument_filter+' not yet supported!')
@@ -1141,6 +1146,23 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
             jump_nsigma = kwargs['jump_nsigma']
 
+    elif mode == 'nirspec/g395h':
+
+        if 'jump_window' not in kwargs.keys():
+
+            jump_window = 15
+
+        else:
+
+            jump_window = kwargs['jump_window']
+
+        if 'jump_nsigma' not in kwargs.keys():
+
+            jump_nsigma = 10 
+
+        else:
+
+            jump_nsigma = kwargs['jump_nsigma'] 
 
     if use_tso_jump:
 
