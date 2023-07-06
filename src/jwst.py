@@ -1151,7 +1151,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
         if 'jump_window' not in kwargs.keys():
 
-            jump_window = 15
+            jump_window = 10
 
         else:
 
@@ -1259,7 +1259,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
     return output_dictionary
 
-def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extraction = False, outputfolder = '', suffix = '', **kwargs):
+def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = False, outputfolder = '', suffix = '', **kwargs):
     """
     This function takes an `input_dictionary` having as keys the `rampstep` products on a (chronologically-ordered) list, `times` having the times at 
     each integration in BJD and the integrations per segment `ints_per_segment`. Using those, it performs wavelength calibration, spectral tracing and 
@@ -1273,6 +1273,9 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
         and the integrations per segment `ints_per_segment`.
     nthreads : int
         (Optional) Number of threads to use to parallellize the scripts.
+    zero_nans : bool
+        (Optional) If True, all nans are converted to zeroes in the ramps. If False, the median rate is used to fill those nans. The latter could dilute the signal, 
+        but the resulting stellar spectrum will look better if simple extraction is used.
     scale_1f : bool
         (Optional) If True, the "scale 1/f" noise technique will be used to remove 1/f noise at the ramp level. This removes the scaled median frame from each ramp, 
         and estimates (and removes) the 1/f noise from the resultant frame on the original frame.
@@ -1332,6 +1335,16 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
         print('\t    - Instrument/Mode: NIRSpec/PRISM\n')
 
         mode = 'nirspec/prism'
+        # Parameters if zero_nans is False:
+        row_window = 1
+        column_window = 7
+
+    elif instrument_name == 'NIRSPEC' and instrument_grating == 'G395H':
+
+        print('\t    - Instrument/Mode: NIRSpec/G395H\n')
+
+        mode = 'nirspec/g395h'
+        # Parameters if zero_nans is False:
         row_window = 1
         column_window = 7
 
@@ -1358,9 +1371,15 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
     idx = np.isnan(median_rate)
     median_rate[idx] = 0.
 
-    # Fill NaNs with a median filter:
-    mf_median_rate = median_filter(median_rate, [row_window, column_window])
-    median_rate[idx] = mf_median_rate[idx]
+    # Fill NaNs with zeroes or the median rate, depending on user-input. Default is zeroes, median_rate could dilute transits:
+    if zero_nans:
+
+        median_rate[idx] = 0.
+
+    else:
+
+        mf_median_rate = median_filter(median_rate, [row_window, column_window])
+        median_rate[idx] = mf_median_rate[idx]
 
     if os.path.exists( outputfolder+'pipeline_outputs/traces'+actual_suffix+'.pkl' ):
 
@@ -1377,6 +1396,17 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
             trace_outlier_window = 10
             nknots = 8
             
+            # For NIRspec/Prism, take the starting point from the average spectral shape between columns 50 to 100:
+            lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, 50:100], axis = 1) )
+
+        if mode == 'nirspec/g395h':
+
+            xstart = 50
+            xend = 490
+            trace_outlier_nsigma = 5
+            trace_outlier_window = 10
+            nknots = 8
+
             # For NIRspec/Prism, take the starting point from the average spectral shape between columns 50 to 100:
             lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, 50:100], axis = 1) )
 
@@ -1504,8 +1534,8 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
         if mode == 'nirspec/prism':
 
             # Initial time-series parameters:
-            scale_1f_rows = np.arange(5,25)
-            scale_1f_columns = np.arange(200,450)
+            scale_1f_rows = [5,25]
+            scale_1f_columns = [200,450]
             scale_1f_window = 200
 
             spectra_aperture_radius = 10
@@ -1525,7 +1555,12 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
         # use to perform the 1/f scaling (if the user wants to):
         if scale_1f:
 
-            timeseries = np.sum(tso[:, scale_1f_rows, scale_1f_columns], axis = (1,2))
+            timeseries = np.sum(tso[:, 
+                                    scale_1f_rows[0]:scale_1f_rows[1], 
+                                    scale_1f_columns[0]:scale_1f_columns[1]], 
+                                    axis = (1,2)
+                               )
+
             mf = median_filter( timeseries / np.nanmedian(timeseries), scale_1f_window )
 
 
