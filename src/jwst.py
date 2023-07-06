@@ -1386,7 +1386,7 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
         if nthreads is None:
         
             print('\t >> Warning: tracing will be done WITHOUT parallelization:')
-            print('\t    - It should take about {0:.2f} hours to trace all {1:} integrations.'.format(total_time, str(tso.shape[0])))
+            print('\t    - It should take about {0:.2f} hours to trace all {1:} integrations.'.format(total_time * tso.shape[0], str(tso.shape[0])))
 
             # First, perform normal tracing:
             tic = time.time()
@@ -1405,7 +1405,7 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
             ray.init(address='local', num_cpus = nthreads) 
 
             print('\t >> Tracing will be done via the ray library:')
-            print('\t    - It should take about {0:.2f} hours to trace all {1:} integrations.'.format(total_time/nthreads, str(tso.shape[0])))
+            print('\t    - It should take about {0:.2f} hours to trace all {1:} integrations.'.format( (total_time * tso.shape[0]) / nthreads, str(tso.shape[0])))
 
             tic = time.time()
             # First, decorate the tracing function to make it ray-amenable:
