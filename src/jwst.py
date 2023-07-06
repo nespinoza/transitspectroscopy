@@ -1219,6 +1219,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
         else:
 
+            print('\t >> Rampfit files found for {0:}. Loading them...\n'.format(datanames[i]))
             ramp_data.append( datamodels.open(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+prefix+actual_suffix+'1_rampfitstep.fits') )
 
         ints_per_segment.append(ramp_data[-1].data.shape[0])
@@ -1323,8 +1324,8 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
     current_integration = 0
     for i in range( len(input_dictionary['rampstep']) ):
 
-        tso[current_integration:input_dictionary['ints_per_segment'][i], :, :] = input_dictionary['rampstep'][i].data
-        tso_err[current_integration:input_dictionary['ints_per_segment'][i], :, :] = input_dictionary['rampstep'][i].err
+        tso[current_integration:current_integration + input_dictionary['ints_per_segment'][i], :, :] = input_dictionary['rampstep'][i].data
+        tso_err[current_integration:current_integration + input_dictionary['ints_per_segment'][i], :, :] = input_dictionary['rampstep'][i].err
         current_integration = input_dictionary['ints_per_segment'][i]
 
     # Great. Now that we have all the rates, perform spectral tracing. We do the same for all instruments: we choose a set of pixels in one edge of 
