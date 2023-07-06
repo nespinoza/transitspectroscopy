@@ -1434,7 +1434,8 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         total_time = (toc-tic)/3600.
 
         # Now, create output dicts:
-        output_dictionary['traces'] = {} 
+        output_dictionary['traces'] = {}
+        output_dictionary['traces']['times'] = input_dictionary['times'] 
         output_dictionary['traces']['x'] = x1 
         output_dictionary['traces']['y'] = np.zeros([ tso.shape[0], len(y1) ])
         output_dictionary['traces']['ycorrected'] = np.zeros([ tso.shape[0], len(y1) ])
@@ -1613,6 +1614,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
                                                                 )
 
         output_dictionary['spectra'] = {}
+        output_dictionary['spectra']['times'] = input_dictionary['times']
         output_dictionary['spectra']['original'] = spectra
         output_dictionary['spectra']['original_err'] = spectra_err
 
