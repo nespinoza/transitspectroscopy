@@ -1549,7 +1549,13 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             
             if len(idx[0]!=0):
 
-                tso[i, :, :][idx] = mf_median_rate[idx]
+                if zero_nans:
+
+                    tso[i, :, :][idx] = 0.
+
+                else:
+
+                    tso[i, :, :][idx] = mf_median_rate[idx]
 
         # Next, perform spectral extraction. To this end, first generate a fast white-light lightcurve that we will 
         # use to perform the 1/f scaling (if the user wants to):
