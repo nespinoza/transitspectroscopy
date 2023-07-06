@@ -12,6 +12,7 @@ from astropy import units as u
 from astropy.time import Time
 from astropy.timeseries import TimeSeries
 
+import jwst
 from jwst.pipeline import calwebb_detector1, calwebb_spec2
 from jwst import datamodels
 from gwcs import wcstools
@@ -1662,6 +1663,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         print('\t    - Done! Extracting wavelength map...')
         # Extract wavelength solution --- a bit different depending on the instrument, but all require the assign_wcs step to be ran:
         results = calwebb_spec2.assign_wcs_step.AssignWcsStep.call(input_dictionary['rampstep'][0])
+        wcs_out = jwst.assign_wcs.nrs_wcs_set_input(results, results.meta.instrument.fixed_slit)
 
         if instrument_name == 'NIRSPEC':
 
