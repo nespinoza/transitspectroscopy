@@ -1632,9 +1632,9 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             master_spectrum[i], sigma_master_spectrum[i] = median, \
                                                            1.2533*get_mad_sigma(median, master_spectra[:, i])
 
-        corrected_spectra = np.deepcopy(spectra)
+        corrected_spectra = deepcopy(spectra)
 
-        corrected_spectra_err = np.deepcopy(spectra_err)
+        corrected_spectra_err = deepcopy(spectra_err)
 
         for i in range(spectra.shape[0]):
             
