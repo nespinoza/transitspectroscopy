@@ -1323,8 +1323,8 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
     current_integration = 0
     for i in range( len(input_dictionary['rampstep']) ):
 
-        tso[current_integration:input_dictionary['ints_per_segment'][i], :, :] = input_dictionary['rampstep'].data
-        tso_err[current_integration:input_dictionary['ints_per_segment'][i], :, :] = input_dictionary['rampstep'].err
+        tso[current_integration:input_dictionary['ints_per_segment'][i], :, :] = input_dictionary['rampstep'][i].data
+        tso_err[current_integration:input_dictionary['ints_per_segment'][i], :, :] = input_dictionary['rampstep'][i].err
         current_integration = input_dictionary['ints_per_segment'][i]
 
     # Great. Now that we have all the rates, perform spectral tracing. We do the same for all instruments: we choose a set of pixels in one edge of 
