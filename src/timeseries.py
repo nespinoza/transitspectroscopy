@@ -4,7 +4,7 @@ from scipy.ndimage import median_filter
 
 from .utils import *
 
-def outlier_detector(x, nsigma = 10, window = 200):
+def outlier_detector(x, nsigma = 10, window = 200, return_filter = False):
     """
     Given a uniformly sampled time-series `x`, this function substracts a median filter to it with a window `window`, 
     estimates the standard deviation of the residuals via an outlier-robust metric (the median-absolute-deviation-based 
@@ -22,6 +22,9 @@ def outlier_detector(x, nsigma = 10, window = 200):
 
     window : int
         Window for the median filter
+
+    return_filter : bool
+        (Optional) If True, function returns the median filtered data
 
     Returns
     -------
@@ -42,4 +45,10 @@ def outlier_detector(x, nsigma = 10, window = 200):
     idx = np.where( np.abs(residuals) > nsigma * sigma )[0]
     
     # Return location of the outliers:
-    return idx
+    if not return_filter:
+
+        return idx
+
+    else:
+
+        return idx, mf
