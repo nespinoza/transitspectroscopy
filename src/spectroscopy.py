@@ -448,7 +448,7 @@ def getSimpleSpectrum(data, x, y, aperture_radius, background_radius=50, error_d
             flux[i] = l_fraction + r_fraction + np.sum(column[l_limit:r_limit])
 
         elif method == 'average':
-            flux[i] = np.mean(column[l_limit:r_limit])
+            flux[i] = np.nanmean(column[l_limit:r_limit])
 
         else:
             raise Exception('Method "'+method+'" currently not supported for aperture extraction. Select either "sum" or "average".')
