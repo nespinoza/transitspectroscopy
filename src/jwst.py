@@ -1585,10 +1585,11 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
         output_dictionary['spectra']['corrected'] = corrected_spectra
         output_dictionary['spectra']['corrected_err'] = corrected_spectra_err 
 
+        print('\t    - Done! Extracting wavelength map...')
         # Extract wavelength solution --- a bit different depending on the instrument, but all require the assign_wcs step to be ran:
         results = calwebb_spec2.assign_wcs_step.AssignWcsStep.call(input_dictionary['rampstep'][0])
 
-        if instrument_name == 'NIRSPEC'
+        if instrument_name == 'NIRSPEC':
 
             # Get the output wavelength map from the bounding box along with bounding box coordinates:
             bb_columns, bb_rows = wcstools.grid_from_bounding_box( wcs_out.bounding_box )
