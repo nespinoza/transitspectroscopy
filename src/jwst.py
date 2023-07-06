@@ -1485,7 +1485,7 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
         total_time = (toc-tic)
 
         print('\t    - Done! Took {0:.2f} seconds. Saving...'.format(total_time)) 
-        pickle.dump(output_dictionary['traces'], open(outputfolder+'pipeline_outputs/traces'+actual_suffix+'.pkl'), 'wb')
+        pickle.dump( output_dictionary['traces'], open(outputfolder+'pipeline_outputs/traces'+actual_suffix+'.pkl', 'wb') )
 
     # Now that traces have been obtained, perform spectral extraction. For this, it is useful to get a "master" trace from our data:
     y1 = np.nanmedian( output_dictionary['traces']['ysmoothed'], axis = 0 )
@@ -1647,6 +1647,6 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
         total_time = (toc-tic)
 
         print('\t    - Done! Took {0:.2f} seconds. Saving...'.format(total_time)) 
-        pickle.dump(output_dictionary['spectra'], open(outputfolder+'pipeline_outputs/spectra'+actual_suffix+'.pkl'), 'wb')
+        pickle.dump( output_dictionary['spectra'], open(outputfolder+'pipeline_outputs/spectra'+actual_suffix+'.pkl', 'wb') )
 
     return output_dictionary
