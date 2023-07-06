@@ -1366,7 +1366,7 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
 
         x1, y1 = trace_spectrum(median_rate, np.zeros(median_rate.shape), 
                                 xstart = xstart, ystart = center_pixel, xend = xend, 
-                                y_tolerance = 5, method = 'convolve'
+                                y_tolerance = 5#, method = 'convolve'
                                )
 
         toc = time.time()
@@ -1394,7 +1394,8 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
 
                 _, output_dictionary['traces']['y'][i, :] = trace_spectrum(median_rate, np.zeros(median_rate.shape),
                                                                            xstart = xstart, ystart = center_pixel, xend = xend,
-                                                                           y_tolerance = 5, method = 'convolve')
+                                                                           y_tolerance = 5#, method = 'convolve'
+                                                                          )
             toc = time.time()
             total_time = (toc-tic)/3600.
 
@@ -1416,7 +1417,7 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
 
                 all_traces.append( ray_trace_spectrum(median_rate, np.zeros(median_rate.shape), 
                                                       xstart = xstart, ystart = center_pixel, xend = xend,
-                                                      y_tolerance = 5, method = 'convolve'
+                                                      y_tolerance = 5#, method = 'convolve'
                                                      ) 
                                  )
 
