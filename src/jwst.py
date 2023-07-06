@@ -13,6 +13,7 @@ from astropy.timeseries import TimeSeries
 
 from jwst.pipeline import calwebb_detector1, calwebb_spec2
 from jwst import datamodels
+from gwcs import wcstools
 
 from .utils import *
 from .spectroscopy import *
@@ -146,30 +147,6 @@ def tso_jumpstep(tso_list, window, nsigma = 10):
                                     break
 
     return output_tso_list
-
-def correct_1f(median_frame, frame, x, y, min_bkg_row = 20, max_bkg_row = 35, mask = None):
-   
-    edge_row = median_frame.shape[0]
- 
-    new_frame = np.copy(frame)
-    
-    ms = frame - median_frame
-    
-    # Go column-by-column substracting values around the trace:
-    for i in range(len(x)):
-        
-        column = x[i]
-        row = int(y[i])
-        
-        min_row = np.max([0, row - max_bkg_row])
-        max_row = np.min([edge_row, row + max_bkg_row])
-        
-        bkg = np.append(ms[min_row:row - min_bkg_row, column], ms[row + min_bkg_row:max_row, column])
-        idx = np.argsort(bkg)
-        npoints = len(idx)
-        new_frame[:, column] = new_frame[:, column] - np.nanmedian(bkg[idx][int(npoints*0.25):int(npoints*0.5)])
-        
-    return new_frame
 
 def cc_uniluminated_outliers(data, mask, nsigma = 5):
     """
@@ -701,7 +678,7 @@ def get_cds(data):
 
     return times, cds_frames
 
-def correct_local_1f(input_frame, template_frame, relative_flux, x_trace, y_trace, ommited_radius = 3, outer_radius = 10):
+def correct_1f(input_frame, template_frame, x_trace, y_trace, relative_flux = 1., inner_radius = 3, outer_radius = 10):
     
     # Get the detector frame by substracting the template, accounting for the relative flux:
     detector = input_frame - (template_frame * relative_flux)
@@ -711,25 +688,9 @@ def correct_local_1f(input_frame, template_frame, relative_flux, x_trace, y_trac
         
         signal = detector[:, x_trace[i]]
         
-        signal[int(y_trace[i])-ommited_radius:int(y_trace[i])+ommited_radius] = np.nan
+        signal[int(y_trace[i])-inner_radius:int(y_trace[i])+inner_radius] = np.nan
         signal[:int(y_trace[i]-outer_radius)] = np.nan
         signal[int(y_trace[i]+outer_radius):] = np.nan
-        
-    one_f = np.nanmedian(detector, axis = 0)
-        
-    return input_frame - one_f, detector
-
-def old_correct_1f(input_frame, x_trace, y_trace, outer_radius = 10):
-    
-    # Create the frame we'll play with:
-    detector = np.copy(input_frame)
-    
-    # Iterate through the trace, mark as nans pixels we won't be using:
-    for i in range( len(x_trace) ):
-        
-        signal = detector[:, x_trace[i]]
-        
-        signal[int(y_trace[i])-outer_radius:int(y_trace[i])+outer_radius] = np.nan
         
     one_f = np.nanmedian(detector, axis = 0)
         
@@ -956,10 +917,10 @@ def cds_stage1(datafiles, nintegrations, ngroups, trace_radius = 10, ommited_tra
 
         for group in range(cds_data.shape[1]):
 
-            cds_data[integration, group, :, :], _ = correct_local_1f(cds_data[integration, group, :, :], \
-                                                                     new_median_cds, smooth_wl[integration], \
-                                                                     x1, ysmooth, \
-                                                                     ommited_radius = ommited_trace_radius, outer_radius = trace_radius)
+            cds_data[integration, group, :, :], _ = correct_1f(cds_data[integration, group, :, :], \
+                                                               new_median_cds, smooth_wl[integration], \
+                                                               x1, ysmooth, \
+                                                               inner_radius = ommited_trace_radius, outer_radius = trace_radius)
 
     # For now, return CDS, backgroud and 1/f-noise-corrected data and time-stamps:
     return times, cds_data, initial_whitelight, smooth_wl
@@ -1202,7 +1163,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
                 jump_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+'tsojumpstep.fits') )
 
-        actual_suffix = '_tsojump'+actual_suffix
+        prefix = '_tsojumpstep_'
 
     else:
 
@@ -1238,13 +1199,15 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
                 jump_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+'jumpstep.fits') ) 
 
+        prefix = ''
+
     # Finally, do (or load products of the) ramp-fitting step --- return those, the jump-step products, the times and other metadata 
     # of interest:
     ramp_data = []
     ints_per_segment = []
     for i in range( len(jump_data) ):
 
-        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+'_'+actual_suffix+'_1_rampfitstep.fits'):
+        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+'_'+prefix+actual_suffix+'_1_rampfitstep.fits'):
 
             ramp_data.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(jump_data[i], 
                                                                                output_dir=outputfolder+'pipeline_outputs',
@@ -1256,7 +1219,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
         else:
 
-            ramp_data.append( datamodels.open(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+'_1_rampfitstep.fits') )
+            ramp_data.append( datamodels.open(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+prefix+actual_suffix+'_1_rampfitstep.fits') )
 
         ints_per_segment.append(ramp_data[-1].data.shape[0])
 
@@ -1272,7 +1235,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
     return output_dictionary
 
-def stage2(input_dictionary, nthreads = None, scale_1f = True, outputfolder = '', suffix = '', **kwargs):
+def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extraction = False, outputfolder = '', suffix = '', **kwargs):
     """
     This function takes an `input_dictionary` having as keys the `rampstep` products on a (chronologically-ordered) list, `times` having the times at 
     each integration in BJD and the integrations per segment `ints_per_segment`. Using those, it performs wavelength calibration, spectral tracing and 
@@ -1289,6 +1252,9 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, outputfolder = ''
     scale_1f : bool
         (Optional) If True, the "scale 1/f" noise technique will be used to remove 1/f noise at the ramp level. This removes the scaled median frame from each ramp, 
         and estimates (and removes) the 1/f noise from the resultant frame on the original frame.
+    single_trace_extraction : bool
+        (Optional) If True, a single trace is used to extract the spectra --- the median of all, integration-level traces. If False, the trace for each 
+        individual integration is used to extract the spectra for that integration.
     outputfolder : string
         (Optional) String indicating the folder where the outputs want to be saved. Default is current working directory.
     suffix  : string
@@ -1342,6 +1308,8 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, outputfolder = ''
         print('\t    - Instrument/Mode: NIRSpec/PRISM\n')
 
         mode = 'nirspec/prism'
+        row_window = 1
+        column_window = 7
 
     else:
 
@@ -1361,72 +1329,120 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, outputfolder = ''
 
     # Great. Now that we have all the rates, perform spectral tracing. We do the same for all instruments: we choose a set of pixels in one edge of 
     # the detector, take the median of the spectrum in that edge, and then trace the spectra left or the right of that calculated position. For this 
-    # initial position check, performing the analysis on the median rates is very useful:
+    # initial position check, performing the analysis on the median rates is very useful. First, get a NaN-free median frame:
     median_rate = np.nanmedian(tso, axis = 0)
+    idx = np.isnan(median_rate)
+    median_rate[idx] = 0.
 
-    if mode == 'nirspec/prism':
+    # Fill NaNs with a median filter:
+    mf_median_rate = median_filter(median_rate, [row_window, column_window])
+    median_rate[idx] = mf_median_rate[idx]
 
-        xstart = 50
-        xend = 490
-        trace_outlier_nsigma = 5
-        trace_outlier_window = 10
-        nknots = 8
+    if os.path.exists( outputfolder+'pipeline_outputs/traces'+actual_suffix+'.pkl' ):
+
+        print('\t >> Traces found in file {0:}. Loading...'.format(outputfolder+'pipeline_outputs/traces'+actual_suffix+'.pkl'))
+        output_dictionary['traces'] = pickle.load( open(outputfolder+'pipeline_outputs/traces'+actual_suffix+'.pkl', 'rb') )
+
+    else:
+
+        if mode == 'nirspec/prism':
+
+            xstart = 50
+            xend = 490
+            trace_outlier_nsigma = 5
+            trace_outlier_window = 10
+            nknots = 8
+            
+            # For NIRspec/Prism, take the starting point from the average spectral shape between columns 50 to 100:
+            lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, 50:100], axis = 1) )
+
+        # Find maximum of the initial CCF:
+        idx = np.where(ccf == np.max(ccf))[0]
+        center_pixel = lags[idx]
+
+        # Prepare output dictionaries. First, trace the median spectrum as a test:
+        tic = time.time()
+
+        x1, y1 = ts.spectroscopy.trace_spectrum(median_rate, np.zeros(median_rate.shape), 
+                                        xstart = xstart, ystart = center_pixel, xend = xend, 
+                                        y_tolerance = 5, method = 'convolve')
+
+        toc = time.time()
+
+        total_time = (toc-tic)/3600.
+
+        # Now, create output dicts:
+        output_dictionary['traces'] = {} 
+        output_dictionary['traces']['x'] = x1 
+        output_dictionary['traces']['y'] = np.zeros([ tso.shape[0], len(y1) ])
+        output_dictionary['traces']['ycorrected'] = np.zeros([ tso.shape[0], len(y1) ])
+        output_dictionary['traces']['ysmoothed'] = np.zeros([ tso.shape[0], len(y1) ])
+
+
+
+        # Then use this to trace the entire spectrum. Be smart about tracing and do it via ray, i.e., using multi-processing if `nthreads` is set:
+        if nthreads is None:
         
-        # For NIRspec/Prism, take the starting point from the average spectral shape between columns 50 to 100:
-        lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, 50:100], axis = 1) )
+            print('\t >> Warning: tracing will be done WITHOUT parallelization:')
+            print('\t    - It should take about {0:.2f} hours to trace all {1:} integrations.'.format(total_time, str(tso.shape[0])))
 
-    # Find maximum of the initial CCF:
-    idx = np.where(ccf == np.max(ccf))[0]
-    center_pixel = lags[idx]
+            # First, perform normal tracing:
+            tic = time.time()
+            for i in tqdm(range(tso.shape[0])):
 
-    # Prepare output dictionaries. First, trace the median spectrum as a test:
-    tic = time.time()
+                _, output_dictionary['traces']['y'][i, :] = trace_spectrum(median_rate, np.zeros(median_rate.shape),
+                                                                           xstart = xstart, ystart = center_pixel, xend = xend,
+                                                                           y_tolerance = 5, method = 'convolve')
+            toc = time.time()
+            total_time = (toc-tic)/3600.
 
-    x1, y1 = ts.spectroscopy.trace_spectrum(median_rate, np.zeros(median_rate.shape), 
-                                    xstart = xstart, ystart = center_pixel, xend = xend, 
-                                    y_tolerance = 5, method = 'convolve')
+        else:
 
-    toc = time.time()
+            # Initialize ray:
+            ray.init(address='local', num_cpus = nthreads) 
 
-    total_time = (toc-tic)/3600.
+            print('\t >> Tracing will be done via the ray library:')
+            print('\t    - It should take about {0:.2f} hours to trace all {1:} integrations.'.format(total_time/nthreads, str(tso.shape[0])))
 
-    # Now, create output dicts:
-    output_dictionary['traces'] = {} 
-    output_dictionary['traces']['x'] = x1 
-    output_dictionary['traces']['y'] = np.zeros([ tso.shape[0], len(y1) ])
-    output_dictionary['traces']['ycorrected'] = np.zeros([ tso.shape[0], len(y1) ])
-    output_dictionary['traces']['ysmoothed'] = np.zeros([ tso.shape[0], len(y1) ])
+            tic = time.time()
+            # First, decorate the tracing function to make it ray-amenable:
+            ray_trace_spectrum = ray.remote(trace_spectrum)
 
+            # Prepare the handle for all traces:
+            all_traces = []
+            for i in range( tso.shape[0] ):
 
+                all_traces.append( ray_trace_spectrum(median_rate, np.zeros(median_rate.shape), 
+                                                      xstart = xstart, ystart = center_pixel, xend = xend,
+                                                      y_tolerance = 5, method = 'convolve'
+                                                     ) 
+                                 )
 
-    # Then use this to trace the entire spectrum. Be smart about tracing and do it via ray, i.e., using multi-processing if `nthreads` is set:
-    if nthreads is None:
-    
-        print('\t >> Warning: tracing will be done WITHOUT parallelization:')
-        print('\t    - It should take about {0:.2f} hours to trace all {1:} integrations.'.format(total_time, str(tso.shape[0])))
+            # Run the process with ray:
+            trace_results = ray.get(all_traces)
 
-        # First, perform normal tracing:
+            # Save traces in the dictionary:
+            for i in tqdm(range(tso.shape[0])):
+
+                _, output_dictionary['traces']['y'][i, :] = trace_results[i]
+
+            toc = time.time()
+            total_time = (toc-tic)/3600.
+
+        # Next, go trace by trace correcting outliers and smoothing traces via a spline. We don't parallellize this as this seems to be pretty quick even for NIRSpec/PRISM:
+        print('\t    - Done! Took {0:.2f} hours. Correcting outliers and smoothing traces...'.format(total_time))
+
         tic = time.time()
         for i in tqdm(range(tso.shape[0])):
 
-            _, output_dictionary['traces']['y'][i, :] = trace_spectrum(median_rate, np.zeros(median_rate.shape),
-                                                                       xstart = xstart, ystart = center_pixel, xend = xend,
-                                                                       y_tolerance = 5, method = 'convolve')
-        toc = time.time()
-        total_time = (toc-tic)/3600.
-        # Next, go trace by trace correcting outliers and smoothing traces via a spline::
-        print('\t    - Done! Took {0:.2f} hours. Correcting outliers and smoothing traces...'.format(total_time))
-
-        for i in tqdm(range(tso.shape[0])):
-
             # Find outliers:
-            idx_outliers, mfilter = outlier_detector(output_dictionary['traces']['y'][i, :], 
+            idx_outliers, mfilter = outlier_detector(output_dictionary['traces']['y'][i, :],  
                                                      nsigma = trace_outlier_nsigma,
                                                      window = trace_outlier_window, 
                                                      return_filter = True)
 
             # Fix them if present:
-            if len(idx_outliers) > 0:
+            if len(idx_outliers) > 0: 
 
                 output_dictionary['traces']['ycorrected'][i, :] = deepcopy(output_dictionary['traces']['y'][i, :])
                 output_dictionary['traces']['ycorrected'][i, idx_outliers] = mfilter[idx_outliers]
@@ -1436,35 +1452,174 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, outputfolder = ''
                 output_dictionary['traces']['ycorrected'][i, :] = output_dictionary['traces']['y'][i, :]
 
             # Smooth trace:
-            _, output_dictionary['traces']['ysmoothed'][i, :] = fit_spline(x1, output_dictionary['traces']['ycorrected'][i, :], 
-                                                                           nknots = nknots)  
+            _, output_dictionary['traces']['ysmoothed'][i, :] = fit_spline(x1, output_dictionary['traces']['ycorrected'][i, :],  
+                                                                           nknots = nknots)
+
+        toc = time.time()
+        total_time = (toc-tic)
+
+        print('\t    - Done! Took {0:.2f} seconds. Saving...'.format(total_time)) 
+        pickle.dump(output_dictionary['traces'], open(outputfolder+'pipeline_outputs/traces'+actual_suffix+'.pkl'), 'wb')
+
+    # Now that traces have been obtained, perform spectral extraction. For this, it is useful to get a "master" trace from our data:
+    y1 = np.nanmedian( output_dictionary['traces']['ysmoothed'], axis = 0 )
+
+    # Extract spectra:
+    if os.path.exists( outputfolder+'pipeline_outputs/spectra'+actual_suffix+'.pkl' ):
+
+        print('\t >> Spectra found in file {0:}. Loading...'.format(outputfolder+'pipeline_outputs/spectra'+actual_suffix+'.pkl'))
+        output_dictionary['traces'] = pickle.load( open(outputfolder+'pipeline_outputs/spectra'+actual_suffix+'.pkl', 'rb') )
 
     else:
 
-        # Initialize ray:
-        ray.init(address='local', num_cpus = nthreads) 
-
-        print('\t >> Tracing will be done via the ray library:')
-        print('\t    - It should take about {0:.2f} hours to trace all {1:} integrations.'.format(total_time/nthreads, str(tso.shape[0])))
-
+        print('\t >> Performing spectral extraction...') 
         tic = time.time()
-        # First, decorate the tracing function to make it ray-amenable:
-        ray_trace_spectrum = ray.remote(trace_spectrum)
+        # Define spectral extraction parameters:
+        if mode == 'nirspec/prism':
 
-        # Prepare the handle for all traces:
-        all_traces = []
-        for i in range( tso.shape[0] ):
+            # Initial time-series parameters:
+            scale_1f_rows = np.arange(5,25)
+            scale_1f_columns = np.arange(200,450)
+            scale_1f_window = 200
 
-            all_traces.append( ray_trace_spectrum(median_rate, np.zeros(median_rate.shape), 
-                                                  xstart = xstart, ystart = center_pixel, xend = xend,
-                                                  y_tolerance = 5, method = 'convolve'
-                                                 ) 
-                             )
+            spectra_aperture_radius = 10
+            spectra_1f_inner_radius = 4
+            spectra_1f_outer_radius = 15
 
-        # Run the process with ray:
-        trace_results = ray.get(all_traces)
+        # Fix all nan in the TSO:
+        for i in range(tso.shape[0]):
+
+            idx = np.where( np.isnan( tso[i,:,:] ) )
+            
+            if len(idx[0]!=0):
+
+                tso[i, :, :][idx] = mf_median_rate[idx]
+
+        # Next, perform spectral extraction. To this end, first generate a fast white-light lightcurve that we will 
+        # use to perform the 1/f scaling (if the user wants to):
+        if scale_1f:
+
+            timeseries = np.sum(tso[:, scale_1f_rows, scale_1f_columns], axis = (1,2))
+            mf = median_filter( timeseries / np.nanmedian(timeseries), scale_1f_window )
+
+
+        spectra = np.zeros([tso.shape[0], len(y1)])
+        spectra_err = np.zeros([tso.shape[0], len(y1)])
+
+        for i in tqdm(range(tso.shape[0])):
+
+            if not single_trace_extraction:
+
+                x, y = output_dictionary['traces']['x'], output_dictionary['traces']['ysmoothed'][i, :]
+
+            else:
+
+                x, y = output_dictionary['traces']['x'], y1
+
+            if scale_1f:
+
+                bkg_subs_frame = correct_1f(median_rate, 
+                                            tso[i, :, :], 
+                                            x, y, 
+                                            scale_factor = mf[i], 
+                                            inner_radius = spectra_1f_inner_radius, 
+                                            outer_radius = spectra_1f_outer_radius
+                                            )
+            
+            else:
+
+                bkg_subs_frame = tso[i, :, :]
+
+            spectra[i, :], spectra_err[i, :] = getSimpleSpectrum(bkg_subs_frame, 
+                                                                 x,
+                                                                 y, 
+                                                                 spectra_aperture_radius, 
+                                                                 error_data=tso_err[i, :, :], 
+                                                                 correct_bkg=False
+                                                                )
+
+        output_dictionary['spectra'] = {}
+        output_dictionary['spectra']['original'] = spectra
+        output_dictionary['spectra']['original_err'] = spectra_err
+
+        # Now correct for outliers not accounted for in previous steps:
+        master_spectra = np.zeros(spectra.shape)
+
+        for i in range(spectra.shape[0]):
+            
+            master_spectra[i, :] = spectra[i,:] / np.nanmedian(spectra[i,:])
+            
+        master_spectrum = np.zeros(spectra.shape[1])
+        sigma_master_spectrum = np.zeros(spectra.shape[1])
+
+        for i in range(spectra.shape[1]):
+            
+            median = np.nanmedian(master_spectra[:, i])
+            master_spectrum[i], sigma_master_spectrum[i] = median, \
+                                                           1.2533*get_mad_sigma(median, master_spectra[:, i])
+
+        corrected_spectra = np.deepcopy(spectra)
+
+        corrected_spectra_err = np.deepcopy(spectra_err)
+
+        for i in range(spectra.shape[0]):
+            
+            # First, get median to scale:
+            median = np.median(spectra[i, :])
+
+            # Scale master spectrum and sigma:
+            model = master_spectrum * median
+            sigma = sigma_master_spectrum * median
+            
+            # Identify bad pixels/columns:
+            residuals = np.abs(spectra[i, :] - model)
+            idx_bad = np.where(residuals > 5 * sigma)[0]
+            
+            # Replace:
+            if len(idx_bad) != 0:
+                
+                corrected_spectra[i, idx_bad] = model[idx_bad]
+                corrected_spectra_err[i, idx_bad] = sigma[idx_bad]
+
+        # Save to output dictionary:
+        output_dictionary['spectra']['corrected'] = corrected_spectra
+        output_dictionary['spectra']['corrected_err'] = corrected_spectra_err 
+
+        # Extract wavelength solution --- a bit different depending on the instrument, but all require the assign_wcs step to be ran:
+        results = calwebb_spec2.assign_wcs_step.AssignWcsStep.call(input_dictionary['rampstep'][0])
+
+        if instrument_name == 'NIRSPEC'
+
+            # Get the output wavelength map from the bounding box along with bounding box coordinates:
+            bb_columns, bb_rows = wcstools.grid_from_bounding_box( wcs_out.bounding_box )
+            _, _, bb_wavelength_map = wcs_out(bb_columns, bb_rows)
+    
+            # Prepare and fill wavelength map given this bounding box (fill with nans because later nans are ommited):
+            wavelength_map = np.full([ tso.shape[1], tso.shape[2] ], np.nan)
+
+            for i in range( bb_wavelength_map.shape[0] ):
+
+                for j in range( bb_wavelength_map.shape[1] ):
+
+                    wavelength_map[int(bb_rows[i, j]), int(bb_columns[i, j])] = bb_wavelength_map[i, j]
+
+            output_dictionary['spectra']['wavelength_map'] = wavelength_map
+
+            # Now, using the wavelength map, get average wavelength per column (nans will be ommited):
+            wavelengths = getSimpleSpectrum(wavelength_map,
+                                            x,
+                                            y1,
+                                            spectra_aperture_radius,
+                                            method = 'average'
+                                           )
+
+            output_dictionary['spectra']['wavelengths'] = wavelengths
+
+        # Save output:
         toc = time.time()
-        total_time = (toc-tic)/3600.
+        total_time = (toc-tic)
 
-        # Save to the output dictionaries:
-        print('\t    - Done! Took {0:.2f} hours. Correcting outliers and smoothing traces...'.format(total_time))
+        print('\t    - Done! Took {0:.2f} seconds. Saving...'.format(total_time)) 
+        pickle.dump(output_dictionary['spectra'], open(outputfolder+'pipeline_outputs/spectra'+actual_suffix+'.pkl'), 'wb')
+
+    return output_dictionary
