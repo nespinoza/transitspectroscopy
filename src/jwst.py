@@ -1415,10 +1415,10 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
             all_traces = []
             for i in range( tso.shape[0] ):
 
-                all_traces.append( ray_trace_spectrum(median_rate, np.zeros(median_rate.shape), 
-                                                      xstart = xstart, ystart = center_pixel, xend = xend,
-                                                      y_tolerance = 5#, method = 'convolve'
-                                                     ) 
+                all_traces.append( ray_trace_spectrum.remote(median_rate, np.zeros(median_rate.shape), 
+                                                             xstart = xstart, ystart = center_pixel, xend = xend,
+                                                             y_tolerance = 5#, method = 'convolve'
+                                                            ) 
                                  )
 
             # Run the process with ray:
