@@ -679,7 +679,7 @@ def get_cds(data):
 
     return times, cds_frames
 
-def correct_1f(input_frame, template_frame, x_trace, y_trace, scale_factor = 1., inner_radius = 3, outer_radius = 10):
+def correct_1f(input_frame, template_frame, x_trace, y_trace, scale_factor = 1., inner_radius = 3, outer_radius = 10, return_detector = False):
     
     # Get the detector frame by substracting the template, accounting for the relative flux:
     detector = input_frame - (template_frame * scale_factor)
@@ -695,7 +695,13 @@ def correct_1f(input_frame, template_frame, x_trace, y_trace, scale_factor = 1.,
         
     one_f = np.nanmedian(detector, axis = 0)
         
-    return input_frame - one_f, detector
+    if not return_detector:
+    
+        return input_frame - one_f
+
+    else:       
+        
+        return input_frame - one_f, detector
 
 def cds_stage1(datafiles, nintegrations, ngroups, trace_radius = 10, ommited_trace_radius = 3, instrument = 'nirspec/g395h', background_model = None, background_mask = None):
     """
@@ -918,11 +924,11 @@ def cds_stage1(datafiles, nintegrations, ngroups, trace_radius = 10, ommited_tra
 
         for group in range(cds_data.shape[1]):
 
-            cds_data[integration, group, :, :], _ = correct_1f(cds_data[integration, group, :, :], 
-                                                               new_median_cds, 
-                                                               x1, ysmooth, 
-                                                               scale_factor = smooth_wl[integration],
-                                                               inner_radius = ommited_trace_radius, outer_radius = trace_radius)
+            cds_data[integration, group, :, :] = correct_1f(cds_data[integration, group, :, :], 
+                                                            new_median_cds, 
+                                                            x1, ysmooth, 
+                                                            scale_factor = smooth_wl[integration],
+                                                            inner_radius = ommited_trace_radius, outer_radius = trace_radius)
 
     # For now, return CDS, backgroud and 1/f-noise-corrected data and time-stamps:
     return times, cds_data, initial_whitelight, smooth_wl
