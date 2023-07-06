@@ -1364,10 +1364,10 @@ def stage2(input_dictionary, nthreads = None, scale_1f = True, single_trace_extr
         # Prepare output dictionaries. First, trace the median spectrum as a test:
         tic = time.time()
 
-        x1, y1 = spectroscopy.trace_spectrum(median_rate, np.zeros(median_rate.shape), 
-                                             xstart = xstart, ystart = center_pixel, xend = xend, 
-                                             y_tolerance = 5, method = 'convolve'
-                                            )
+        x1, y1 = trace_spectrum(median_rate, np.zeros(median_rate.shape), 
+                                xstart = xstart, ystart = center_pixel, xend = xend, 
+                                y_tolerance = 5, method = 'convolve'
+                               )
 
         toc = time.time()
 
