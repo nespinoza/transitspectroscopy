@@ -5,7 +5,7 @@ from scipy.sparse.linalg import lsmr
 from copy import copy, deepcopy
 from scipy.ndimage import median_filter
 
-import tqdm
+from tqdm import tqdm
 from astropy.utils.data import download_file
 from astropy import units as u
 from astropy.time import Time
