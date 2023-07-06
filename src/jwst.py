@@ -1163,7 +1163,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
                 jump_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+'tsojumpstep.fits') )
 
-        prefix = '_tsojumpstep_'
+        prefix = 'tsojumpstep_'
 
     else:
 
@@ -1207,7 +1207,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
     ints_per_segment = []
     for i in range( len(jump_data) ):
 
-        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+'_'+prefix+actual_suffix+'_1_rampfitstep.fits'):
+        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+prefix+actual_suffix+'1_rampfitstep.fits'):
 
             ramp_data.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(jump_data[i], 
                                                                                output_dir=outputfolder+'pipeline_outputs',
@@ -1219,7 +1219,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
         else:
 
-            ramp_data.append( datamodels.open(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+prefix+actual_suffix+'_1_rampfitstep.fits') )
+            ramp_data.append( datamodels.open(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+prefix+actual_suffix+'1_rampfitstep.fits') )
 
         ints_per_segment.append(ramp_data[-1].data.shape[0])
 
