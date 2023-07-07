@@ -1490,7 +1490,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
         # Find maximum of the initial CCF:
         idx = np.where(ccf == np.max(ccf))[0]
-        center_pixel = lags[idx]
+        center_pixel = lags[idx][0]
 
         # Prepare output dictionaries. First, trace the median spectrum as a test:
         tic = time.time()
