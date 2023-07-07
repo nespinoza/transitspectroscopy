@@ -1367,12 +1367,26 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         # Set suffix for nrs1 and nrs2:
         if instrument_detector.lower() == 'nrs1':
 
-            suffix = suffix + '_nrs1'
+            if suffix != '':
+
+                suffix = suffix + '_nrs1'
+
+            else:
+
+                suffix = 'nrs1'
+
             actual_suffix = '_'+suffix
 
         if instrument_detector.lower() == 'nrs2':
 
-            suffix = suffix + '_nrs2'
+            if suffix != '':
+
+                suffix = suffix + '_nrs2'
+
+            else:
+
+                suffix = 'nrs2'
+
             actual_suffix = '_'+suffix
 
     else:
@@ -1409,6 +1423,24 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
         mf_median_rate = median_filter(median_rate, [row_window, column_window])
         median_rate[idx] = mf_median_rate[idx]
+
+    # Same for the entire TSO:
+    for i in range(tso.shape[0]):
+
+        idx = np.where( np.isnan( tso[i,:,:] ) )
+
+        if len(idx[0]!=0):
+
+            if zero_nans:
+
+                tso[i, :, :][idx] = 0.
+
+            else:
+
+                tso[i, :, :][idx] = mf_median_rate[idx]
+
+    output_dictionary['tso'] = tso
+    output_dictionary['tso_err'] = tso_err
 
     if os.path.exists( outputfolder+'pipeline_outputs/traces'+actual_suffix+'.pkl' ):
 
@@ -1480,8 +1512,6 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         output_dictionary['traces']['ycorrected'] = np.zeros([ tso.shape[0], len(y1) ])
         output_dictionary['traces']['ysmoothed'] = np.zeros([ tso.shape[0], len(y1) ])
 
-
-
         # Then use this to trace the entire spectrum. Be smart about tracing and do it via ray, i.e., using multi-processing if `nthreads` is set:
         if nthreads is None:
         
@@ -1492,7 +1522,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             tic = time.time()
             for i in tqdm(range(tso.shape[0])):
 
-                _, output_dictionary['traces']['y'][i, :] = trace_spectrum(median_rate, np.zeros(median_rate.shape),
+                _, output_dictionary['traces']['y'][i, :] = trace_spectrum(tso[i, :, :], np.zeros(median_rate.shape),
                                                                            xstart = xstart, ystart = center_pixel, xend = xend,
                                                                            y_tolerance = 5#, method = 'convolve'
                                                                           )
@@ -1515,7 +1545,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             all_traces = []
             for i in range( tso.shape[0] ):
 
-                all_traces.append( ray_trace_spectrum.remote(median_rate, np.zeros(median_rate.shape), 
+                all_traces.append( ray_trace_spectrum.remote(tso[i, :, :], np.zeros(median_rate.shape), 
                                                              xstart = xstart, ystart = center_pixel, xend = xend,
                                                              y_tolerance = 5#, method = 'convolve'
                                                             ) 
@@ -1608,21 +1638,6 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             spectra_bkg_inner_radius = 13
             spectra_bkg_outer_radius = None
 
-        # Fix all nan in the TSO:
-        for i in range(tso.shape[0]):
-
-            idx = np.where( np.isnan( tso[i,:,:] ) )
-            
-            if len(idx[0]!=0):
-
-                if zero_nans:
-
-                    tso[i, :, :][idx] = 0.
-
-                else:
-
-                    tso[i, :, :][idx] = mf_median_rate[idx]
-
         if spectra_bkg_substraction:
 
             # First, estimate the background using the median rate frame:
@@ -1653,11 +1668,11 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         # use to perform the 1/f scaling (if the user wants to):
         if scale_1f:
     
-            timeseries = np.sum(tso[:, 
+            timeseries = np.nansum(tso[:, 
                                     scale_1f_rows[0]:scale_1f_rows[1], 
                                     scale_1f_columns[0]:scale_1f_columns[1]], 
                                     axis = (1,2)
-                               )
+                                  )
 
             mf = median_filter( timeseries / np.nanmedian(timeseries), scale_1f_window )
 
