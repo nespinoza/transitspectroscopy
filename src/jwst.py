@@ -1633,13 +1633,13 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
             for i in range( len(output_dictionary['traces']['x']) ):
 
-                idx_in = np.where( np.abs( rows - y1 ) <= spectra_bkg_inner_radius)[0]
+                idx_in = np.where( np.abs( rows - y1[i] ) <= spectra_bkg_inner_radius)[0]
                 out_of_trace_pixels[idx_in, output_dictionary['traces']['x'][i]] = np.nan  
-                in_trace_pixels[idx_in, x1[i]] = 1.
+                in_trace_pixels[idx_in, output_dictionary['traces']['x'][i][i]] = 1.
 
                 if spectra_bkg_outer_radius is not None:
 
-                    idx_out = np.where( np.abs( rows - y1 ) >= spectra_bkg_outer_radius)[0]  
+                    idx_out = np.where( np.abs( rows - y1[i] ) >= spectra_bkg_outer_radius)[0]  
                     out_of_trace_pixels[idx_out, output_dictionary['traces']['x'][i]] = np.nan
 
             bkg = np.nanmedian(median_rate_nan * out_of_trace_pixels, axis = 0)
