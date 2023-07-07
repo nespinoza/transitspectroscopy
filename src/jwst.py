@@ -1593,8 +1593,8 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
             if scale_1f:
 
-                bkg_subs_frame = correct_1f(median_rate, 
-                                            tso[i, :, :], 
+                bkg_subs_frame = correct_1f(tso[i, :, :],
+                                            median_rate, 
                                             x, y, 
                                             scale_factor = mf[i], 
                                             inner_radius = spectra_1f_inner_radius, 
