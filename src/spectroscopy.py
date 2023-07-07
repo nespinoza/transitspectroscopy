@@ -512,7 +512,7 @@ def double_gaussian(x, mean1 = -7.9, mean2 = 7.9, sigma1 = 1., sigma2 = 1.):
 
     return gaussian(x, mean1, sigma1) + gaussian(x, mean2, sigma2)
 
-def get_ccf_convolve(signal, ccf_parameters=[-7.5, 3.0, 7.5, 3.0]):
+def get_ccf_convolve(signal, function = 'gaussian', ccf_parameters=None):
     """
     Function that obtains the CCF by convolution using the signal, represented as the column 
     of pixel from the detector, and a double gaussian kernel. This method is an improvement
@@ -524,8 +524,11 @@ def get_ccf_convolve(signal, ccf_parameters=[-7.5, 3.0, 7.5, 3.0]):
     signal : numpy.array
         Array contain the column signal of the detector
 
+    function : str
+        Define kernel to be used; default is gaussian.
+
     ccf_parameters : list 
-        List of floats related the double gaussian kernel parametes: [mu1, sig1, mu2, sig2]
+        List of floats related the gaussian [mu1, sig1] or double gaussian kernel parameters [mu1, sig1, mu2, sig2]
 
     Returns
     -------
@@ -533,14 +536,37 @@ def get_ccf_convolve(signal, ccf_parameters=[-7.5, 3.0, 7.5, 3.0]):
         Array containing the cross-correlation function between y and the selected function
 
     """
-    mu1, sig1, mu2, sig2 = ccf_parameters
-    
+
     npix = len(signal)
-    
-    # gaussian kernel
     x = np.linspace(0, npix, npix+1) # must be odd
-    g1 = Gaussian1D(amplitude=1, mean=mu1+npix/2, stddev=sig1)
-    g2 = Gaussian1D(amplitude=1, mean=mu2+npix/2, stddev=sig2)
+
+    if function == 'gaussian':
+
+        if ccf_parameters is None:
+
+            mu1, sig1 = [0., 1.]
+        
+        else:
+
+            mu1, sig1 = ccf_parameters
+
+        g2 = 0.
+        g1 = Gaussian1D(amplitude=1, mean=mu1+npix/2, stddev=sig1) 
+
+    elif function == 'double gaussian':
+
+        
+        if ccf_parameters is None:
+    
+            mu1, sig1, mu2, sig2 = [-7.5, 3.0, 7.5, 3.0]
+
+        else:
+
+            mu1, sig1, mu2, sig2 = ccf_parameters
+    
+        g1 = Gaussian1D(amplitude=1, mean=mu1+npix/2, stddev=sig1)
+        g2 = Gaussian1D(amplitude=1, mean=mu2+npix/2, stddev=sig2)
+        
     kernel = g1 + g2 
 
     # convolve kernel and signal 
@@ -834,7 +860,7 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
             
             elif method == 'convolve':
                 # Run CCF using using convolution method applied to entire column
-                ccf = get_ccf_convolve(filtered_column, ccf_parameters=ccf_parameters)
+                ccf = get_ccf_convolve(filtered_column, function = ccf_function, ccf_parameters=ccf_parameters)
 
                 # Find where the minimum occurs within the profile_radius
                 # by finding the peak. A cubic spline interpolations is 
