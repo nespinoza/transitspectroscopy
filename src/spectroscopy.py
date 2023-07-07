@@ -550,8 +550,9 @@ def get_ccf_convolve(signal, function = 'gaussian', ccf_parameters=None):
 
             mu1, sig1 = ccf_parameters
 
-        g2 = 0.
         g1 = Gaussian1D(amplitude=1, mean=mu1+npix/2, stddev=sig1) 
+
+        kernel = g1
 
     elif function == 'double gaussian':
 
@@ -567,7 +568,7 @@ def get_ccf_convolve(signal, function = 'gaussian', ccf_parameters=None):
         g1 = Gaussian1D(amplitude=1, mean=mu1+npix/2, stddev=sig1)
         g2 = Gaussian1D(amplitude=1, mean=mu2+npix/2, stddev=sig2)
         
-    kernel = g1 + g2 
+        kernel = g1 + g2 
 
     # convolve kernel and signal 
     ccf = convolve_fft(signal, kernel(x))
