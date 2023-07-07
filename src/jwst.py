@@ -1629,7 +1629,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             in_trace_pixels = np.zeros(median_rate_nan.shape)
             in_trace_pixels[:] = np.nan
             out_of_trace_pixels = np.ones(median_rate_nan.shape)
-            rows = np.arange(median_cds.shape[0])
+            rows = np.arange(median_rate_nan.shape[0])
 
             for i in range( len(output_dictionary['traces']['x']) ):
 
