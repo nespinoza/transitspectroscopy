@@ -1635,7 +1635,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                 idx_in = np.where( np.abs( rows - y1[i] ) <= spectra_bkg_inner_radius)[0]
                 out_of_trace_pixels[idx_in, output_dictionary['traces']['x'][i]] = np.nan  
-                in_trace_pixels[idx_in, output_dictionary['traces']['x'][i][i]] = 1.
+                in_trace_pixels[idx_in, output_dictionary['traces']['x'][i]] = 1.
 
                 if spectra_bkg_outer_radius is not None:
 
