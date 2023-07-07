@@ -1464,7 +1464,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
             if 'nrs1' == instrument_detector.lower():
 
-                xstart = 2043
+                xstart = 2042
                 xend = 500
                 trace_outlier_nsigma = 5
                 trace_outlier_window = 10
