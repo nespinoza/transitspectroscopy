@@ -1007,6 +1007,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
     output_dictionary['metadata']['instrument_name'] = instrument_name
     output_dictionary['metadata']['instrument_filter'] = instrument_filter
     output_dictionary['metadata']['instrument_grating'] = instrument_grating
+    output_dictionary['metadata']['instrument_detector'] = uncal_data[-1].meta.instrument.detector
     output_dictionary['metadata']['instrument_subarray'] = uncal_data[-1].meta.subarray.name
     output_dictionary['metadata']['date_beg'] = uncal_data[-1].meta.observation.date_beg
     output_dictionary['metadata']['date_end'] = uncal_data[-1].meta.observation.date_end
@@ -1336,6 +1337,14 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     instrument_name = input_dictionary['rampstep'][0].meta.instrument.name
     instrument_filter = input_dictionary['rampstep'][0].meta.instrument.filter
     instrument_grating = input_dictionary['rampstep'][0].meta.instrument.grating
+    instrument_detector = input_dictionary['rampstep'][0].meta.instrument.detector
+    instrument_subarray = input_dictionary['rampstep'][0].meta.subarray.name
+
+    output_dictionary['metadata']['instrument_name'] = instrument_name
+    output_dictionary['metadata']['instrument_filter'] = instrument_filter
+    output_dictionary['metadata']['instrument_grating'] = instrument_grating
+    output_dictionary['metadata']['instrument_detector'] = instrument_detector
+    output_dictionary['metadata']['instrument_subarray'] = instrument_subarray
 
     if instrument_name == 'NIRSPEC' and instrument_grating == 'PRISM':
 
@@ -1355,10 +1364,22 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         row_window = 1
         column_window = 7
 
+        # Set suffix for nrs1 and nrs2:
+        if instrument_detector.lower() == 'nrs1':
+
+            suffix = suffix + '_nrs1'
+            actual_suffix = '_'+suffix
+
+        if instrument_detector.lower() == 'nrs2':
+
+            suffix = suffix + '_nrs2'
+            actual_suffix = '_'+suffix
+
     else:
 
         raise Exception('\t Error: Instrument/Grating/Filter: '+instrument_name+'/'+instrument_grating+'/'+instrument_filter+' not yet supported!')
 
+    print('\t    - Detector/Subarray: {0:}/{1:}\n'.format(instrument_detector, instrument_subarray))
     # First things first, save the results from the rates in a single array for the rates and the errors:
     nints = np.sum( input_dictionary['ints_per_segment'] )
     tso = np.zeros([nints, input_dictionary['rampstep'][0].data.shape[1], input_dictionary['rampstep'][0].data.shape[2]])
@@ -1374,8 +1395,9 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     # Great. Now that we have all the rates, perform spectral tracing. We do the same for all instruments: we choose a set of pixels in one edge of 
     # the detector, take the median of the spectrum in that edge, and then trace the spectra left or the right of that calculated position. For this 
     # initial position check, performing the analysis on the median rates is very useful. First, get a NaN-free median frame:
-    median_rate = np.nanmedian(tso, axis = 0)
-    idx = np.isnan(median_rate)
+    median_rate_nan = np.nanmedian(tso, axis = 0)
+    idx = np.isnan(median_rate_nan)
+    median_rate = deepcopy(median_rate_nan)
     median_rate[idx] = 0.
 
     # Fill NaNs with zeroes or the median rate, depending on user-input. Default is zeroes, median_rate could dilute transits:
@@ -1408,14 +1430,31 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
         if mode == 'nirspec/g395h':
 
-            xstart = 50
-            xend = 490
-            trace_outlier_nsigma = 5
-            trace_outlier_window = 10
-            nknots = 8
+            if 'nrs1' == instrument_detector.lower():
 
-            # For NIRspec/Prism, take the starting point from the average spectral shape between columns 50 to 100:
-            lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, 50:100], axis = 1) )
+                xstart = 2043
+                xend = 500
+                trace_outlier_nsigma = 5
+                trace_outlier_window = 10
+                nknots = 60
+
+                # For NIRspec/G395H, take the starting point from the average spectral shape on the edges of NRS1 or NRS2::
+                lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, xstart-200:xstart], axis = 1) )
+
+            elif 'nrs2' == instrument_detector.lower():
+
+                xstart = 5
+                xend = 2043
+                trace_outlier_nsigma = 5
+                trace_outlier_window = 10
+                nknots = 60
+
+                # For NIRspec/G395H, take the starting point from the average spectral shape on the edges of NRS1 or NRS2::
+                lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, xstart:xstart+200], axis = 1) )
+
+            else:
+
+                raise Exception('\t Error: Detector '+instrument_detector+' not yet supported for NIRSpec/G395H')
 
         # Find maximum of the initial CCF:
         idx = np.where(ccf == np.max(ccf))[0]
@@ -1550,6 +1589,25 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             spectra_1f_inner_radius = 4
             spectra_1f_outer_radius = 15
 
+            spectra_bkg_substraction = False
+            spectra_bkg_inner_radius = 14
+            spectra_bkg_outer_radius = None
+
+        elif mode == 'nirspec/g395h':
+
+            # Initial time-series parameters:
+            scale_1f_rows = [0,32]
+            scale_1f_columns = [5,2044]
+            scale_1f_window = 5
+
+            spectra_aperture_radius = 14
+            spectra_1f_inner_radius = 3
+            spectra_1f_outer_radius = 14
+
+            spectra_bkg_substraction = True
+            spectra_bkg_inner_radius = 13
+            spectra_bkg_outer_radius = None
+
         # Fix all nan in the TSO:
         for i in range(tso.shape[0]):
 
@@ -1565,10 +1623,36 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                     tso[i, :, :][idx] = mf_median_rate[idx]
 
+        if spectra_bkg_substraction:
+
+            # First, estimate the background using the median rate frame:
+            in_trace_pixels = np.zeros(median_rate_nan.shape)
+            in_trace_pixels[:] = np.nan
+            out_of_trace_pixels = np.ones(median_rate_nan.shape)
+            rows = np.arange(median_cds.shape[0])
+
+            for i in range( len(output_dictionary['traces']['x']) ):
+
+                idx_in = np.where( np.abs( rows - y1 ) <= spectra_bkg_inner_radius)[0]
+                out_of_trace_pixels[idx_in, output_dictionary['traces']['x'][i]] = np.nan  
+                in_trace_pixels[idx_in, x1[i]] = 1.
+
+                if spectra_bkg_outer_radius is not None:
+
+                    idx_out = np.where( np.abs( rows - y1 ) >= spectra_bkg_outer_radius)[0]  
+                    out_of_trace_pixels[idx_out, output_dictionary['traces']['x'][i]] = np.nan
+
+            bkg = np.nanmedian(median_rate_nan * out_of_trace_pixels, axis = 0)
+
+            # Now, remove this background signal from every integration:
+            for i in range( tso.shape[0] ):
+
+                tso[i, :, :] -= bkg
+
         # Next, perform spectral extraction. To this end, first generate a fast white-light lightcurve that we will 
         # use to perform the 1/f scaling (if the user wants to):
         if scale_1f:
-
+    
             timeseries = np.sum(tso[:, 
                                     scale_1f_rows[0]:scale_1f_rows[1], 
                                     scale_1f_columns[0]:scale_1f_columns[1]], 
