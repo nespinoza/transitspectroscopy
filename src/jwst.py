@@ -1763,7 +1763,10 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                 for j in range( bb_wavelength_map.shape[1] ):
 
-                    wavelength_map[int(bb_rows[i, j]), int(bb_columns[i, j])] = bb_wavelength_map[i, j]
+
+                    if int(bb_rows[i, j]) < wavelength_map.shape[0] and int(bb_columns[i, j]) < wavelength_map.shape[1]:
+
+                        wavelength_map[int(bb_rows[i, j]), int(bb_columns[i, j])] = bb_wavelength_map[i, j]
 
             output_dictionary['spectra']['wavelength_map'] = wavelength_map
 
