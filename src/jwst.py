@@ -1456,6 +1456,10 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             trace_outlier_nsigma = 5
             trace_outlier_window = 10
             nknots = 8
+
+            trace_ccf_method = 'convolve' # 'ccf'
+            trace_ccf_function = 'gaussian'
+            trace_ccf_parameters = [0., 1.7]
             
             # For NIRspec/Prism, take the starting point from the average spectral shape between columns 50 to 100:
             lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, 50:100], axis = 1) )
@@ -1470,6 +1474,10 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
                 trace_outlier_window = 10
                 nknots = 60
 
+                trace_ccf_method = 'convolve' # 'ccf'
+                trace_ccf_function = 'gaussian'
+                trace_ccf_parameters = [0., 1.7]
+
                 # For NIRspec/G395H, take the starting point from the average spectral shape on the edges of NRS1 or NRS2::
                 lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, xstart-200:xstart], axis = 1) )
 
@@ -1480,6 +1488,10 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
                 trace_outlier_nsigma = 5
                 trace_outlier_window = 10
                 nknots = 60
+
+                trace_ccf_method = 'convolve' # 'ccf'
+                trace_ccf_function = 'gaussian'
+                trace_ccf_parameters = [0., 1.7]
 
                 # For NIRspec/G395H, take the starting point from the average spectral shape on the edges of NRS1 or NRS2::
                 lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, xstart:xstart+200], axis = 1) )
@@ -1497,7 +1509,10 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
         x1, y1 = trace_spectrum(median_rate, np.zeros(median_rate.shape), 
                                 xstart = xstart, ystart = center_pixel, xend = xend, 
-                                y_tolerance = 5#, method = 'convolve'
+                                y_tolerance = 5, 
+                                method = trace_ccf_method, 
+                                ccf_function = trace_ccf_function,
+                                ccf_parameters = trace_ccf_parameters
                                )
 
         toc = time.time()
@@ -1524,7 +1539,10 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                 _, output_dictionary['traces']['y'][i, :] = trace_spectrum(tso[i, :, :], np.zeros(median_rate.shape),
                                                                            xstart = xstart, ystart = center_pixel, xend = xend,
-                                                                           y_tolerance = 5#, method = 'convolve'
+                                                                           y_tolerance = 5, 
+                                                                           method = trace_ccf_method,
+                                                                           ccf_function = trace_ccf_function,
+                                                                           ccf_parameters = trace_ccf_parameters
                                                                           )
             toc = time.time()
             total_time = (toc-tic)/3600.
@@ -1547,7 +1565,10 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                 all_traces.append( ray_trace_spectrum.remote(tso[i, :, :], np.zeros(median_rate.shape), 
                                                              xstart = xstart, ystart = center_pixel, xend = xend,
-                                                             y_tolerance = 5#, method = 'convolve'
+                                                             y_tolerance = 5, 
+                                                             method = trace_ccf_method,
+                                                             ccf_function = trace_ccf_function,
+                                                             ccf_parameters = trace_ccf_parameters
                                                             ) 
                                  )
 
@@ -1555,7 +1576,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             trace_results = ray.get(all_traces)
 
             # Save traces in the dictionary:
-            for i in tqdm(range(tso.shape[0])):
+            for i in range(tso.shape[0]):
 
                 _, output_dictionary['traces']['y'][i, :] = trace_results[i]
 
