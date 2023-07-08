@@ -1790,10 +1790,13 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
             # Get the output wavelength map from the bounding box along with bounding box coordinates. Define bounding box depending on the 
             # subarray size (by default, wcs_out maps the slit in the detector for NIRSpec):
+            print('bonudng box before:')
+            print(wcs_out.bounding_box)
             wcs_out.bounding_box = ( (-0.5, input_dictionary['rampstep'][0].data.shape[1]-0.5), 
                                      (-0.5, input_dictionary['rampstep'][0].data.shape[2]-0.5) 
                                    )
-
+            print('after:')
+            print(wcs_out.bounding_box)
             bb_columns, bb_rows = wcstools.grid_from_bounding_box( wcs_out.bounding_box )
             _, _, bb_wavelength_map = wcs_out(bb_columns, bb_rows)
     
