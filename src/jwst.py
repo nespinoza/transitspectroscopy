@@ -1574,7 +1574,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
             # Run the process with ray:
             trace_results = ray.get(all_traces)
-
+            ray.shutdown()
             # Save traces in the dictionary:
             for i in range(tso.shape[0]):
 
