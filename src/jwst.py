@@ -1413,7 +1413,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
         tso[current_integration:current_integration + input_dictionary['ints_per_segment'][i], :, :] = input_dictionary['rampstep'][i].data
         tso_err[current_integration:current_integration + input_dictionary['ints_per_segment'][i], :, :] = input_dictionary['rampstep'][i].err
-        current_integration = input_dictionary['ints_per_segment'][i]
+        current_integration += input_dictionary['ints_per_segment'][i]
 
     # Great. Now that we have all the rates, perform spectral tracing. We do the same for all instruments: we choose a set of pixels in one edge of 
     # the detector, take the median of the spectrum in that edge, and then trace the spectra left or the right of that calculated position. For this 
