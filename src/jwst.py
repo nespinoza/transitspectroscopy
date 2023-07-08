@@ -1033,7 +1033,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
         raise Exception('\t Error: Instrument/Grating/Filter: '+instrument_name+'/'+instrument_grating+'/'+instrument_filter+' not yet supported!')
 
-    if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+'_linearitystep'+actual_suffix+'.fits'):
+    if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+'_'+actual_suffix+'linearitystep.fits'):
 
         # First, perform standard processing in the first few steps of the JWST pipeline. First, the DQ step:
         dq_data = []
@@ -1247,7 +1247,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
     ints_per_segment = []
     for i in range( len(jump_data) ):
 
-        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+prefix+actual_suffix+'1_rampfitstep.fits'):
+        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+prefix'1_'+actual_suffix+'rampfitstep.fits'):
 
             ramp_data.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(jump_data[i], 
                                                                                output_dir=outputfolder+'pipeline_outputs',
@@ -1260,7 +1260,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
         else:
 
             print('\t >> Rampfit files found for {0:}. Loading them...\n'.format(datanames[i]))
-            ramp_data.append( datamodels.open(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+prefix+actual_suffix+'1_rampfitstep.fits') )
+            ramp_data.append( datamodels.open(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+prefix'1_'+actual_suffix+'rampfitstep.fits') )
 
         ints_per_segment.append(ramp_data[-1].data.shape[0])
 
