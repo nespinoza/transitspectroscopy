@@ -933,7 +933,7 @@ def cds_stage1(datafiles, nintegrations, ngroups, trace_radius = 10, ommited_tra
     # For now, return CDS, backgroud and 1/f-noise-corrected data and time-stamps:
     return times, cds_data, initial_whitelight, smooth_wl
 
-def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outputfolder = '', use_tso_jump = True, suffix = '', **kwargs):
+def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outputfolder = '', use_tso_jump = True, suffix = '', ommit_pixeldq = False, **kwargs):
     """
     This function calibrates a set of *uncal.fits files through a "special" version of the JWST TSO CalWebb Stage 1. It has been tested thoroughly for NIRISS/SOSS, NIRSpec/G395H and NIRSpec/Prism.
 
@@ -954,6 +954,8 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
         parameters `jump_nsigma` and `jump_window`.
     suffix  : string
         (Optional) Suffix to add to each out the outputs.
+    ommit_pixeldq : bool
+        (Optional) If True, ommit the pixel data quality flags and fit ramps to every pixel in the array
 
     Returns
     -------
@@ -1105,6 +1107,13 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
                 
         # Linearity step:
         linearity_data = []
+
+        if ommit_pixeldq:
+
+            for i in range( len(superbias_data) ):
+
+                refpix_data[i].pixeldq = np.zeros( refpix_data[i].pixeldq.shape )
+
         for i in range( len(refpix_data) ):
 
             if 'override_linearity' in kwargs.keys():
