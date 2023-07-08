@@ -1247,7 +1247,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
     ints_per_segment = []
     for i in range( len(jump_data) ):
 
-        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+prefix'1_'+actual_suffix+'rampfitstep.fits'):
+        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+prefix+'1_'+actual_suffix+'rampfitstep.fits'):
 
             ramp_data.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(jump_data[i], 
                                                                                output_dir=outputfolder+'pipeline_outputs',
@@ -1260,7 +1260,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
         else:
 
             print('\t >> Rampfit files found for {0:}. Loading them...\n'.format(datanames[i]))
-            ramp_data.append( datamodels.open(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+prefix'1_'+actual_suffix+'rampfitstep.fits') )
+            ramp_data.append( datamodels.open(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+prefix+'1_'+actual_suffix+'rampfitstep.fits') )
 
         ints_per_segment.append(ramp_data[-1].data.shape[0])
 
