@@ -1427,11 +1427,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     median_rate[idx] = 0.
 
     # Fill NaNs with zeroes or the median rate, depending on user-input. Default is zeroes, median_rate could dilute transits:
-    if zero_nans:
-
-        median_rate[idx] = 0.
-
-    else:
+    if not zero_nans:
 
         mf_median_rate = median_filter(median_rate, [row_window, column_window])
         median_rate[idx] = mf_median_rate[idx]
@@ -1441,7 +1437,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
         idx = np.where( np.isnan( tso[i,:,:] ) )
 
-        if len(idx[0]!=0):
+        if len(idx[0])!=0:
 
             if zero_nans:
 
@@ -1697,6 +1693,10 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
                     out_of_trace_pixels[idx_out, output_dictionary['traces']['x'][i]] = np.nan
 
             bkg = np.nanmedian(median_rate_nan * out_of_trace_pixels, axis = 0)
+
+            # Zero nans on background:
+            idx_nan_bkg = np.where(np.isnan(bkg))
+            bkg[idx_nan_bkg] = 0.
 
             # Now, remove this background signal from every integration:
             for i in range( tso.shape[0] ):
