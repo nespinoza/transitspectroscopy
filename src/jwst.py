@@ -1669,12 +1669,12 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             spectra_oe_polynomial_order = 3
 
             # Spectral extraction, 1/f and background correction/removal parameters:
-            spectra_aperture_radius = 14
+            spectra_aperture_radius = 7
             spectra_1f_inner_radius = 3
-            spectra_1f_outer_radius = 14
+            spectra_1f_outer_radius = 8
 
             spectra_bkg_substraction = True
-            spectra_bkg_inner_radius = 13
+            spectra_bkg_inner_radius = 10
             spectra_bkg_outer_radius = None
 
         if spectra_bkg_substraction:
