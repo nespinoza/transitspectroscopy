@@ -1276,7 +1276,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
     return output_dictionary
 
-def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, outputfolder = '', suffix = '', **kwargs):
+def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, optimal_extraction = False, outputfolder = '', suffix = '', **kwargs):
     """
     This function takes an `input_dictionary` having as keys the `rampstep` products on a (chronologically-ordered) list, `times` having the times at 
     each integration in BJD and the integrations per segment `ints_per_segment`. Using those, it performs wavelength calibration, spectral tracing and 
@@ -1299,6 +1299,9 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     single_trace_extraction : bool
         (Optional) If True, a single trace is used to extract the spectra --- the median of all, integration-level traces. If False, the trace for each 
         individual integration is used to extract the spectra for that integration.
+    optimal_extraction : bool
+        (Optional) If True, perform spectral extraction via Optimal Extraction (Marsh, 1989PASP..101.1032M). If False, simple spectral extraction will 
+        be performed.
     outputfolder : string
         (Optional) String indicating the folder where the outputs want to be saved. Default is current working directory.
     suffix  : string
@@ -1660,6 +1663,12 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             scale_1f_columns = [5,2044]
             scale_1f_window = 5
 
+            # Optimal extraction parameters:
+            spectra_oe_polynomial_spacing = 0.5
+            spectra_oe_nsigma = 5
+            spectra_oe_polynomial_order = 3
+
+            # Spectral extraction, 1/f and background correction/removal parameters:
             spectra_aperture_radius = 14
             spectra_1f_inner_radius = 3
             spectra_1f_outer_radius = 14
@@ -1709,43 +1718,110 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
         spectra = np.zeros([tso.shape[0], len(y1)])
         spectra_err = np.zeros([tso.shape[0], len(y1)])
+        
+        # If 1/f noise removal/supression is activated, run that first:
+        if scale_1f:
 
-        for i in tqdm(range(tso.shape[0])):
+            print('\t    - Performing 1/f supression via median-scaling...')
 
-            if not single_trace_extraction:
+            for i in tqdm(range(tso.shape[0])):
 
-                x, y = output_dictionary['traces']['x'], output_dictionary['traces']['ysmoothed'][i, :]
+                if not single_trace_extraction:
 
-            else:
+                    x, y = output_dictionary['traces']['x'], output_dictionary['traces']['ysmoothed'][i, :]
 
-                x, y = output_dictionary['traces']['x'], y1
+                else:
 
-            if scale_1f:
+                    x, y = output_dictionary['traces']['x'], y1
 
-                bkg_subs_frame = correct_1f(tso[i, :, :],
-                                            median_rate, 
-                                            x, y, 
-                                            scale_factor = mf[i], 
-                                            inner_radius = spectra_1f_inner_radius, 
-                                            outer_radius = spectra_1f_outer_radius
-                                            )
+                tso[i, :, :] = correct_1f(tso[i, :, :],
+                                          median_rate, 
+                                          x, y, 
+                                          scale_factor = mf[i], 
+                                          inner_radius = spectra_1f_inner_radius, 
+                                          outer_radius = spectra_1f_outer_radius
+                                          )
+        
+        if optimal_extraction:
+
+            print('\t    - Performing spectral extraction via Optimal Extraction. Calculating light profiles...')
+
+            # First calculate light profiles for every integration:
+            x = output_dictionary['traces']['x']
+            extracted_columns = (x[-1]+1) - x[0]
+            Ps = np.zeros([tso.shape[0], tso.shape[1], extracted_columns])
+            for i in tqdm(range(tso.shape[0])):
+
+                if not single_trace_extraction:
+
+                    x, y = output_dictionary['traces']['x'], output_dictionary['traces']['ysmoothed'][i, :]
+
+                else:
+
+                    x, y = output_dictionary['traces']['x'], y1
+
+                Ps[i, :, :] = tspec.spectroscopy.getP(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
+                                                      spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
+                                                      data_variance = tso_err[i, :, x[0]:x[-1]+1]**2)
+
+            # Get the median light fraction and renormalize it:
+            P = np.nanmedian(Ps, axis = 0)
+            for i in range(P.shape[1]):
+
+                P[:, i] = P[:, i] / np.nansum( P[:, i] )
+
+            # Now use this to extract the spectra:
+            print('\t    - Done! Extracting optimal spectra...')
+
+            for i in tqdm(range(tso.shape[0])):
+
+                if not single_trace_extraction:
+
+                    x, y = output_dictionary['traces']['x'], output_dictionary['traces']['ysmoothed'][i, :]
+
+                else:
+
+                    x, y = output_dictionary['traces']['x'], y1
+
+                opt_spec = tspec.spectroscopy.getOptimalSpectrum(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
+                                                                 spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
+                                                                 data_variance = tso_err[i, :, x[0]:x[-1]+1]**2, 
+                                                                 P = P)
+
+                spectra[i, :] = deepcopy(opt_spec[1, :])
+                spectra_err[i, :] = np.sqrt( 1. / opt_spec[2, :] )
+
+        else:
+    
+            print('\t    - Performing spectral extraction via Simple Extraction...')
             
-            else:
+            for i in tqdm(range(tso.shape[0])):
 
-                bkg_subs_frame = tso[i, :, :]
+                if not single_trace_extraction:
 
-            spectra[i, :], spectra_err[i, :] = getSimpleSpectrum(bkg_subs_frame, 
-                                                                 x,
-                                                                 y, 
-                                                                 spectra_aperture_radius, 
-                                                                 error_data=tso_err[i, :, :], 
-                                                                 correct_bkg=False
-                                                                )
+                    x, y = output_dictionary['traces']['x'], output_dictionary['traces']['ysmoothed'][i, :]
+
+                else:
+
+                    x, y = output_dictionary['traces']['x'], y1
+        
+                spectra[i, :], spectra_err[i, :] = getSimpleSpectrum(bkg_subs_frame, 
+                                                                     x,
+                                                                     y, 
+                                                                     spectra_aperture_radius, 
+                                                                     error_data=tso_err[i, :, :], 
+                                                                     correct_bkg=False
+                                                                    )
 
         output_dictionary['spectra'] = {}
         output_dictionary['spectra']['times'] = input_dictionary['times']
         output_dictionary['spectra']['original'] = spectra
         output_dictionary['spectra']['original_err'] = spectra_err
+
+        if optimal_extraction:
+
+            output_dictionary['spectra']['Ps'] = Ps
+            output_dictionary['spectra']['P'] = P
 
         # Now correct for outliers not accounted for in previous steps:
         master_spectra = np.zeros(spectra.shape)
@@ -1789,6 +1865,10 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         # Save to output dictionary:
         output_dictionary['spectra']['corrected'] = corrected_spectra
         output_dictionary['spectra']['corrected_err'] = corrected_spectra_err 
+
+        # Generate quicklook white-light lightcurve:
+        output_dictionary['whitelight'] = np.nansum(output_dictionary['spectra']['corrected'], axis = 1)
+        output_dictionary['whitelight'] = output_dictionary['whitelight'] / np.nanmedian( output_dictionary['whitelight'] )
 
         print('\t    - Done! Extracting wavelength map...')
         # Extract wavelength solution --- a bit different depending on the instrument, but all require the assign_wcs step to be ran:
