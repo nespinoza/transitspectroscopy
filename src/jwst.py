@@ -1744,25 +1744,63 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         
         if optimal_extraction:
 
-            print('\t    - Performing spectral extraction via Optimal Extraction. Calculating light profiles...')
+            print('\t  >> Performing spectral extraction via Optimal Extraction:')
 
             # First calculate light profiles for every integration:
             x = output_dictionary['traces']['x']
             extracted_columns = (x[-1]+1) - x[0]
             Ps = np.zeros([tso.shape[0], tso.shape[1], extracted_columns])
-            for i in tqdm(range(tso.shape[0])):
 
-                if not single_trace_extraction:
+            if nthreads is None:
 
-                    x, y = output_dictionary['traces']['x'], output_dictionary['traces']['ysmoothed'][i, :]
+                print('\t    - Calculating light profiles (without parallelization)...')
+                for i in tqdm(range(tso.shape[0])):
 
-                else:
+                    if not single_trace_extraction:
 
-                    x, y = output_dictionary['traces']['x'], y1
+                        x, y = output_dictionary['traces']['x'], output_dictionary['traces']['ysmoothed'][i, :]
 
-                Ps[i, :, :] = getP(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
-                                   spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
-                                   data_variance = tso_err[i, :, x[0]:x[-1]+1]**2)
+                    else:
+
+                        x, y = output_dictionary['traces']['x'], y1
+
+                    Ps[i, :, :] = getP(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
+                                       spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
+                                       data_variance = tso_err[i, :, x[0]:x[-1]+1]**2)
+
+            else:
+
+                print('\t    - Calculating light profiles via parallelization...')
+
+                ray.init(address='local', num_cpus = nthreads)
+                ray_getP = ray.remote(getP)
+
+                # Prepare the handle for all P's:
+                all_Ps = [] 
+                for i in range( tso.shape[0] ):
+
+                    if not single_trace_extraction:
+
+                        x, y = output_dictionary['traces']['x'], output_dictionary['traces']['ysmoothed'][i, :]
+
+                    else:
+
+                        x, y = output_dictionary['traces']['x'], y1
+
+                    all_Ps.append( ray_getP.remote(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
+                                                    spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
+                                                    data_variance = tso_err[i, :, x[0]:x[-1]+1]**2
+                                                  ) 
+                                 )
+
+                # Run the process with ray:
+                P_results = ray.get(all_Ps)
+                ray.shutdown()
+
+                # Save Ps in the target array:
+                for i in range(tso.shape[0]):
+
+                    Ps[i, :, :] = P_results[i]
 
             # Get the median light fraction and renormalize it:
             P = np.nanmedian(Ps, axis = 0)
@@ -1771,25 +1809,62 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
                 P[:, i] = P[:, i] / np.nansum( P[:, i] )
 
             # Now use this to extract the spectra:
-            print('\t    - Done! Extracting optimal spectra...')
+            if nthreads is None:
 
-            for i in tqdm(range(tso.shape[0])):
+                print('\t    - Done! Extracting optimal spectra (without parallelization)...')
+                for i in tqdm(range(tso.shape[0])):
 
-                if not single_trace_extraction:
+                    if not single_trace_extraction:
 
-                    x, y = output_dictionary['traces']['x'], output_dictionary['traces']['ysmoothed'][i, :]
+                        x, y = output_dictionary['traces']['x'], output_dictionary['traces']['ysmoothed'][i, :]
 
-                else:
+                    else:
 
-                    x, y = output_dictionary['traces']['x'], y1
+                        x, y = output_dictionary['traces']['x'], y1
 
-                opt_spec = getOptimalSpectrum(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
-                                              spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
-                                              data_variance = tso_err[i, :, x[0]:x[-1]+1]**2, 
-                                              P = P)
+                    opt_spec = getOptimalSpectrum(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
+                                                  spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
+                                                  data_variance = tso_err[i, :, x[0]:x[-1]+1]**2, 
+                                                  P = P
+                                                 )
 
-                spectra[i, :] = deepcopy(opt_spec[1, :])
-                spectra_err[i, :] = np.sqrt( 1. / opt_spec[2, :] )
+                    spectra[i, :] = deepcopy(opt_spec[1, :])
+                    spectra_err[i, :] = np.sqrt( 1. / opt_spec[2, :] )
+
+            else:
+
+                print('\t    - Done! Extracting optimal spectra via parallelization...')
+
+                ray.init(address='local', num_cpus = nthreads)
+                ray_getOS = ray.remote(getOptimalSpectrum)
+
+                # Prepare the handle for all P's:
+                all_spectra = []
+                for i in range( tso.shape[0] ):
+
+                    if not single_trace_extraction:
+
+                        x, y = output_dictionary['traces']['x'], output_dictionary['traces']['ysmoothed'][i, :]
+
+                    else:
+
+                        x, y = output_dictionary['traces']['x'], y1
+
+                    all_spectra.append( ray_getOS.remote(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
+                                                         spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
+                                                         data_variance = tso_err[i, :, x[0]:x[-1]+1]**2,
+                                                         P = P
+                                                        )
+                                      )
+
+                # Run the process with ray:
+                OS_results = ray.get(all_spectra)
+                ray.shutdown()
+
+                # Save spectra in the target arrays:
+                for i in range(tso.shape[0]):
+
+                    spectra[i, :], spectra_err[i, :] = OS_results[i][1,:], np.sqrt( 1. / OS_results[i][2,:] )
 
         else:
     
