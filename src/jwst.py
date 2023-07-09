@@ -1760,9 +1760,9 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                     x, y = output_dictionary['traces']['x'], y1
 
-                Ps[i, :, :] = tspec.spectroscopy.getP(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
-                                                      spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
-                                                      data_variance = tso_err[i, :, x[0]:x[-1]+1]**2)
+                Ps[i, :, :] = getP(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
+                                   spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
+                                   data_variance = tso_err[i, :, x[0]:x[-1]+1]**2)
 
             # Get the median light fraction and renormalize it:
             P = np.nanmedian(Ps, axis = 0)
@@ -1783,10 +1783,10 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                     x, y = output_dictionary['traces']['x'], y1
 
-                opt_spec = tspec.spectroscopy.getOptimalSpectrum(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
-                                                                 spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
-                                                                 data_variance = tso_err[i, :, x[0]:x[-1]+1]**2, 
-                                                                 P = P)
+                opt_spec = getOptimalSpectrum(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
+                                              spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
+                                              data_variance = tso_err[i, :, x[0]:x[-1]+1]**2, 
+                                              P = P)
 
                 spectra[i, :] = deepcopy(opt_spec[1, :])
                 spectra_err[i, :] = np.sqrt( 1. / opt_spec[2, :] )
