@@ -1433,6 +1433,12 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         mf_median_rate = median_filter(median_rate, [row_window, column_window])
         median_rate[idx] = mf_median_rate[idx]
 
+        # Same for errors:
+        median_rate_err_nan = np.nanmedian(tso_err, axis = 0)
+        median_rate_err[idx] = 0.
+        mf_median_err_rate = median_filter(median_rate_err, [row_window, column_window])
+        median_rate_err[idx] = mf_median_err_rate[idx]
+
     # Same for the entire TSO:
     for i in range(tso.shape[0]):
 
@@ -1443,11 +1449,22 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             if zero_nans:
 
                 tso[i, :, :][idx] = 0.
-                tso_err[i, :, :][idx] = 1e9
+
+                # If optimal extraction, set errors to a large number because weights will turn to zero
+                # automatically this way. If simple extraction, leave error to zero so it doesn't add to the 
+                # total variance:
+                if optimal_extraction:
+
+                    tso_err[i, :, :][idx] = 1e9
+
+                else:
+
+                    tso_err[i, :, :][idx] = 0.
 
             else:
 
                 tso[i, :, :][idx] = mf_median_rate[idx]
+                tso_err[i, :, :][idx] = median_rate_err[idx]
 
     output_dictionary['tso'] = tso
     output_dictionary['tso_err'] = tso_err
