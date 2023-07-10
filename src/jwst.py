@@ -24,7 +24,8 @@ ray_is_installed = True
 try:
 
     import ray 
-    
+    from ray import serve
+ 
 except:
 
     print('Could not import the "ray" library. If you want to parallelize tracing and spectral extraction, please install by doing "pip install ray".')
@@ -1558,8 +1559,9 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
         else:
 
-            # Initialize ray:
-            ray.init(address='local', num_cpus = nthreads) 
+            if not ray.is_initialized():
+
+                ray.init(address='local', num_cpus = nthreads) 
 
             print('\t >> Tracing will be done via the ray library:')
             print('\t    - It should take about {0:.2f} hours to trace all {1:} integrations.'.format( (total_time * tso.shape[0]) / nthreads, str(tso.shape[0])))
@@ -1583,7 +1585,6 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
             # Run the process with ray:
             trace_results = ray.get(all_traces)
-            ray.shutdown()
             # Save traces in the dictionary:
             for i in range(tso.shape[0]):
 
@@ -1773,7 +1774,10 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                 print('\t    - Calculating light profiles via parallelization...')
 
-                ray.init(address='local', num_cpus = nthreads)
+                if not ray.is_initialized():
+
+                    ray.init(address='local', num_cpus = nthreads)
+
                 ray_getP = ray.remote(getP)
 
                 # Prepare the handle for all P's:
@@ -1796,7 +1800,6 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                 # Run the process with ray:
                 P_results = ray.get(all_Ps)
-                ray.shutdown()
 
                 # Save Ps in the target array:
                 for i in range(tso.shape[0]):
@@ -1835,8 +1838,11 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             else:
 
                 print('\t    - Done! Extracting optimal spectra via parallelization...')
+                
+                if not ray.is_initialized():
 
-                ray.init(address='local', num_cpus = nthreads)
+                    ray.init(address='local', num_cpus = nthreads)
+
                 ray_getOS = ray.remote(getOptimalSpectrum)
 
                 # Prepare the handle for all P's:
@@ -1860,7 +1866,6 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                 # Run the process with ray:
                 OS_results = ray.get(all_spectra)
-                ray.shutdown()
 
                 # Save spectra in the target arrays:
                 for i in range(tso.shape[0]):
@@ -1988,5 +1993,12 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
         print('\t    - Done! Took {0:.2f} seconds. Saving...'.format(total_time)) 
         pickle.dump( output_dictionary['spectra'], open(outputfolder+'pipeline_outputs/spectra'+actual_suffix+'.pkl', 'wb') )
+
+    if nthreads is not None:
+
+        if ray.is_initialized():
+
+            ray.shutdown()
+            serve.shutdown()
 
     return output_dictionary
