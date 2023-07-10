@@ -1442,6 +1442,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             if zero_nans:
 
                 tso[i, :, :][idx] = 0.
+                tso_err[i, :, :][idx] = 1e9
 
             else:
 
