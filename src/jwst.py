@@ -1644,6 +1644,12 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     # Now that traces have been obtained, perform spectral extraction. For this, it is useful to get a "master" trace from our data:
     y1 = np.nanmedian( output_dictionary['traces']['ysmoothed'], axis = 0 )
 
+    # If running optimal extraction, add suffix automatically:
+    if optimal_extraction:
+
+        suffix = 'optimal_' + suffix 
+        actual_suffix = '_' + suffix
+
     # Extract spectra:
     if os.path.exists( outputfolder+'pipeline_outputs/spectra'+actual_suffix+'.pkl' ):
 
