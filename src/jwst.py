@@ -1656,7 +1656,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     if os.path.exists( outputfolder+'pipeline_outputs/spectra'+actual_suffix+'.pkl' ):
 
         print('\t >> Spectra found in file {0:}. Loading...'.format(outputfolder+'pipeline_outputs/spectra'+actual_suffix+'.pkl'))
-        output_dictionary['traces'] = pickle.load( open(outputfolder+'pipeline_outputs/spectra'+actual_suffix+'.pkl', 'rb') )
+        output_dictionary['spectra'] = pickle.load( open(outputfolder+'pipeline_outputs/spectra'+actual_suffix+'.pkl', 'rb') )
 
     else:
 
@@ -1985,10 +1985,6 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         output_dictionary['spectra']['corrected'] = corrected_spectra
         output_dictionary['spectra']['corrected_err'] = corrected_spectra_err 
 
-        # Generate quicklook white-light lightcurve:
-        output_dictionary['whitelight'] = np.nansum(output_dictionary['spectra']['corrected'], axis = 1)
-        output_dictionary['whitelight'] = output_dictionary['whitelight'] / np.nanmedian( output_dictionary['whitelight'] )
-
         print('\t    - Done! Extracting wavelength map...')
         # Extract wavelength solution --- a bit different depending on the instrument, but all require the assign_wcs step to be ran:
         results = calwebb_spec2.assign_wcs_step.AssignWcsStep.call(input_dictionary['rampstep'][0])
@@ -2031,6 +2027,14 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
         print('\t    - Done! Took {0:.2f} seconds. Saving...'.format(total_time)) 
         pickle.dump( output_dictionary['spectra'], open(outputfolder+'pipeline_outputs/spectra'+actual_suffix+'.pkl', 'wb') )
+
+    # Generate quicklook white-light lightcurve:
+    output_dictionary['whitelight'] = np.nansum(output_dictionary['spectra']['corrected'], axis = 1)
+    norm_factor = np.nanmedian( output_dictionary['whitelight'] )
+    output_dictionary['whitelight'] = output_dictionary['whitelight'] / norm_factor
+
+    # Same, errors:
+    output_dictionary['whitelight_err'] = np.sqrt( np.nansum(output_dictionary['spectra']['corrected_err']**2, axis = 1) ) / norm_factor
 
     if nthreads is not None:
 
