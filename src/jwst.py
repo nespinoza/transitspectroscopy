@@ -1660,12 +1660,12 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             scale_1f_window = 5
 
             # Optimal extraction parameters:
-            spectra_oe_polynomial_spacing = 0.5
-            spectra_oe_nsigma = 5
+            spectra_oe_polynomial_spacing = 0.1
+            spectra_oe_nsigma = 10
             spectra_oe_polynomial_order = 3
 
             # Spectral extraction, 1/f and background correction/removal parameters:
-            spectra_aperture_radius = 7
+            spectra_aperture_radius = 2
             spectra_1f_inner_radius = 3
             spectra_1f_outer_radius = 8
 
