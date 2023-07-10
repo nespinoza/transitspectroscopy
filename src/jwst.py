@@ -1744,7 +1744,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         
         if optimal_extraction:
 
-            print('\t  >> Performing spectral extraction via Optimal Extraction:')
+            print('\t    - Performing spectral extraction via Optimal Extraction.')
 
             # First calculate light profiles for every integration:
             x = output_dictionary['traces']['x']
