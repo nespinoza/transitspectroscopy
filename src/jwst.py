@@ -1902,7 +1902,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                     x, y = output_dictionary['traces']['x'], y1
         
-                spectra[i, :], spectra_err[i, :] = getSimpleSpectrum(bkg_subs_frame, 
+                spectra[i, :], spectra_err[i, :] = getSimpleSpectrum(tso[i, :, :], 
                                                                      x,
                                                                      y, 
                                                                      spectra_aperture_radius, 
