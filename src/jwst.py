@@ -1276,7 +1276,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
     return output_dictionary
 
-def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, optimal_extraction = False, outputfolder = '', suffix = '', **kwargs):
+def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, optimal_extraction = False, outputfolder = '', suffix = '', aperture_radius = None, **kwargs):
     """
     This function takes an `input_dictionary` having as keys the `rampstep` products on a (chronologically-ordered) list, `times` having the times at 
     each integration in BJD and the integrations per segment `ints_per_segment`. Using those, it performs wavelength calibration, spectral tracing and 
@@ -1302,6 +1302,8 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     optimal_extraction : bool
         (Optional) If True, perform spectral extraction via Optimal Extraction (Marsh, 1989PASP..101.1032M). If False, simple spectral extraction will 
         be performed.
+    aperture_radius : int
+        (Optional) Aperture radius to be used for spectral extraction.
     outputfolder : string
         (Optional) String indicating the folder where the outputs want to be saved. Default is current working directory.
     suffix  : string
@@ -1668,7 +1670,14 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             scale_1f_columns = [200,450]
             scale_1f_window = 200
 
-            spectra_aperture_radius = 10
+            if aperture_radius is None:
+
+                spectra_aperture_radius = 10
+
+            else:
+
+                spectra_aperture_radius = aperture_radius
+
             spectra_1f_inner_radius = 4
             spectra_1f_outer_radius = 15
 
@@ -1689,7 +1698,14 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             spectra_oe_polynomial_order = 3
 
             # Spectral extraction, 1/f and background correction/removal parameters:
-            spectra_aperture_radius = 2
+            if aperture_radius is None:
+
+                spectra_aperture_radius = 2
+
+            else:
+
+                spectra_aperture_radius = aperture_radius
+
             spectra_1f_inner_radius = 3
             spectra_1f_outer_radius = 8
 
