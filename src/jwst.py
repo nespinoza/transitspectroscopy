@@ -24,7 +24,6 @@ ray_is_installed = True
 try:
 
     import ray 
-    from ray import serve
  
 except:
 
@@ -2016,6 +2015,5 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         if ray.is_initialized():
 
             ray.shutdown()
-            serve.shutdown()
 
     return output_dictionary
