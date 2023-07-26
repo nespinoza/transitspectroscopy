@@ -1029,6 +1029,11 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
         print('\t    - Instrument/Mode: NIRSpec/G395H\n')
         mode = 'nirspec/g395h'
 
+    elif instrument_name == 'NIRSPEC' and instrument_grating == 'G395M':
+
+        print('\t    - Instrument/Mode: NIRSpec/G395M\n')
+        mode = 'nirspec/g395m'
+
     else:
 
         raise Exception('\t Error: Instrument/Grating/Filter: '+instrument_name+'/'+instrument_grating+'/'+instrument_filter+' not yet supported!')
@@ -1164,7 +1169,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
             jump_nsigma = kwargs['jump_nsigma']
 
-    elif mode == 'nirspec/g395h':
+    elif mode == 'nirspec/g395h' or mode == 'nirspec/g395m':
 
         if 'jump_window' not in kwargs.keys():
 
@@ -1369,11 +1374,11 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         row_window = 1
         column_window = 7
 
-    elif instrument_name == 'NIRSPEC' and instrument_grating == 'G395H':
+    elif instrument_name == 'NIRSPEC' and (instrument_grating == 'G395H' or instrument_grating == 'G395M'):
 
-        print('\t    - Instrument/Mode: NIRSpec/G395H\n')
+        print('\t    - Instrument/Mode: NIRSpec/'+instrument_grating+'\n')
 
-        mode = 'nirspec/g395h'
+        mode = 'nirspec/g395'+instrument_grating[-1].lower()
         # Parameters if zero_nans is False:
         row_window = 1
         column_window = 7
@@ -1513,6 +1518,43 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                 xstart = 5
                 xend = 2043
+                trace_outlier_nsigma = 5
+                trace_outlier_window = 10
+                nknots = 60
+
+                trace_ccf_method = 'convolve' # 'ccf'
+                trace_ccf_function = 'gaussian'
+                trace_ccf_parameters = [0., 1.7]
+
+                # For NIRspec/G395H, take the starting point from the average spectral shape on the edges of NRS1 or NRS2::
+                lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, xstart:xstart+200], axis = 1) )
+
+            else:
+
+                raise Exception('\t Error: Detector '+instrument_detector+' not yet supported for NIRSpec/G395H')
+
+
+        if mode == 'nirspec/g395m':
+
+            if 'nrs1' == instrument_detector.lower():
+
+                xstart = 2042
+                xend = 700
+                trace_outlier_nsigma = 5
+                trace_outlier_window = 10
+                nknots = 60
+
+                trace_ccf_method = 'convolve' # 'ccf'
+                trace_ccf_function = 'gaussian'
+                trace_ccf_parameters = [0., 1.7]
+
+                # For NIRspec/G395H, take the starting point from the average spectral shape on the edges of NRS1 or NRS2::
+                lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, xstart-200:xstart], axis = 1) )
+
+            elif 'nrs2' == instrument_detector.lower():
+
+                xstart = 5
+                xend = 500
                 trace_outlier_nsigma = 5
                 trace_outlier_window = 10
                 nknots = 60
@@ -1685,7 +1727,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             spectra_bkg_inner_radius = 14
             spectra_bkg_outer_radius = None
 
-        elif mode == 'nirspec/g395h':
+        elif mode == 'nirspec/g395h' or mode == 'nirspec/g395m':
 
             # Initial time-series parameters:
             scale_1f_rows = [0,32]

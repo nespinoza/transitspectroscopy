@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Re-vamping `stage1` into `ts.jwst`.
 - Re-vamping `stage2` into `ts.jwst`.
 - Requirement of `tqdm` to `setup.py`.
+- Support for NIRSpec/G395M.
 
 # [0.3.13] - 2022-10-28
 ### Added
