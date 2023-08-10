@@ -12,6 +12,7 @@ from astropy import units as u
 from astropy.time import Time
 from astropy.timeseries import TimeSeries
 
+import jwst
 from jwst.pipeline import calwebb_detector1, calwebb_spec2
 from jwst import assign_wcs, datamodels
 from gwcs import wcstools
@@ -30,6 +31,362 @@ except:
     print('Could not import the "ray" library. If you want to parallelize tracing and spectral extraction, please install by doing "pip install ray".')
 
     ray_is_installed = False
+
+class load(object):
+    """
+    Given a list of JWST filenames, understood to be Time Series Observations (TSOs), this class loads JWST data into an object which can then be 
+    manipulated to perform data calibration and reduction. 
+
+    Example usage:
+
+            >>> dataset = ts.jwst.load(filenames)
+
+    Parameters
+    ----------
+
+    filenames : list
+        List of strings containing the paths to the different segments of the TSO (e.g., `filenames = ['jw01331104001_04101_00001-seg001_nrs1_uncal.fits', 'jw01331104001_04101_00001-seg002_nrs1_uncal.fits']`). Input files can come from any of the JWST pipeline products in Stage 1.
+    
+    """
+
+    def check_dataset(self, single_input = False):
+        """
+        This function checks if the input data (a) is either a ramp (i.e., we have integrations and groups) or a rateint (i.e., only integrations) and (b) has a common model 
+        (i.e. they are all ramps or rateints).
+        """
+
+        # Check first element first:
+        datatype = self.filenames[0].split('_')[-1].split('.fits')[0]
+        if datatype == 'rampfitstep' or datatype == 'rateints':
+
+            first_datatype = 'rates per integration'
+
+        else:
+
+            first_datatype = 'ramps'
+
+        # Check you get the same result for all the filenames. If not, raise exception to user:
+        if not single_input:
+
+            for i in range(1, len(self.filenames)):
+
+                current_datatype = self.check_dataset([self.filenames[i]], single_input = True)
+                if current_datatype != first_datatype:
+
+                    raise Exception("Filename "+self.filenames[0]+" seem to be "+first_datatype+", whereas filename "+self.filenames[i]+" seem to be "+current_datatype+". \n"+\
+                                    "Files ending in *rampfitstep.fits or *rateints.fits are detected by transitspectroscopy as rates per integration; all the rest as ramps. "+\
+                                    "Be sure to set all input files to ramps or rates per integration and try loading again.")
+       
+        # If all goes well, set datatype attribute:
+        return first_datatype 
+
+    def sort_filenames(self):
+
+        segment_index = []
+        for i in range( len(self.filenames) ):
+
+            segment_index.append( int( self.filenames[0].split('-seg')[1][:3] ) )
+
+        idx = np.argsort( np.array( segment_index ) )
+        self.filenames = np.array(self.filenames)[idx]
+
+    def check_status(self, data):
+
+        self.status = {}
+
+        # Common checks for all TSOs (https://jwst-pipeline.readthedocs.io/en/latest/jwst/pipeline/calwebb_detector1.html):
+        self.status['dq_init'] = data.meta.cal_step.dq_init
+        self.status['saturation'] = data.meta.cal_step.saturation
+        self.status['refpix'] = data.meta.cal_step.refpix
+        self.status['linearity'] = data.meta.cal_step.linearity
+        self.status['dark_sub'] = data.meta.cal_step.dark_sub
+        self.status['jump'] = data.meta.cal_step.jump
+        self.status['ramp_fit'] = data.meta.cal_step.ramp_fit
+
+        # Extract instrument/mode:
+        self.instrument = data.meta.instrument.name.lower()
+        self.filter = data.meta.instrument.filter.lower()
+        self.grating = data.meta.instrument.grating.lower()
+
+        # Different checks for NIR and MIRI:
+        if self.instrument in ['nirspec', 'nircam', 'niriss']:
+
+            # Following https://jwst-pipeline.readthedocs.io/en/latest/jwst/pipeline/calwebb_detector1.html:
+            self.status['superbias'] = data.meta.cal_step.superbias
+
+        else:
+
+            # Following https://jwst-pipeline.readthedocs.io/en/latest/jwst/pipeline/calwebb_detector1.html:
+            self.status['reset'] = data.meta.cal_step.reset
+
+        # Take the chance to populate the mode:
+        if self.instrument == 'nirspec' and self.grating == 'prism':
+
+            print('\t    - Instrument/Mode: NIRSpec/PRISM\n')
+            self.mode = 'nirspec/prism'
+
+        elif self.instrument == 'nirspec' and self.grating == 'g395h':
+
+            print('\t    - Instrument/Mode: NIRSpec/G395H\n')
+            self.mode = 'nirspec/g395h'
+
+        elif self.instrument == 'nirspec' and self.grating == 'g395m':
+
+            print('\t    - Instrument/Mode: NIRSpec/G395M\n')
+            self.mode = 'nirspec/g395m'
+
+        else:
+
+            raise Exception('\t Error: Instrument/Grating/Filter: '+self.instrument+'/'+self.grating+'/'+self.filter+' not yet supported!')
+
+    def fill_calibration_parameters(self, parameters, use_tso_jump, save):
+
+        # First, save current version of the pipeline being used:
+        self.calibration_parameters['STScI Pipeline Version'] = jwst.__version__
+
+        # Now fill empty parameter sets for steps for which no input parameters were given:
+        for step in list( self.status.keys() ):
+
+            if step in list( parameters.keys() ):
+
+                self.calibration_parameters[step] = parameters[step]
+
+            else:
+
+                self.calibration_parameters[step] = {}
+
+        # Set saving parameters if save is True:
+        if save:
+
+            for steps in ['linearity', 'jump']:
+
+                self.calibration_parameters[step]['output_dir'] = self.outputfolder
+                self.calibration_parameters[step]['save_results'] = True
+                self.calibration_parameters[step]['suffix'] = self.actual_suffix+step+'step'
+
+        # Set nirspec/prism refpix parameters if not already set. TODO: if an if statement is added below, the same statements should be here:
+        if mode == 'nirspec/prism':
+
+            if 'left_pixels' not in self.calibration_parameters['refpix'].keys():
+
+                self.calibration_parameters['refpix']['left_pixels'] = 25
+
+            elif 'right_pixels' not in self.calibration_parameters['refpix'].keys():
+
+                self.calibration_parameters['refpix']['right_pixels'] = 25
+
+        # TSO jump is going to be used, remove some dict keys and set parameters:
+        if use_tso_jump:
+
+            # Pop elements defined above:
+            [self.calibration_parameters['jump'].pop(key) for key in ['output_dir', 'save_results', 'suffix']]
+
+            # Define parameters:
+            if 'window' not in self.calibration_parameters['jump'].keys():
+
+                if self.mode == 'nirspec/prism':
+
+                    self.calibration_parameters['jump']['window'] = 200
+
+                elif self.mode == 'nirspec/g395h' or self.mode == 'nirspec/g395m':
+
+                    self.calibration_parameters['jump']['window'] = 10
+
+            if 'nsigma' not in self.calibration_parameters['jump'].keys():
+
+                if self.mode == 'nirspec/prism':
+
+                    self.calibration_parameters['jump']['nsigma'] = 10
+
+                elif self.mode == 'nirspec/g395h' or self.mode == 'nirspec/g395m':
+
+                    self.calibration_parameters['jump']['nsigma'] = 10
+
+        else:
+
+            if 'jump_threshold' not in self.calibration_parameters['jump'].keys():
+
+                self.calibration_parameters['jump']['jump_threshold'] = 15
+
+    def detector_calibration(self, parameters = {}, use_tso_jump = True, background_1f = False, save = True, suffix = '', outputfolder = '', **kwargs):
+        """
+        This function performs detector-level calibration --- i.e., most of what is Stage1 in the STScI JWST pipeline,
+        but not performing ramp-fitting nor CDS. In other words, this stops at the jump step.
+
+        Parameters
+        ----------
+
+        parameters : dict
+            (Optional) dictionary hosting different parameters for different steps in the JWST pipeline. Default is empy dict. Each key should be a pipeline step 
+            matching the self.status keywords. Each one of those, in turn, should have keys specifying different pipeline parameters, e.g., 
+            
+                        >> parameters['superbias']['override_superbias'] = 'my_jwst_superbias_reference.fits'
+
+        use_tso_jump : bool
+            (Optional) flag defining if to run the TSO-based jump step implemented in transitspectroscopy. Default is True. If False, the jump 
+            step in the JWST pipeline will be used.
+
+        background_1f : bool
+            (Optional) flag defining if to perform 1/f noise correction using non-iluminated pixels. Only available for NIRSpec for now. Default is False.
+
+        save : bool
+            (Optional) flag to save results into fits files. Default is True.
+
+        suffix : str
+            (Optional) string defining suffix for output files if `save = True`. Default is ``.
+
+        outputfolder : str
+            (Optional) folder where the outputs will be saved to. By default, a folder `ts_outputs` is created in that folder. Default is the current working directory.
+        """
+
+        self.outputfolder = outputfolder
+        self.suffix = suffix
+
+        # Check and fill detector calibration input parameters per step:
+        self.fill_calibration_parameters(parameters, use_tso_jump, save)
+
+        # Add _ if suffix is given to the actual_suffix:
+        if suffix != '':
+
+            self.actual_suffix = suffix+'_'
+
+        else:
+
+            self.actual_suffix = '' 
+
+        # Define output folder if empty:
+        if self.outputfolder != '':
+            if self.outputfolder[-1] != '/': 
+                self.outputfolder += '/'
+
+        # Print some information to the user:
+        print('\t Detector-level Calibration\n\n')
+        print('\t >> Processing '+str(len(self.ramps))+' files.\n')
+        print('\t    - TSO total duration: {0:.1f} hours'.format((np.max(self.times)-np.min(self.times))*24.))
+
+        # Now go step-by-step checking which steps were done. If linearity was done and saved, read it:
+        if not os.path.exists(self.outputfolder+'ts_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'linearitystep.fits'):
+
+            # Set definition for function calls:
+            self.step_calls = {}
+            self.step_calls['dq_init'] = calwebb_detector1.dq_init_step.DQInitStep.call
+            self.step_calls['saturation'] = calwebb_detector1.saturation_step.SaturationStep.call
+            self.step_calls['superbias'] = calwebb_detector1.superbias_step.SuperBiasStep.call
+ 
+            # Call to reference pixel step is typically skipped for NIRSpec/PRISM, so use our own. TODO: this should be and if statement once the refpix 
+            # is added on NIRspec/PRISM:
+            if mode == 'nirspec/prism':
+
+                self.step_calls['refpix'] = side_refpix_correction
+
+            else:
+
+                self.step_calls['refpix'] = calwebb_detector1.refpix_step.RefPixStep.call
+
+            self.step_calls['linearity'] = calwebb_detector1.linearity_step.LinearityStep.call
+
+            for step in ['dq_init', 'saturation', 'superbias', 'refpix', 'linearity']:
+
+                for i in range( len(self.ramps) ):
+            
+                    if self.status[step] is None:
+
+                        self.ramps[i] = self.step_calls[step]( self.ramps[i], **self.calibration_parameters[step] )
+
+                self.status[step] = 'COMPLETE'
+
+        else
+
+            print('\t >> Linearity files found. Loading them...\n')
+            for i in range( len(self.ramps) ):
+
+                self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'linearitystep.fits')
+
+            
+        # Now for the jump step; depends on which jump step user wants:
+        if use_tso_jump:
+
+        else:
+
+
+    def __init__(self, input_filenames, outputfolder = ''):
+
+        self.outputfolder = outputfolder
+        self.filenames = input_filenames
+
+        # Define output folder if empty:
+        if outputfolder != '':
+            if outputfolder[-1] != '/':
+                outputfolder += '/'
+
+        # Create folder that will store outputs:
+        if not os.path.exists(outputfolder+'ts_outputs'):
+            os.mkdir(outputfolder+'ts_outputs')
+
+        # Read data in for the dataset; detect what kind of product these are first:
+        self.datatype = self.check_dataset()
+
+        # Open the data, extract timestamps and useful (to transitspectroscopy) information about the instrument/mode:
+        self.datanames = []
+        self.ramps = []
+        self.rateints = []
+        self.times = np.array([])
+
+        # Before actually reading the data, sort the filenames from the smallest to the largest segment:
+        self.sort_filenames()       
+
+        # Read data, including time-stamps: 
+        for i in range( len(filenames) ):
+
+            if self.datatype == 'ramps':
+
+                self.ramps.append( datamodels.RampModel( filenames[i] ) )
+                times = np.append(times, self.ramps[-1].int_times['int_mid_BJD_TDB'] + 2400000.5)
+
+            elif self.datatype == 'rates per integration':
+
+                self.rateints.append( datamodels.open( filenames[i] ) )
+                times = np.append(times, self.rateints[-1].int_times['int_mid_BJD_TDB'] + 2400000.5)
+         
+            else:
+
+                raise Exception('Error: JWST data type '+self.datatype+' not recognized.')
+
+            self.datanames.append( get_dataname(filenames[i]) )
+
+        # Save important metadata; first, current status of the reduction (i.e., which steps were run, 
+        # which are left to run, set in self.status) and check instrument (saved to self.instrument, self.filter and self.grating):
+        if self.datatype == 'ramps':
+
+            self.check_status(self.ramps[-1])
+        
+        else:
+
+            self.check_status(self.rateints[-1])
+
+def get_dataname(filename):
+
+    return '_'.join( filename.split('/')[-1].split('_')[:-1] )
+
+def side_refpix_correction(ramp, left_pixels = 25, right_pixels = 25):
+    """
+    Given a ramp, this function will use on every group and integration `left_pixels` to the left of the array and `right_pixels` to the 
+    right to calculate a background (detector or physical) and remove it from each group via the median. Useful for NIRSpec/PRISM.
+    """
+
+    for integration in range(ramp.data.shape[0]):
+
+        for group in range(ramp.data.shape[1]):
+
+            background = np.hstack( ( ramp.data[integration, group, :, :left_pixels], 
+                                      ramp.data[integration, group, :, -right_pixels:]
+                                    )
+                                  )
+
+            # Substract pedestal from data:
+            ramp.data[integration, group, :, :] -= np.nanmedian( background )
+
+    return ramp
 
 def tso_jumpstep(tso_list, window, nsigma = 10):
     """ 
