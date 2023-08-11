@@ -313,6 +313,8 @@ class load(object):
 
                 self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'linearitystep.fits')
 
+            # Check status of the loaded files:
+            self.check_status(self.ramps[-1])
             
         # Now for the jump step; depends on which jump step user wants:
         if use_tso_jump:
@@ -328,6 +330,8 @@ class load(object):
 
                     self.ramps[i].save( self.datanames[i]+'_'+self.actual_suffix+'tsojumpstep.fits', dir_path = self.outputfolder+'ts_outputs' )
 
+                self.status['jump'] = 'COMPLETE'
+
             else:
 
                 print('\t >> TSO-jump files found. Loading them...\n')
@@ -336,6 +340,10 @@ class load(object):
                 for i in range( len(self.ramps) ):
 
                     self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'tsojumpstep.fits')
+
+                # Check status of the loaded files:
+                self.check_status(self.ramps[-1])
+                self.status['jump'] = 'COMPLETE'
 
         else:
 
@@ -352,6 +360,9 @@ class load(object):
                 for i in range( len(self.ramps) ):
 
                     self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'jumpstep.fits')
+
+                # Check status of the loaded files:
+                self.check_status(self.ramps[-1])
 
         # Save current version of the pipeline and CRDS context being used:
         self.calibration_parameters['STScI Pipeline Version'] = self.ramps[-1].meta.calibration_software_version
