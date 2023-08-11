@@ -378,12 +378,12 @@ class load(object):
             if self.datatype == 'ramps':
 
                 self.ramps.append( datamodels.RampModel( self.filenames[i] ) )
-                times = np.append(times, self.ramps[-1].int_times['int_mid_BJD_TDB'] + 2400000.5)
+                self.times = np.append(self.times, self.ramps[-1].int_times['int_mid_BJD_TDB'] + 2400000.5)
 
             elif self.datatype == 'rates per integration':
 
                 self.rateints.append( datamodels.open( self.filenames[i] ) )
-                times = np.append(times, self.rateints[-1].int_times['int_mid_BJD_TDB'] + 2400000.5)
+                self.times = np.append(self.times, self.rateints[-1].int_times['int_mid_BJD_TDB'] + 2400000.5)
          
             else:
 
