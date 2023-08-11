@@ -166,7 +166,7 @@ class load(object):
                 self.calibration_parameters[step]['suffix'] = self.actual_suffix+step+'step'
 
         # Set nirspec/prism refpix parameters if not already set. TODO: if an if statement is added below, the same statements should be here:
-        if mode == 'nirspec/prism':
+        if self.mode == 'nirspec/prism':
 
             if 'left_pixels' not in self.calibration_parameters['refpix'].keys():
 
@@ -278,7 +278,7 @@ class load(object):
  
             # Call to reference pixel step is typically skipped for NIRSpec/PRISM, so use our own. TODO: this should be and if statement once the refpix 
             # is added on NIRspec/PRISM:
-            if mode == 'nirspec/prism':
+            if self.mode == 'nirspec/prism':
 
                 self.step_calls['refpix'] = side_refpix_correction
 
