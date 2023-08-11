@@ -57,7 +57,7 @@ class load(object):
 
         if fnames is None:
 
-            fnames = self.filenames[i]
+            fnames = self.filenames
 
         # Check first element first:
         datatype = self.fnames[0].split('_')[-1].split('.fits')[0]
@@ -74,7 +74,7 @@ class load(object):
 
             for i in range(1, len(fnames)):
 
-                current_datatype = self.check_dataset([fnames[i]], single_input = True)
+                current_datatype = self.check_dataset(fnames = [fnames[i]], single_input = True)
                 if current_datatype != first_datatype:
 
                     raise Exception("Filename "+fnames[0]+" seem to be "+first_datatype+", whereas filename "+fnames[i]+" seem to be "+current_datatype+". \n"+\
