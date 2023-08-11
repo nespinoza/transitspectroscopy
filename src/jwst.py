@@ -172,7 +172,7 @@ class load(object):
 
                 self.calibration_parameters['refpix']['left_pixels'] = 25
 
-            elif 'right_pixels' not in self.calibration_parameters['refpix'].keys():
+            if 'right_pixels' not in self.calibration_parameters['refpix'].keys():
 
                 self.calibration_parameters['refpix']['right_pixels'] = 25
 
@@ -272,6 +272,8 @@ class load(object):
         print('\t [START] Detector-level Calibration\n\n')
         print('\t >> Processing '+str(len(self.ramps))+' files.\n')
         print('\t    - TSO total duration: {0:.1f} hours'.format((np.max(self.times)-np.min(self.times))*24.))
+        print('\t    - Calibration parameters:')
+        print(self.calibration_parameters)
 
         # Now go step-by-step checking which steps were done. If linearity was done and saved, read it:
         if not os.path.exists(self.outputfolder+'ts_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'linearitystep.fits'):
