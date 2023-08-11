@@ -12,7 +12,6 @@ from astropy import units as u
 from astropy.time import Time
 from astropy.timeseries import TimeSeries
 
-import jwst
 from jwst.pipeline import calwebb_detector1, calwebb_spec2
 from jwst import assign_wcs, datamodels
 from gwcs import wcstools
@@ -141,10 +140,7 @@ class load(object):
 
     def fill_calibration_parameters(self, parameters, use_tso_jump, save):
 
-        # First, save current version of the pipeline being used:
-        self.calibration_parameters['STScI Pipeline Version'] = jwst.__version__
-
-        # Now fill empty parameter sets for steps for which no input parameters were given:
+        # Fill empty parameter sets for steps for which no input parameters were given:
         for step in list( self.status.keys() ):
 
             if step in list( parameters.keys() ):
@@ -340,6 +336,8 @@ class load(object):
 
                     self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'jumpstep.fits')
 
+                # First, save current version of the pipeline being used:
+        self.calibration_parameters['STScI Pipeline Version'] = self.ramps[-1].meta.calibration_software_version
         self.calibration_parameters['CRDS context'] = self.ramps[-1].meta.ref_file.crds.context_used
         print('\t [END] Detector-level Calibration\n\n')
 
