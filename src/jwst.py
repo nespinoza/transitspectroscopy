@@ -238,14 +238,11 @@ class load(object):
 
         outputfolder : str
             (Optional) folder where the outputs will be saved to. By default, a folder `ts_outputs` is created in that folder. Default is the current working directory.
+
         """
 
         self.outputfolder = outputfolder
         self.suffix = suffix
-
-        # Check and fill detector calibration input parameters per step:
-        self.calibration_parameters = {}
-        self.fill_calibration_parameters(parameters, use_tso_jump, background_1f, save)
 
         # Add _ if suffix is given to the actual_suffix:
         if suffix != '':
@@ -260,6 +257,10 @@ class load(object):
         if self.outputfolder != '':
             if self.outputfolder[-1] != '/': 
                 self.outputfolder += '/'
+
+        # Check and fill detector calibration input parameters per step:
+        self.calibration_parameters = {} 
+        self.fill_calibration_parameters(parameters, use_tso_jump, background_1f, save)
 
         # Print some information to the user:
         print('\t [START] Detector-level Calibration\n\n')
