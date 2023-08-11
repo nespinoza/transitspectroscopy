@@ -143,7 +143,7 @@ class load(object):
 
             raise Exception('\t Error: Instrument/Grating/Filter: '+self.instrument+'/'+self.grating+'/'+self.filter+' not yet supported!')
 
-    def fill_calibration_parameters(self, parameters, use_tso_jump, save):
+    def fill_calibration_parameters(self, parameters, use_tso_jump, background_1f, save):
 
         # Fill empty parameter sets for steps for which no input parameters were given:
         for step in list( self.status.keys() ):
@@ -244,7 +244,8 @@ class load(object):
         self.suffix = suffix
 
         # Check and fill detector calibration input parameters per step:
-        self.fill_calibration_parameters(parameters, use_tso_jump, save)
+        self.calibration_parameters = {}
+        self.fill_calibration_parameters(parameters, use_tso_jump, background_1f, save)
 
         # Add _ if suffix is given to the actual_suffix:
         if suffix != '':
