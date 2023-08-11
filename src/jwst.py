@@ -260,6 +260,10 @@ class load(object):
             if self.outputfolder[-1] != '/': 
                 self.outputfolder += '/'
 
+        # Create folder that will store outputs:
+        if not os.path.exists(self.outputfolder+'ts_outputs'):
+            os.mkdir(self.outputfolder+'ts_outputs')
+
         # Check and fill detector calibration input parameters per step:
         self.calibration_parameters = {} 
         self.fill_calibration_parameters(parameters, use_tso_jump, background_1f, save)
@@ -313,7 +317,9 @@ class load(object):
 
             if not os.path.exists(self.outputfolder+'ts_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'tsojumpstep.fits'):
 
+                print('\t >> Performing TSO-jump...\n')
                 self.ramps = tso_jumpstep(self.ramps, **self.calibration_parameters['jump'])
+                print('\t >> ...done! Saving...\n')
 
                 # Save results:
                 for i in range( len(self.ramps) ):
@@ -345,24 +351,14 @@ class load(object):
 
                     self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'jumpstep.fits')
 
-                # First, save current version of the pipeline being used:
+        # Save current version of the pipeline and CRDS context being used:
         self.calibration_parameters['STScI Pipeline Version'] = self.ramps[-1].meta.calibration_software_version
         self.calibration_parameters['CRDS context'] = self.ramps[-1].meta.ref_file.crds.context_used
         print('\t [END] Detector-level Calibration\n\n')
 
-    def __init__(self, input_filenames, outputfolder = ''):
+    def __init__(self, input_filenames):
 
-        self.outputfolder = outputfolder
         self.filenames = input_filenames
-
-        # Define output folder if empty:
-        if outputfolder != '':
-            if outputfolder[-1] != '/':
-                outputfolder += '/'
-
-        # Create folder that will store outputs:
-        if not os.path.exists(outputfolder+'ts_outputs'):
-            os.mkdir(outputfolder+'ts_outputs')
 
         # Read data in for the dataset; detect what kind of product these are first:
         self.datatype = self.check_dataset()
