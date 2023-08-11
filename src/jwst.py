@@ -159,7 +159,7 @@ class load(object):
         # Set saving parameters if save is True:
         if save:
 
-            for steps in ['linearity', 'jump']:
+            for step in ['linearity', 'jump']:
 
                 self.calibration_parameters[step]['output_dir'] = self.outputfolder
                 self.calibration_parameters[step]['save_results'] = True
@@ -179,8 +179,10 @@ class load(object):
         # TSO jump is going to be used, remove some dict keys and set parameters:
         if use_tso_jump:
 
-            # Pop elements defined above:
-            [self.calibration_parameters['jump'].pop(key) for key in ['output_dir', 'save_results', 'suffix']]
+            if save:
+
+                # Pop elements defined above:
+                [self.calibration_parameters['jump'].pop(key) for key in ['output_dir', 'save_results', 'suffix']]
 
             # Define parameters:
             if 'window' not in self.calibration_parameters['jump'].keys():
