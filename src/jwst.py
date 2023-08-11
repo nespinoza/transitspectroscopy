@@ -161,7 +161,7 @@ class load(object):
 
             for step in ['linearity', 'jump']:
 
-                self.calibration_parameters[step]['output_dir'] = self.outputfolder
+                self.calibration_parameters[step]['output_dir'] = self.outputfolder+'ts_outputs'
                 self.calibration_parameters[step]['save_results'] = True
                 self.calibration_parameters[step]['suffix'] = self.actual_suffix+step+'step'
 
@@ -339,7 +339,7 @@ class load(object):
 
         else:
 
-            if not os.path.exists(self.outputfolder+'pipeline_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'jumpstep.fits'):
+            if not os.path.exists(self.outputfolder+'ts_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'jumpstep.fits'):
 
                 for i in range( len(self.ramps) ):
 
