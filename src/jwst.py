@@ -340,6 +340,7 @@ class load(object):
 
                     self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'jumpstep.fits')
 
+        self.calibration_parameters['CRDS context'] = self.ramps[-1].meta.ref_file.crds.context_used
         print('\t [END] Detector-level Calibration\n\n')
 
     def __init__(self, input_filenames, outputfolder = ''):
