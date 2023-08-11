@@ -373,23 +373,23 @@ class load(object):
         self.sort_filenames()       
 
         # Read data, including time-stamps: 
-        for i in range( len(filenames) ):
+        for i in range( len(self.filenames) ):
 
             if self.datatype == 'ramps':
 
-                self.ramps.append( datamodels.RampModel( filenames[i] ) )
+                self.ramps.append( datamodels.RampModel( self.filenames[i] ) )
                 times = np.append(times, self.ramps[-1].int_times['int_mid_BJD_TDB'] + 2400000.5)
 
             elif self.datatype == 'rates per integration':
 
-                self.rateints.append( datamodels.open( filenames[i] ) )
+                self.rateints.append( datamodels.open( self.filenames[i] ) )
                 times = np.append(times, self.rateints[-1].int_times['int_mid_BJD_TDB'] + 2400000.5)
          
             else:
 
                 raise Exception('Error: JWST data type '+self.datatype+' not recognized.')
 
-            self.datanames.append( get_dataname(filenames[i]) )
+            self.datanames.append( get_dataname(self.filenames[i]) )
 
         # Save important metadata; first, current status of the reduction (i.e., which steps were run, 
         # which are left to run, set in self.status) and check instrument (saved to self.instrument, self.filter and self.grating):
