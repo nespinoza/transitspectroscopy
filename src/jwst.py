@@ -44,18 +44,23 @@ class load(object):
     ----------
 
     filenames : list
-        List of strings containing the paths to the different segments of the TSO (e.g., `filenames = ['jw01331104001_04101_00001-seg001_nrs1_uncal.fits', 'jw01331104001_04101_00001-seg002_nrs1_uncal.fits']`). Input files can come from any of the JWST pipeline products in Stage 1.
+        List of strings containing the paths to the different segments of the TSO (e.g., `filenames = ['jw01331104001_04101_00001-seg001_nrs1_uncal.fits', 
+        'jw01331104001_04101_00001-seg002_nrs1_uncal.fits']`). Input files can come from any of the JWST pipeline products in Stage 1.
     
     """
 
-    def check_dataset(self, single_input = False):
+    def check_dataset(self, fnames = None, single_input = False):
         """
         This function checks if the input data (a) is either a ramp (i.e., we have integrations and groups) or a rateint (i.e., only integrations) and (b) has a common model 
         (i.e. they are all ramps or rateints).
         """
 
+        if fnames is None:
+
+            fnames = self.filenames[i]
+
         # Check first element first:
-        datatype = self.filenames[0].split('_')[-1].split('.fits')[0]
+        datatype = self.fnames[0].split('_')[-1].split('.fits')[0]
         if datatype == 'rampfitstep' or datatype == 'rateints':
 
             first_datatype = 'rates per integration'
@@ -67,12 +72,12 @@ class load(object):
         # Check you get the same result for all the filenames. If not, raise exception to user:
         if not single_input:
 
-            for i in range(1, len(self.filenames)):
+            for i in range(1, len(fnames)):
 
-                current_datatype = self.check_dataset([self.filenames[i]], single_input = True)
+                current_datatype = self.check_dataset([fnames[i]], single_input = True)
                 if current_datatype != first_datatype:
 
-                    raise Exception("Filename "+self.filenames[0]+" seem to be "+first_datatype+", whereas filename "+self.filenames[i]+" seem to be "+current_datatype+". \n"+\
+                    raise Exception("Filename "+fnames[0]+" seem to be "+first_datatype+", whereas filename "+fnames[i]+" seem to be "+current_datatype+". \n"+\
                                     "Files ending in *rampfitstep.fits or *rateints.fits are detected by transitspectroscopy as rates per integration; all the rest as ramps. "+\
                                     "Be sure to set all input files to ramps or rates per integration and try loading again.")
        
