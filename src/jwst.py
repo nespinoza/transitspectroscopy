@@ -295,7 +295,7 @@ class load(object):
 
                 self.status[step] = 'COMPLETE'
 
-        else
+        else:
 
             print('\t >> Linearity files found. Loading them...\n')
             for i in range( len(self.ramps) ):
