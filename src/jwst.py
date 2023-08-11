@@ -260,7 +260,7 @@ class load(object):
                 self.outputfolder += '/'
 
         # Print some information to the user:
-        print('\t Detector-level Calibration\n\n')
+        print('\t [START] Detector-level Calibration\n\n')
         print('\t >> Processing '+str(len(self.ramps))+' files.\n')
         print('\t    - TSO total duration: {0:.1f} hours'.format((np.max(self.times)-np.min(self.times))*24.))
 
@@ -306,8 +306,41 @@ class load(object):
         # Now for the jump step; depends on which jump step user wants:
         if use_tso_jump:
 
+            if not os.path.exists(self.outputfolder+'ts_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'tsojumpstep.fits'):
+
+                self.ramps = tso_jumpstep(self.ramps, **self.calibration_parameters['jump'])
+
+                # Save results:
+                for i in range( len(self.ramps) ):
+
+                    self.ramps[i].save( self.datanames[i]+'_'+self.actual_suffix+'tsojumpstep.fits', dir_path = self.outputfolder+'ts_outputs' )
+
+            else:
+
+                print('\t >> TSO-jump files found. Loading them...\n')
+
+                
+                for i in range( len(self.ramps) ):
+
+                    self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'tsojumpstep.fits')
+
         else:
 
+            if not os.path.exists(self.outputfolder+'pipeline_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'jumpstep.fits'):
+
+                for i in range( len(self.ramps) ):
+
+                    self.ramps[i] = calwebb_detector1.jump_step.JumpStep.call(self.ramps[i], **self.calibration_parameters['jump'])
+
+            else:
+
+                print('\t >> Jump files found. Loading them...\n')
+
+                for i in range( len(self.ramps) ):
+
+                    self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'jumpstep.fits')
+
+        print('\t [END] Detector-level Calibration\n\n')
 
     def __init__(self, input_filenames, outputfolder = ''):
 
