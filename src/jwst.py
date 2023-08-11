@@ -46,7 +46,11 @@ class load(object):
     filenames : list
         List of strings containing the paths to the different segments of the TSO (e.g., `filenames = ['jw01331104001_04101_00001-seg001_nrs1_uncal.fits', 
         'jw01331104001_04101_00001-seg002_nrs1_uncal.fits']`). Input files can come from any of the JWST pipeline products in Stage 1.
-    
+   
+    outputfolder : str
+        (Optional) folder where the outputs will be saved to in case this was note defined before. By default, a folder `ts_outputs` is created in that folder. 
+        Default is the current working directory.
+ 
     """
 
     def check_dataset(self, fnames = None, single_input = False):
@@ -143,7 +147,15 @@ class load(object):
 
             raise Exception('\t Error: Instrument/Grating/Filter: '+self.instrument+'/'+self.grating+'/'+self.filter+' not yet supported!')
 
-    def fill_calibration_parameters(self, parameters, use_tso_jump, background_1f, save):
+    def fill_calibration_parameters(self, parameters = {}, use_tso_jump = True, group_1f = False, save = True):
+
+        if not group_1f:
+
+            self.status['group_1f'] = 'SKIPPED'
+
+        else:
+
+            self.status['group_1f'] = None
 
         # Fill empty parameter sets for steps for which no input parameters were given:
         for step in list( self.status.keys() ):
@@ -156,10 +168,19 @@ class load(object):
 
                 self.calibration_parameters[step] = {}
 
+        # Check which parameters want to be skipped, if any:
+        if 'skip' in parameters.keys():
+
+            self.calibration_parameters['skip'] = parameters['skip']
+
+        else:
+
+            self.calibration_parameters['skip'] = {}
+
         # Set saving parameters if save is True:
         if save:
 
-            for step in ['linearity', 'jump']:
+            for step in ['linearity', 'jump', 'ramp_fit']:
 
                 self.calibration_parameters[step]['output_dir'] = self.outputfolder+'ts_outputs'
                 self.calibration_parameters[step]['save_results'] = True
@@ -211,7 +232,76 @@ class load(object):
 
                 self.calibration_parameters['jump']['jump_threshold'] = 15
 
-    def detector_calibration(self, parameters = {}, use_tso_jump = True, background_1f = False, save = True, suffix = '', outputfolder = '', **kwargs):
+    def set_outputfolder(self, outputfolder):
+
+        self.outputfolder = outputfolder
+
+        # Define output folder if empty:
+        if self.outputfolder != '':
+            if self.outputfolder[-1] != '/':
+                self.outputfolder += '/'
+
+        # Create folder that will store outputs:
+        if not os.path.exists(self.outputfolder+'ts_outputs'):
+            os.mkdir(self.outputfolder+'ts_outputs')
+
+    def fit_ramps(self, parameters = {}, save = True, suffix = None, outputfolder = None, **kwargs):
+
+        # First of all, double check if self.calibration_parameters exists (this function can be run without 
+        # running detector_calibration). If it hasn't, initialize the calibration_parameters:
+        if not hasattr(self, 'calibration_parameters'):
+
+            self.fill_calibration_parameters(parameters = parameters, save = save)
+
+        # Check output folder details:
+        if (outputfolder is None) and (self.outputfolder is None):
+
+            self.set_outputfolder('') # If no outputfolder, define the standard one
+
+        elif (outputfolder is not None) and (self.outputfolder is not None):
+
+            self.set_outputfolder(outputfolder) # If new outputfolder for detector data, re-initialize
+
+        elif (outputfolder is not None) and (self.outputfolder is None):
+
+            self.set_outputfolder(outputfolder) # If none defined prior, set it to input
+
+        # Check suffix if new or if not already defined:
+        if (suffix is not None) or (suffix is None and not hasattr(self, 'suffix')):
+
+            self.suffix = suffix
+
+            if suffix != '':
+
+                self.actual_suffix = suffix+'_'
+
+            else:
+
+                self.actual_suffix = ''
+
+        # Run if not already in:
+        for i in range( len(self.ramps) ):
+
+            rateint_filename = self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'1_'+actual_suffix+'ramp_fitstep.fits'
+            if not os.path.exists(rateint_filename):
+
+                self.rateints.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(self.ramps[i], **calibration_parameters['ramp_fit'])[1]
+                                    )
+
+            else:
+
+                print('\t >> Rampfit files found for {0:}. Loading them...\n'.format(datanames[i]))
+                self.rateints.append( datamodels.open(rateint_filename)
+                                    )
+
+            self.ints_per_segment.append( self.rateints[-1].data.shape[0] )
+
+        # Save current version of the pipeline and CRDS context being used for the dataproducts generated/read above:
+        self.calibration_parameters['Ramp-fitting STScI Pipeline Version'] = self.rateints[-1].meta.calibration_software_version
+        self.calibration_parameters['Ramp-fitting CRDS context'] = self.rateints[-1].meta.ref_file.crds.context_used
+        
+
+    def detector_calibration(self, parameters = {}, use_tso_jump = True, group_1f = False, save = True, suffix = '', outputfolder = None, **kwargs):
         """
         This function performs detector-level calibration --- i.e., most of what is Stage1 in the STScI JWST pipeline,
         but not performing ramp-fitting nor CDS. In other words, this stops at the jump step.
@@ -229,8 +319,8 @@ class load(object):
             (Optional) flag defining if to run the TSO-based jump step implemented in transitspectroscopy. Default is True. If False, the jump 
             step in the JWST pipeline will be used.
 
-        background_1f : bool
-            (Optional) flag defining if to perform 1/f noise correction using non-iluminated pixels. Only available for NIRSpec for now. Default is False.
+        group_1f : bool
+            (Optional) flag defining if to perform 1/f noise correction using non-iluminated pixels at the group-level. Only available for NIRSpec for now. Default is False.
 
         save : bool
             (Optional) flag to save results into fits files. Default is True.
@@ -239,11 +329,11 @@ class load(object):
             (Optional) string defining suffix for output files if `save = True`. Default is ``.
 
         outputfolder : str
-            (Optional) folder where the outputs will be saved to. By default, a folder `ts_outputs` is created in that folder. Default is the current working directory.
+            (Optional) folder where the outputs will be saved to in case this was note defined before. By default, a folder `ts_outputs` is created in that folder. 
+            Default is the current working directory.
 
         """
 
-        self.outputfolder = outputfolder
         self.suffix = suffix
 
         # Add _ if suffix is given to the actual_suffix:
@@ -255,18 +345,23 @@ class load(object):
 
             self.actual_suffix = '' 
 
-        # Define output folder if empty:
-        if self.outputfolder != '':
-            if self.outputfolder[-1] != '/': 
-                self.outputfolder += '/'
+        # Decide if to update output folder details or not:
+        if (outputfolder is None) and (self.outputfolder is None):
 
-        # Create folder that will store outputs:
-        if not os.path.exists(self.outputfolder+'ts_outputs'):
-            os.mkdir(self.outputfolder+'ts_outputs')
+            self.set_outputfolder('') # If no outputfolder, define the standard one
+
+        elif (outputfolder is not None) and (self.outputfolder is not None):
+
+            self.set_outputfolder(outputfolder) # If new outputfolder for detector data, re-initialize
+
+        elif (outputfolder is not None) and (self.outputfolder is None):
+
+            self.set_outputfolder(outputfolder) # If none defined prior, set it to input
+
 
         # Check and fill detector calibration input parameters per step:
         self.calibration_parameters = {} 
-        self.fill_calibration_parameters(parameters, use_tso_jump, background_1f, save)
+        self.fill_calibration_parameters(parameters, use_tso_jump, group_1f, save)
 
         # Print some information to the user:
         print('\t [START] Detector-level Calibration\n\n')
@@ -274,6 +369,11 @@ class load(object):
         print('\t    - TSO total duration: {0:.1f} hours'.format((np.max(self.times)-np.min(self.times))*24.))
         print('\t    - Calibration parameters:')
         print(self.calibration_parameters)
+
+        # First, check steps the user wants skipped:
+        for steptoskip in self.calibration_parameters['skip']:
+
+            self.status[steptoskip] = 'SKIPPED'
 
         # Now go step-by-step checking which steps were done. If linearity was done and saved, read it:
         if not os.path.exists(self.outputfolder+'ts_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'linearitystep.fits'):
@@ -294,17 +394,29 @@ class load(object):
 
                 self.step_calls['refpix'] = calwebb_detector1.refpix_step.RefPixStep.call
 
+            self.step_calls['group_1f'] = group_1f
             self.step_calls['linearity'] = calwebb_detector1.linearity_step.LinearityStep.call
 
-            for step in ['dq_init', 'saturation', 'superbias', 'refpix', 'linearity']:
+            for step in ['dq_init', 'saturation', 'superbias', 'refpix', 'group_1f', 'linearity']:
 
-                for i in range( len(self.ramps) ):
-            
+                # Make a difference with group_1f which handles all ramps together:
+                if step in ['group_1f']:
+
                     if self.status[step] is None:
 
-                        self.ramps[i] = self.step_calls[step]( self.ramps[i], **self.calibration_parameters[step] )
+                        self.ramps = self.step_calls[step]( self.ramps, **self.calibration_parameters[step] )
 
-                self.status[step] = 'COMPLETE'
+                else:
+
+                    for i in range( len(self.ramps) ):
+                
+                        if self.status[step] is None:
+
+                            self.ramps[i] = self.step_calls[step]( self.ramps[i], **self.calibration_parameters[step] )
+
+                if self.status[step] is None:
+
+                    self.status[step] = 'COMPLETE'
 
         else:
 
@@ -317,59 +429,67 @@ class load(object):
             self.check_status(self.ramps[-1])
             
         # Now for the jump step; depends on which jump step user wants:
-        if use_tso_jump:
+        if self.status['jump'] is None:
 
-            if not os.path.exists(self.outputfolder+'ts_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'tsojumpstep.fits'):
+            if use_tso_jump:
 
-                print('\t >> Performing TSO-jump...\n')
-                self.ramps = tso_jumpstep(self.ramps, **self.calibration_parameters['jump'])
-                print('\t >> ...done! Saving...\n')
+                if not os.path.exists(self.outputfolder+'ts_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'tsojumpstep.fits'):
 
-                # Save results:
-                for i in range( len(self.ramps) ):
+                    print('\t >> Performing TSO-jump...\n')
+                    self.ramps = tso_jumpstep(self.ramps, **self.calibration_parameters['jump'])
+                    print('\t >> ...done! Saving...\n')
 
-                    self.ramps[i].save( self.datanames[i]+'_'+self.actual_suffix+'tsojumpstep.fits', dir_path = self.outputfolder+'ts_outputs' )
+                    # Save results:
+                    for i in range( len(self.ramps) ):
 
-                self.status['jump'] = 'COMPLETE'
+                        self.ramps[i].save( self.datanames[i]+'_'+self.actual_suffix+'tsojumpstep.fits', dir_path = self.outputfolder+'ts_outputs' )
 
-            else:
+                    self.status['jump'] = 'COMPLETE'
 
-                print('\t >> TSO-jump files found. Loading them...\n')
+                else:
 
-                
-                for i in range( len(self.ramps) ):
+                    print('\t >> TSO-jump files found. Loading them...\n')
 
-                    self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'tsojumpstep.fits')
+                    
+                    for i in range( len(self.ramps) ):
 
-                # Check status of the loaded files:
-                self.check_status(self.ramps[-1])
-                self.status['jump'] = 'COMPLETE'
+                        self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'tsojumpstep.fits')
 
-        else:
-
-            if not os.path.exists(self.outputfolder+'ts_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'jumpstep.fits'):
-
-                for i in range( len(self.ramps) ):
-
-                    self.ramps[i] = calwebb_detector1.jump_step.JumpStep.call(self.ramps[i], **self.calibration_parameters['jump'])
+                    # Check status of the loaded files:
+                    self.check_status(self.ramps[-1])
+                    self.status['jump'] = 'COMPLETE'
 
             else:
 
-                print('\t >> Jump files found. Loading them...\n')
+                if not os.path.exists(self.outputfolder+'ts_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'jumpstep.fits'):
 
-                for i in range( len(self.ramps) ):
+                    for i in range( len(self.ramps) ):
 
-                    self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'jumpstep.fits')
+                        self.ramps[i] = calwebb_detector1.jump_step.JumpStep.call(self.ramps[i], **self.calibration_parameters['jump'])
 
-                # Check status of the loaded files:
-                self.check_status(self.ramps[-1])
+                    self.status['jump'] = 'COMPLETE'
 
-        # Save current version of the pipeline and CRDS context being used:
+                else:
+
+                    print('\t >> Jump files found. Loading them...\n')
+
+                    for i in range( len(self.ramps) ):
+
+                        self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'jumpstep.fits')
+
+                    # Check status of the loaded files:
+                    self.check_status(self.ramps[-1])
+
+        # Save current version of the pipeline and CRDS context being used for the dataproducts generated/read above:
         self.calibration_parameters['STScI Pipeline Version'] = self.ramps[-1].meta.calibration_software_version
         self.calibration_parameters['CRDS context'] = self.ramps[-1].meta.ref_file.crds.context_used
         print('\t [END] Detector-level Calibration\n\n')
 
-    def __init__(self, input_filenames):
+    def __init__(self, input_filenames, outputfolder = None):
+
+        if outputfolder is not None:
+
+            self.set_outputfolder(self, outputfolder)
 
         self.filenames = input_filenames
 
@@ -409,10 +529,14 @@ class load(object):
         if self.datatype == 'ramps':
 
             self.check_status(self.ramps[-1])
+            self.nints = self.ramps[-1].meta.exposure.nints
+            self.ngroups = self.ramps[-1].meta.exposure.ngroups
         
         else:
 
             self.check_status(self.rateints[-1])
+            self.nints = self.ramps[-1].meta.exposure.nints
+            self.ngroups = self.ramps[-1].meta.exposure.ngroups
 
 def get_dataname(filename):
 
@@ -436,7 +560,90 @@ def side_refpix_correction(ramp, left_pixels = 25, right_pixels = 25):
             # Substract pedestal from data:
             ramp.data[integration, group, :, :] -= np.nanmedian( background )
 
+    ramp.meta.cal_step.refpix = 'COMPLETE'
     return ramp
+
+def group_1f(tso_list, npixel = 4, nsigma = 10, column_window = 3, row_window = 20, mask_radius = 10):
+
+    """ 
+    This function performs group-level 1/f corrections by simple substraction of the median of `npixel` pixels above and below each column. 
+    Which pixels to use on this median is defined by a mask obtained on the entire dataset via simple last-minus-first.
+
+    Parameters
+    ----------
+
+    tso_list : list
+        List of JWST datamodels for a given exposure (e.g., `tso_list = [datamodels.open(file1), datamodels.open(file2)]`). 
+        Typically, these would be the segments of a TSO. The algorithm expects those to be ordered chronologically.
+
+    npixel : int
+        Maximum number of pixels to use above and below the masked pixels to calculate the median to be removed per column.
+
+    nsigma (optional) : float
+        Number of sigmas used to identify background pixels
+
+    Returns
+    -------
+
+    output_tso_list : numpy.array
+        Same as the `tso_list`, but with the group-level 1/f correction performed as described above.
+    """
+
+    # List that will save the shallow copies of the input TSO with the updated groupdq's:
+    output_tso_list = []
+    # Various bookeeping variables:
+    nints = tso_list[0].data.shape[0]
+    ngroups = tso_list[0].data.shape[1]
+    nrows = tso_list[0].data.shape[2]
+    ncolumns = tso_list[0].data.shape[3]
+
+    lmf = np.array([])
+    for i in range( len(tso_list) ):
+
+        # Shallow copy of input list:
+        output_tso_list.append( copy(tso_list[i]) )
+
+        # Modify data attribute of the output_tso_list elements so its a deepcopy of the original --- so we can 
+        # change it later if needed by our algorithm:
+        output_tso_list[-1].data = deepcopy(output_tso_list[-1].data)
+
+        # Store lmf in a big array
+        if i == 0:
+
+            lmf = get_last_minus_first(tso_list[i].data, return_median = False)
+
+        else:
+
+            lmf = np.vstack(( lmf, get_last_minus_first(tso_list[i].data, return_median = False) ))
+
+    # Get median of the LMF:
+    median_lmf = np.nanmedian(lmf, axis = 0)
+
+    # Get median filter of this median to get a clean spectral shape:
+    lmf_mf = median_filter(median_lmf, [column_window, row_window])
+
+    # With this, calculate centroids and set to nan all pixels in a mask above and below mask_radius pixels from it:
+    nan_mask = np.ones(lmf_mf.shape)
+    centroids = np.zeros(np.zeros(lmf_mf.shape[1]))
+    x = np.arange(lmf_mf.shape[0])
+    for i in range(lmf_mf.shape[1]):
+
+        centroids[i] = np.sum( (x * np.abs(lmf_mf[:, i])) )/ np.sum(np.abs(lmf_mf[:,i]))
+        idx = np.where( np.abs(x-centroids) < mask_radius )[0]
+        nan_mask[idx, i] = np.nan
+
+    # With this mask, go group-by-group removing the medians out of each column on those unmasked pixels:
+    for i in range( len(tso_list) ):
+
+        for j in range( tso_list[i].shape[0] ):
+
+            for k in range( tso_list[i].shape[1] ):
+
+                for l in range( ncolumns ):
+
+                    output_tso_list[i].data[j, k, :, l] -= np.nanmedian( output_tso_list[i].data[j, k, :, l] * nan_mask )
+
+    return output_tso_list
 
 def tso_jumpstep(tso_list, window, nsigma = 10):
     """ 
@@ -829,7 +1036,7 @@ def download_reference_file(filename):
     # Rename file:
     os.rename(download_filename, filename)
 
-def get_last_minus_first(data, min_group = None, max_group = None):
+def get_last_minus_first(data, min_group = None, max_group = None, return_median = True):
     """
     This function returns a last-minus-first slope estimate. This is typically very useful for various reasons --- from a quick-data-reduction standpoint 
     to a true analysis alternative with Poisson-dominated last-groups.
@@ -845,6 +1052,9 @@ def get_last_minus_first(data, min_group = None, max_group = None):
     max_group : int
         (Optional) Maximum group to use in the last-minus-first (i.e., group that will be the "last" group). Number is expected to be in python indexing (i.e., last group of 
         a 9-group in tegration is expected to be 8). If not, define max_group as data.shape[1] - 1.
+    return_median : bool
+        (Optional) if True, returns median of LMF. Default is True.
+
 
     Returns
     -------
@@ -852,7 +1062,7 @@ def get_last_minus_first(data, min_group = None, max_group = None):
     lmf : numpy.array
         Last-minus-first slope in units of the input data (i.e., divide by the integration-time to get the rate).
     median_lmf : numpy.array
-        Median of the last-minus-first slope estimate.
+        (Optional) Median of the last-minus-first slope estimate.
 
     """
 
@@ -877,11 +1087,17 @@ def get_last_minus_first(data, min_group = None, max_group = None):
 
         lmf[i, :, :] = last_group - first_group
 
-    # Get median LMF:
-    median_lmf = np.nanmedian(lmf, axis = 0)
+    if return_median:
 
-    # Return products:
-    return lmf, median_lmf
+        # Get median LMF:
+        median_lmf = np.nanmedian(lmf, axis = 0)
+
+        # Return products:
+        return lmf, median_lmf
+
+    else:
+
+        return lmf
 
 def spill_filter(mask, spill_length = 10, box_length = 20, fraction = 0.5):
     """
