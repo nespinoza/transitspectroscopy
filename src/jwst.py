@@ -60,7 +60,7 @@ class load(object):
             fnames = self.filenames
 
         # Check first element first:
-        datatype = self.fnames[0].split('_')[-1].split('.fits')[0]
+        datatype = fnames[0].split('_')[-1].split('.fits')[0]
         if datatype == 'rampfitstep' or datatype == 'rateints':
 
             first_datatype = 'rates per integration'
