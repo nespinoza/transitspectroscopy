@@ -253,6 +253,13 @@ class load(object):
 
             self.fill_calibration_parameters(parameters = parameters, save = save)
 
+        else:
+
+            # Update any new keys in the ramp-fit stage:
+            for k in list(parameters.keys()):
+
+                self.calibration_parameters['ramp_fit'][j] = parameters[k]
+
         # Check output folder details:
         if (outputfolder is None) and (self.outputfolder is None):
 
