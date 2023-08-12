@@ -287,6 +287,7 @@ class load(object):
                 self.actual_suffix = ''
 
         # Run if not already in:
+        self.ints_per_segment = []
         for i in range( len(self.ramps) ):
 
             rateint_filename = self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'1_'+self.actual_suffix+'ramp_fitstep.fits'
