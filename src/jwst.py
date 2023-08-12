@@ -566,8 +566,9 @@ def side_refpix_correction(ramp, left_pixels = 25, right_pixels = 25):
 def group_1f(tso_list, npixel = 4, nsigma = 10, column_window = 3, row_window = 20, mask_radius = 10):
 
     """ 
-    This function performs group-level 1/f corrections by simple substraction of the median of `npixel` pixels above and below each column. 
-    Which pixels to use on this median is defined by a mask obtained on the entire dataset via simple last-minus-first.
+    This function performs group-level 1/f corrections by (a) estimating centroids of every column via last-minus first frame, 
+    frame which is 2D median-filtered to remove outliers, (b) using those to mask `mask_radius` pixels around the centroids, 
+    (c) taking the median of the unmasked pixels, column-by-column, and subtracting these values from each group on each integration.
 
     Parameters
     ----------
@@ -576,11 +577,14 @@ def group_1f(tso_list, npixel = 4, nsigma = 10, column_window = 3, row_window = 
         List of JWST datamodels for a given exposure (e.g., `tso_list = [datamodels.open(file1), datamodels.open(file2)]`). 
         Typically, these would be the segments of a TSO. The algorithm expects those to be ordered chronologically.
 
-    npixel : int
-        Maximum number of pixels to use above and below the masked pixels to calculate the median to be removed per column.
+    column_window : int
+        Algorithm uses a 2D median filter; this is the column-wise window of this filter.
 
-    nsigma (optional) : float
-        Number of sigmas used to identify background pixels
+    row_window : int
+        Row-wise window of the 2D median filter.        
+
+    mask_radius : int
+        Radius within the estimated centroids which will be masked to perform the 1/f reduction.
 
     Returns
     -------
@@ -624,12 +628,12 @@ def group_1f(tso_list, npixel = 4, nsigma = 10, column_window = 3, row_window = 
 
     # With this, calculate centroids and set to nan all pixels in a mask above and below mask_radius pixels from it:
     nan_mask = np.ones(lmf_mf.shape)
-    centroids = np.zeros(np.zeros(lmf_mf.shape[1]))
+    centroids = np.zeros( lmf_mf.shape[1] )
     x = np.arange(lmf_mf.shape[0])
     for i in range(lmf_mf.shape[1]):
 
         centroids[i] = np.sum( (x * np.abs(lmf_mf[:, i])) )/ np.sum(np.abs(lmf_mf[:,i]))
-        idx = np.where( np.abs(x-centroids) < mask_radius )[0]
+        idx = np.where( np.abs(x-centroids[i]) < mask_radius )[0]
         nan_mask[idx, i] = np.nan
 
     # With this mask, go group-by-group removing the medians out of each column on those unmasked pixels:
@@ -641,7 +645,7 @@ def group_1f(tso_list, npixel = 4, nsigma = 10, column_window = 3, row_window = 
 
                 for l in range( ncolumns ):
 
-                    output_tso_list[i].data[j, k, :, l] -= np.nanmedian( output_tso_list[i].data[j, k, :, l] * nan_mask )
+                    output_tso_list[i].data[j, k, :, l] -= np.nanmedian( output_tso_list[i].data[j, k, :, l] * nan_mask[:, l] )
 
     return output_tso_list
 
