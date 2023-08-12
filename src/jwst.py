@@ -394,7 +394,7 @@ class load(object):
 
                 self.step_calls['refpix'] = calwebb_detector1.refpix_step.RefPixStep.call
 
-            self.step_calls['group_1f'] = group_1f
+            self.step_calls['group_1f'] = group_1f_correction
             self.step_calls['linearity'] = calwebb_detector1.linearity_step.LinearityStep.call
 
             for step in ['dq_init', 'saturation', 'superbias', 'refpix', 'group_1f', 'linearity']:
@@ -563,7 +563,7 @@ def side_refpix_correction(ramp, left_pixels = 25, right_pixels = 25):
     ramp.meta.cal_step.refpix = 'COMPLETE'
     return ramp
 
-def group_1f(tso_list, npixel = 4, nsigma = 10, column_window = 3, row_window = 20, mask_radius = 10):
+def group_1f_correction(tso_list, npixel = 4, nsigma = 10, column_window = 3, row_window = 20, mask_radius = 10):
 
     """ 
     This function performs group-level 1/f corrections by (a) estimating centroids of every column via last-minus first frame, 
