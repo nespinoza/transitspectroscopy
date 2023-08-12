@@ -282,7 +282,7 @@ class load(object):
         # Run if not already in:
         for i in range( len(self.ramps) ):
 
-            rateint_filename = self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'1_'+actual_suffix+'ramp_fitstep.fits'
+            rateint_filename = self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'1_'+self.actual_suffix+'ramp_fitstep.fits'
             if not os.path.exists(rateint_filename):
 
                 self.rateints.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(self.ramps[i], **calibration_parameters['ramp_fit'])[1]
@@ -404,7 +404,9 @@ class load(object):
 
                     if self.status[step] is None:
 
+                        print('\t >> Running Group 1/f correction...')
                         self.ramps = self.step_calls[step]( self.ramps, **self.calibration_parameters[step] )
+                        print('\t >> Done!')
 
                 else:
 
