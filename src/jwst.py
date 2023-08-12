@@ -489,7 +489,7 @@ class load(object):
 
         if outputfolder is not None:
 
-            self.set_outputfolder(self, outputfolder)
+            self.set_outputfolder(outputfolder)
 
         self.filenames = input_filenames
 
