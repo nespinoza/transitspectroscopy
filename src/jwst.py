@@ -260,6 +260,7 @@ class load(object):
 
                 self.calibration_parameters['ramp_fit'][k] = parameters[k]
 
+        print(self.calibration_parameters['ramp_fit'])
         # Check output folder details:
         if (outputfolder is None) and (self.outputfolder is None):
 
