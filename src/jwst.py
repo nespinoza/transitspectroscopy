@@ -285,7 +285,7 @@ class load(object):
             rateint_filename = self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'1_'+self.actual_suffix+'ramp_fitstep.fits'
             if not os.path.exists(rateint_filename):
 
-                self.rateints.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(self.ramps[i], **calibration_parameters['ramp_fit'])[1]
+                self.rateints.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(self.ramps[i], **self.calibration_parameters['ramp_fit'])[1]
                                     )
 
             else:
