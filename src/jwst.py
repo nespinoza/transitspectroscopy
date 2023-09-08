@@ -1,4 +1,6 @@
 import os
+import shutil
+import glob
 import time
 import pickle
 import numpy as np
@@ -27,9 +29,141 @@ try:
  
 except:
 
-    print('Could not import the "ray" library. If you want to parallelize tracing and spectral extraction, please install by doing "pip install ray".')
+    print('Warning: Could not import the "ray" library. If you want to parallelize tracing and spectral extraction, please install by doing "pip install ray".')
 
     ray_is_installed = False
+
+try:
+
+    from astroquery.mast import Observations
+
+except:
+
+    print('Warning: astroquery.mast.Observations not loaded. Will not be able to automatically download JWST data.')
+
+def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_product = 'uncal'):
+    """
+    Given a program ID and an observation number, this function downloads all the data associated with that PID and program.
+
+    Example usage:
+
+        >>> ts.jwst.download(pid = 1118, obs_num = '5')
+
+    If data is propietary, one need to ingest a MAST API token as follows:
+
+        >>> ts.jwst.download(pid = 1118, obs_num = '5', mast_api_token = 'asdfg')
+
+    Parameters
+    ----------
+
+    pid : int or str
+        Number (`int` or `str`) indicating the Program ID.
+   
+    obs_num : int or str
+        Number (`int` or `str`) indicating the observation number.
+
+    mast_api_token : str
+        (Optional) MAST API token; can be obtained from https://auth.mast.stsci.edu/info.
+
+    outputfolder : str
+        (Optional) Folder where the data will be stored. If not defined, data will be stored in a local folder called `JWSTdata`
+
+    data_product : str
+        (Optional) String representing the kind of data products the user wants; `uncal` will download the uncalibrated products, 
+        `ramp` will download the calibrated ramps, `rateints` will download the rates per integration. Default is to download `uncal` products.
+
+    """
+
+    pid = int(pid)
+    obs_num = int(obs_num)
+
+    if outputfolder is None:
+
+        outputfolder = 'JWSTdata'
+
+    if mast_api_token is not None:
+
+        Observations.login(token=mast_api_token)
+
+    data_product = data_product.upper()
+
+    if data_product not in ['UNCAL', 'RAMPS', 'RATEINTS']:
+
+        raise Exception("Error: data product "+data_product+" not recognized. It has to be 'uncal', 'ramps' or 'rateints'")
+
+    # Perform a query for the observations:
+    observation = Observations.query_criteria(proposal_id = str(pid), obs_collection = 'JWST')
+
+    # Cut products by the observation number:
+    data_products = Observations.get_product_list(observation)
+
+    indexes = []
+    for i in range( len(data_products) ):
+
+        # Cast only segmented data:
+        if '-seg' in data_products[i]['obs_id']:
+
+            # Extract observation number:
+            data_obs_num = int(data_products[i]['obs_id'][7:10])
+
+            # Cut datasets by observation number, not FGS data::
+            if ( data_obs_num == obs_num ) and ( 'FGS' not in data_products[i]['description'] ):
+
+                # Cut further based on user's choice for data product; this will select both 2D spectra and/or imaging, plus TA frames:
+                if data_product == 'UNCAL':
+
+                    if data_products[i]['productSubGroupDescription'] == 'UNCAL' and data_products[i]['productType'] == 'SCIENCE':
+                            
+                        indexes.append(i)
+
+                elif data_product == 'RAMP':
+
+                    if data_products[i]['productSubGroupDescription'] == 'RAMP' and data_products[i]['productType'] == 'AUXILIARY':
+
+                        indexes.append(i)
+
+                elif data_product == 'RATEINTS':
+
+                    if data_products[i]['productSubGroupDescription'] == 'RATEINTS' and data_products[i]['productType'] == 'SCIENCE':
+
+                        indexes.append(i)
+
+    # Apply mask:
+    data_products = data_products[indexes]
+
+    # Report final size of the package with the user:
+    print( '\t >> {0:.2f} GB of data will be downloaded in total considering the following files:'.format( data_products['size'].sum()/1e9 ) )
+    print(data_products)
+    print( '\t >> Downloading...' )
+
+    # Download:
+    Observations.download_products(data_products, download_dir = outputfolder)
+
+    # Get those files out of hiding:
+    folders = glob.glob(outputfolder+'/mastDownload/JWST/*')
+    fnames = []
+
+    for folder in folders:
+
+        files = glob.glob(folder+'/*.fits')
+
+        for file in files:
+
+            fname = file.split('/')[-1]
+            shutil.move(file, outputfolder+'/'+fname)
+            fnames.append(fname)
+
+    shutil.rmtree(outputfolder+'/mastDownload')
+
+    # Print some handy info about the downloaded files to the user:
+    print('\t >> ...done! Downloaded and stored the following files on the '+outputfolder+' folder:')
+    print('\n\t Filename \t Instrument/Mode \t Detector \t Subarray \t Exposure type')
+    print('\t =========================================================\n')
+    for fname in fnames:
+
+        dm = datamodel.open(outputfolder+'/'+fname)
+
+        print(fname,'\t', dm.meta.observation.observation_label, '\t', dm.meta.instrument.detector, '\t', dm.meta.subarray.name, '\t', dm.meta.exposure.type)
 
 class load(object):
     """
