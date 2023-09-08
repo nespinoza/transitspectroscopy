@@ -158,12 +158,15 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
 
     # Print some handy info about the downloaded files to the user:
     print('\t >> ...done! Downloaded and stored the following files on the '+outputfolder+' folder:')
-    print('Filename                                                    \t Instrument/Mode \t Detector \t Subarray \t Exposure type\n')
+    print('Filename | Instrument/Mode | Detector | Subarray | Filter | Exposure type')
+    print('=========================================================================\n')
     for fname in fnames:
 
         dm = datamodels.open(outputfolder+'/'+fname)
 
-        print(fname,'\t', dm.meta.observation.observation_label, '\t', dm.meta.instrument.detector, '\t', dm.meta.subarray.name, '\t', dm.meta.exposure.type)
+        print(fname,'\t', dm.meta.observation.observation_label, '\t', dm.meta.instrument.detector, '\t', dm.meta.subarray.name, '\t', dm.meta.instrument.filter,'\t', dm.meta.exposure.type)
+
+    print('Data gathered on: ',dm.meta.observation.date)
 
 class load(object):
     """
