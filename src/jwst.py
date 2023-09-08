@@ -154,11 +154,11 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
             fnames.append(fname)
 
     shutil.rmtree(outputfolder+'/mastDownload')
+    fnames.sort()
 
     # Print some handy info about the downloaded files to the user:
     print('\t >> ...done! Downloaded and stored the following files on the '+outputfolder+' folder:')
-    print('\n\t Filename \t Instrument/Mode \t Detector \t Subarray \t Exposure type')
-    print('\t =========================================================\n')
+    print('\n\t Filename                                                    \t Instrument/Mode \t Detector \t Subarray \t Exposure type\n')
     for fname in fnames:
 
         dm = datamodels.open(outputfolder+'/'+fname)
