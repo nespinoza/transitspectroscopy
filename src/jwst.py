@@ -161,7 +161,7 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
     print('\t =========================================================\n')
     for fname in fnames:
 
-        dm = datamodel.open(outputfolder+'/'+fname)
+        dm = datamodels.open(outputfolder+'/'+fname)
 
         print(fname,'\t', dm.meta.observation.observation_label, '\t', dm.meta.instrument.detector, '\t', dm.meta.subarray.name, '\t', dm.meta.exposure.type)
 
