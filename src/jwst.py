@@ -185,7 +185,7 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
                          'Detector': detectors,
                          'Subarray': subarrays,
                          'Filter': filters,
-                         'Exposure type', exptypes
+                         'Exposure type': exptypes
                        }
 
     # Convert to pandas:
