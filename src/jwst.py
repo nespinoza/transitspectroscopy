@@ -193,7 +193,7 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
     downloaded_files = pd.DataFrame(downloaded_files)
     print(downloaded_files)
 
-    print('\n\t >>Data gathered on: ', dm.meta.observation.date)
+    print('\n\t >> Data gathered on: ', dm.meta.observation.date,' | PI: ', dm.meta.program.pi_name)
 
 class load(object):
     """
