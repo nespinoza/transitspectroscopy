@@ -8,6 +8,7 @@ from scipy.sparse.linalg import lsmr
 from copy import copy, deepcopy
 from scipy.ndimage import median_filter
 
+import pandas as pd
 from tqdm import tqdm
 from astropy.utils.data import download_file
 from astropy import units as u
@@ -49,7 +50,7 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
 
         >>> ts.jwst.download(pid = 1118, obs_num = '5')
 
-    If data is propietary, one need to ingest a MAST API token as follows:
+    If data is propietary, one needs to ingest a MAST API token as follows:
 
         >>> ts.jwst.download(pid = 1118, obs_num = '5', mast_api_token = 'asdfg')
 
@@ -132,9 +133,9 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
     data_products = data_products[indexes]
 
     # Report final size of the package with the user:
-    print( '\t >> {0:.2f} GB of data will be downloaded in total considering the following files:'.format( data_products['size'].sum()/1e9 ) )
+    print( '\n\t >> {0:.2f} GB of data will be downloaded in total considering the following files:'.format( data_products['size'].sum()/1e9 ) )
     print(data_products)
-    print( '\t >> Downloading...' )
+    print( '\n\t >> Downloading...\n' )
 
     # Download:
     Observations.download_products(data_products, download_dir = outputfolder)
@@ -157,16 +158,41 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
     fnames.sort()
 
     # Print some handy info about the downloaded files to the user:
-    print('\t >> ...done! Downloaded and stored the following files on the '+outputfolder+' folder:')
-    print('Filename | Instrument/Mode | Detector | Subarray | Filter | Exposure type')
-    print('=========================================================================\n')
+    print('\n\t >> ...done! Downloaded and stored the following files on the '+outputfolder+' folder:\n')
+
+    # Pack outputs in lists so we can then ingest them into a dataframe:
+
+    filenames = []
+    modes = []
+    detectors = []
+    subarrays = []
+    filters = []
+    exptypes = []
+
     for fname in fnames:
 
         dm = datamodels.open(outputfolder+'/'+fname)
 
-        print(fname,'\t', dm.meta.observation.observation_label, '\t', dm.meta.instrument.detector, '\t', dm.meta.subarray.name, '\t', dm.meta.instrument.filter,'\t', dm.meta.exposure.type)
+        filenames.append(fname)
+        modes.append(dm.meta.observation.observation_label)
+        detectors.append(dm.meta.instrument.detector)
+        subarrays.append(dm.meta.subarray.name)
+        filters.append(dm.meta.instrument.filter)
+        exptypes.append(dm.meta.exposure.type)
 
-    print('Data gathered on: ',dm.meta.observation.date)
+    downloaded_files = { 'Filename': filenames,
+                         'Instrument/Mode': modes,
+                         'Detector': detectors,
+                         'Subarray': subarrays,
+                         'Filter': filters,
+                         'Exposure type', exptypes
+                       }
+
+    # Convert to pandas:
+    downloaded_files = pd.DataFrame(downloaded_files)
+    print(downloaded_files)
+
+    print('\n\t >>Data gathered on: ', dm.meta.observation.date)
 
 class load(object):
     """
