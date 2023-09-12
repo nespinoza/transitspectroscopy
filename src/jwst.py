@@ -9,6 +9,7 @@ from copy import copy, deepcopy
 from scipy.ndimage import median_filter
 
 import pandas as pd
+pd.options.display.max_colwidth = 100
 from tqdm import tqdm
 from astropy.utils.data import download_file
 from astropy import units as u
@@ -133,7 +134,7 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
     data_products = data_products[indexes]
 
     # Report final size of the package with the user:
-    print( '\n\t >> {0:.2f} GB of data will be downloaded in total considering the following files:'.format( data_products['size'].sum()/1e9 ) )
+    print( '\n\t >> {0:.2f} GB of data will be downloaded in total considering the following files:\n'.format( data_products['size'].sum()/1e9 ) )
     print(data_products)
     print( '\n\t >> Downloading...\n' )
 
