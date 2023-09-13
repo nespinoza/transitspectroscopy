@@ -257,7 +257,7 @@ class load(object):
         segment_index = []
         for i in range( len(self.filenames) ):
 
-            segment_index.append( int( self.filenames[0].split('-seg')[1][:3] ) )
+            segment_index.append( int( self.filenames[i].split('-seg')[1][:3] ) )
 
         idx = np.argsort( np.array( segment_index ) )
         self.filenames = np.array(self.filenames)[idx]
@@ -456,7 +456,7 @@ class load(object):
         self.ints_per_segment = []
         for i in range( len(self.ramps) ):
 
-            rateint_filename = self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'1_'+self.actual_suffix+'ramp_fitstep.fits'
+            rateint_filename = self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'1_ramp_fitstep.fits'
             if not os.path.exists(rateint_filename):
 
                 self.rateints.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(self.ramps[i], **self.calibration_parameters['ramp_fit'])[1]
@@ -464,7 +464,7 @@ class load(object):
 
             else:
 
-                print('\t >> Rampfit files found for {0:}. Loading them...\n'.format(datanames[i]))
+                print('\t >> Rampfit files found for {0:}. Loading them...\n'.format(self.datanames[i]))
                 self.rateints.append( datamodels.open(rateint_filename)
                                     )
 
@@ -635,6 +635,16 @@ class load(object):
                     self.check_status(self.ramps[-1])
                     self.status['jump'] = 'COMPLETE'
 
+                    if self.suffix == '':
+
+                        self.suffix = 'tsojumpstep'
+                        self.actual_suffix = 'tsojumpstep_'
+
+                    else:
+
+                        self.suffix += '_tsojumpstep'
+                        self.actual_suffix = self.suffix+'_'
+
             else:
 
                 if not os.path.exists(self.outputfolder+'ts_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'jumpstep.fits'):
@@ -666,6 +676,10 @@ class load(object):
         if outputfolder is not None:
 
             self.set_outputfolder(outputfolder)
+
+        else:
+
+            self.set_outputfolder('')
 
         self.filenames = input_filenames
 
