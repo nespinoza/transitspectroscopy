@@ -312,7 +312,26 @@ class load(object):
             raise Exception('\t Error: Instrument/Grating/Filter: '+self.instrument+'/'+self.grating+'/'+self.filter+' not yet supported!')
 
     def fill_calibration_parameters(self, parameters = {}, use_tso_jump = True, group_1f = False, save = True):
+        """
+        This function fills in the `self.calibration_parameters` dictionary which holds all the calibration parameters.
 
+        Parameters
+        ----------
+
+        parameters : dict
+            Input dictionary defining the parameters for each step in the pipeline, e.g., `parameters['refpix']['left_pixels'] = 10`.
+
+        use_tso_jump: bool
+            (Optional) Boolean deciding if to apply or not the TSO jump step. Default is `True`; if `False` the JWST pipeline jump step is used.
+
+        group_1f : bool
+            (Optional) Decide whether to use or not the group-level 1/f correction algorithm. Default is `False`.
+
+        save : bool
+            (Optional) Decide if save by-products of the pipeline to disk. Default is `True`.
+        
+
+        """
         if not group_1f:
 
             self.status['group_1f'] = 'SKIPPED'
@@ -409,7 +428,11 @@ class load(object):
         if not os.path.exists(self.outputfolder+'ts_outputs'):
             os.mkdir(self.outputfolder+'ts_outputs')
 
-    def fit_ramps(self, parameters = {}, save = True, suffix = None, outputfolder = None, **kwargs):
+    def initialize_step(self, stepname, parameters, save, suffix, outputfolder):
+        """
+        This function initializes a given step: (1) checks calibration parameters and adds it to the self.calibration_parameters, 
+        checks/sets output folder and checks/sets suffixes
+        """
 
         # First of all, double check if self.calibration_parameters exists (this function can be run without 
         # running detector_calibration). If it hasn't, initialize the calibration_parameters:
@@ -419,12 +442,12 @@ class load(object):
 
         else:
 
-            # Update any new keys in the ramp-fit stage:
-            if 'ramp_fit' in parameters.keys():
+            # Update any new keys in the current step:
+            if stepname in parameters.keys():
 
-                for k in list(parameters['ramp_fit'].keys()):
+                for k in list(parameters[stepname].keys()):
 
-                    self.calibration_parameters['ramp_fit'][k] = parameters['ramp_fit'][k]
+                    self.calibration_parameters[stepname][k] = parameters[stepname][k]
 
         # Check output folder details:
         if (outputfolder is None) and (self.outputfolder is None):
@@ -452,28 +475,49 @@ class load(object):
 
                 self.actual_suffix = ''
 
+    def trace_spectra(self, parameters ={}, save = True, suffix = None, outputfolder = None, **kwargs):
+        """
+        This function performs spectral tracing to all the rates per integration in self.rateints.
+        """
+
+        self.initialize_step('tracing', parameters, save, suffix, outputfolder)
+
+        print('\t >> Performing (Spectral) Tracing step...\n')
+
+        
+
+    def fit_ramps(self, parameters = {}, save = True, suffix = None, outputfolder = None, **kwargs):
+        """ 
+        This function gets an estimate of the rates per integration via the self.ramps_per_segment. By default, this uses 
+        the STScI JWST Pipeline to do its magic.
+        """
+
+        self.initialize_step('ramp_fit', parameters, save, suffix, outputfolder)
+
+        print('\t >> Performing Rampfit step...\n')
+
         # Run if not already in:
-        self.ints_per_segment = []
-        for i in range( len(self.ramps) ):
+        for i in range( len(self.ramps_per_segment) ):
 
             rateint_filename = self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'1_ramp_fitstep.fits'
             if not os.path.exists(rateint_filename):
 
-                self.rateints.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(self.ramps[i], **self.calibration_parameters['ramp_fit'])[1]
+                self.rateints_per_segment.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(self.ramps_per_segment[i], **self.calibration_parameters['ramp_fit'])[1]
                                     )
 
             else:
 
                 print('\t >> Rampfit files found for {0:}. Loading them...\n'.format(self.datanames[i]))
-                self.rateints.append( datamodels.open(rateint_filename)
+                self.rateints_per_segment.append( datamodels.open(rateint_filename)
                                     )
 
-            self.ints_per_segment.append( self.rateints[-1].data.shape[0] )
-
         # Save current version of the pipeline and CRDS context being used for the dataproducts generated/read above:
-        self.calibration_parameters['Ramp-fitting STScI Pipeline Version'] = self.rateints[-1].meta.calibration_software_version
-        self.calibration_parameters['Ramp-fitting CRDS context'] = self.rateints[-1].meta.ref_file.crds.context_used
-        
+        self.calibration_parameters['Ramp-fitting STScI Pipeline Version'] = self.rateints_per_segment[-1].meta.calibration_software_version
+        self.calibration_parameters['Ramp-fitting CRDS context'] = self.rateints_per_segment[-1].meta.ref_file.crds.context_used
+        self.datatype = 'ramps and rates per integration'
+
+        # Merge with self.rateints:
+        self.merge_rateints_segments()
 
     def detector_calibration(self, parameters = {}, use_tso_jump = True, group_1f = False, save = True, suffix = '', outputfolder = None, **kwargs):
         """
@@ -539,7 +583,7 @@ class load(object):
 
         # Print some information to the user:
         print('\t [START] Detector-level Calibration\n\n')
-        print('\t >> Processing '+str(len(self.ramps))+' files.\n')
+        print('\t >> Processing '+str(len(self.ramps_per_segment))+' files.\n')
         print('\t    - TSO total duration: {0:.1f} hours'.format((np.max(self.times)-np.min(self.times))*24.))
         print('\t    - Calibration parameters:')
         print(self.calibration_parameters)
@@ -579,16 +623,16 @@ class load(object):
                     if self.status[step] is None:
 
                         print('\t >> Running Group 1/f correction...')
-                        self.ramps = self.step_calls[step]( self.ramps, **self.calibration_parameters[step] )
+                        self.ramps_per_segment = self.step_calls[step]( self.ramps_per_segment, **self.calibration_parameters[step] )
                         print('\t >> Done!')
 
                 else:
 
-                    for i in range( len(self.ramps) ):
+                    for i in range( len(self.ramps_per_segment) ):
                 
                         if self.status[step] is None:
 
-                            self.ramps[i] = self.step_calls[step]( self.ramps[i], **self.calibration_parameters[step] )
+                            self.ramps_per_segment[i] = self.step_calls[step]( self.ramps_per_segment[i], **self.calibration_parameters[step] )
 
                 if self.status[step] is None:
 
@@ -597,12 +641,12 @@ class load(object):
         else:
 
             print('\t >> Linearity files found. Loading them...\n')
-            for i in range( len(self.ramps) ):
+            for i in range( len(self.ramps_per_segment) ):
 
-                self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'linearitystep.fits')
+                self.ramps_per_segment[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'linearitystep.fits')
 
             # Check status of the loaded files:
-            self.check_status(self.ramps[-1])
+            self.check_status(self.ramps_per_segment[-1])
             
         # Now for the jump step; depends on which jump step user wants:
         if self.status['jump'] is None:
@@ -612,13 +656,13 @@ class load(object):
                 if not os.path.exists(self.outputfolder+'ts_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'tsojumpstep.fits'):
 
                     print('\t >> Performing TSO-jump...\n')
-                    self.ramps = tso_jumpstep(self.ramps, **self.calibration_parameters['jump'])
+                    self.ramps_per_segment = tso_jumpstep(self.ramps_per_segment, **self.calibration_parameters['jump'])
                     print('\t >> ...done! Saving...\n')
 
                     # Save results:
-                    for i in range( len(self.ramps) ):
+                    for i in range( len(self.ramps_per_segment) ):
 
-                        self.ramps[i].save( self.datanames[i]+'_'+self.actual_suffix+'tsojumpstep.fits', dir_path = self.outputfolder+'ts_outputs' )
+                        self.ramps_per_segment[i].save( self.datanames[i]+'_'+self.actual_suffix+'tsojumpstep.fits', dir_path = self.outputfolder+'ts_outputs' )
 
                     self.status['jump'] = 'COMPLETE'
 
@@ -627,12 +671,12 @@ class load(object):
                     print('\t >> TSO-jump files found. Loading them...\n')
 
                     
-                    for i in range( len(self.ramps) ):
+                    for i in range( len(self.ramps_per_segment) ):
 
-                        self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'tsojumpstep.fits')
+                        self.ramps_per_segment[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'tsojumpstep.fits')
 
                     # Check status of the loaded files:
-                    self.check_status(self.ramps[-1])
+                    self.check_status(self.ramps_per_segment[-1])
                     self.status['jump'] = 'COMPLETE'
 
                     if self.suffix == '':
@@ -649,9 +693,9 @@ class load(object):
 
                 if not os.path.exists(self.outputfolder+'ts_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'jumpstep.fits'):
 
-                    for i in range( len(self.ramps) ):
+                    for i in range( len(self.ramps_per_segment) ):
 
-                        self.ramps[i] = calwebb_detector1.jump_step.JumpStep.call(self.ramps[i], **self.calibration_parameters['jump'])
+                        self.ramps_per_segment[i] = calwebb_detector1.jump_step.JumpStep.call(self.ramps_per_segment[i], **self.calibration_parameters['jump'])
 
                     self.status['jump'] = 'COMPLETE'
 
@@ -659,18 +703,76 @@ class load(object):
 
                     print('\t >> Jump files found. Loading them...\n')
 
-                    for i in range( len(self.ramps) ):
+                    for i in range( len(self.ramps_per_segment) ):
 
-                        self.ramps[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'jumpstep.fits')
+                        self.ramps_per_segment[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'jumpstep.fits')
 
                     # Check status of the loaded files:
-                    self.check_status(self.ramps[-1])
+                    self.check_status(self.ramps_per_segment[-1])
 
         # Save current version of the pipeline and CRDS context being used for the dataproducts generated/read above:
-        self.calibration_parameters['STScI Pipeline Version'] = self.ramps[-1].meta.calibration_software_version
-        self.calibration_parameters['CRDS context'] = self.ramps[-1].meta.ref_file.crds.context_used
+        self.calibration_parameters['STScI Pipeline Version'] = self.ramps_per_segment[-1].meta.calibration_software_version
+        self.calibration_parameters['CRDS context'] = self.ramps_per_segment[-1].meta.ref_file.crds.context_used
+
+        # Merge new results with full self.ramps:
+        self.merge_ramps_segments()
+
         print('\t [END] Detector-level Calibration\n\n')
 
+    def merge_ramps_segments(self):
+
+        self.ramps = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols])
+        self.groupdq = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols])
+        self.pixeldq = self.ramps_per_integration[0].pixeldq
+
+        # First, fill the ramp and groupdq arrays:
+        current_nintegrations = 0
+        for i in range( len(ramps_per_segment) ):
+
+            end_nintegrations = current_nintegrations + self.ints_per_segment[i]
+            self.ramps[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_integration[i].data
+            self.groupdq[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_integration[i].groupdq    
+
+            current_nintegrations = current_nintegrations + self.ints_per_segment[i]
+
+        # Now, to link this new full array and the segmented one, re-copy to re-point arrays --- link all pixeldq:
+        current_nintegrations = 0
+        for i in range( len(ramps_per_segment) ):
+
+            end_nintegrations = current_nintegrations + self.ints_per_segment[i]
+            self.ramps_per_integration[i].data = self.ramps[current_nintegrations : end_nintegrations, :, :, :]
+            self.ramps_per_integration[i].pixeldq = self.pixeldq
+            self.ramps_per_integration[i].groupdq = self.groupdq[current_nintegrations : end_nintegrations, :, :, :]
+
+            current_nintegrations = current_nintegrations + self.ints_per_segment[i]
+
+    def merge_rateints_segments(self):
+
+        self.rateints = np.zeros([self.nints, self.nrows, self.ncols])
+        self.groupdq = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols])
+        self.pixeldq = self.ramps_per_integration[0].pixeldq
+
+        # First, fill the rateint and groupdq arrays:
+        current_nintegrations = 0
+        for i in range( len(rateints_per_segment) ):
+
+            end_nintegrations = current_nintegrations + self.ints_per_segment[i]
+            self.rateints[current_nintegrations : end_nintegrations, :, :] = self.rateints_per_integration[i].data
+            self.groupdq[current_nintegrations : end_nintegrations, :, :, :] = self.rataints_per_integration[i].groupdq    
+
+            current_nintegrations = current_nintegrations + self.ints_per_segment[i]
+
+        # Now, to link this new full array and the segmented one, re-copy to re-point arrays --- link all pixeldq:
+        current_nintegrations = 0
+        for i in range( len(rateints_per_segment) ):
+
+            end_nintegrations = current_nintegrations + self.ints_per_segment[i]
+            self.rateints_per_integration[i].data = self.rateints[current_nintegrations : end_nintegrations, :, :]
+            self.rateints_per_integration[i].pixeldq = self.pixeldq
+            self.rateints_per_integration[i].groupdq = self.groupdq[current_nintegrations : end_nintegrations, :, :, :]
+
+            current_nintegrations = current_nintegrations + self.ints_per_segment[i]
+            
     def __init__(self, input_filenames, outputfolder = None):
 
         if outputfolder is not None:
@@ -688,45 +790,58 @@ class load(object):
 
         # Open the data, extract timestamps and useful (to transitspectroscopy) information about the instrument/mode:
         self.datanames = []
-        self.ramps = []
-        self.rateints = []
+        self.ramps_per_segment = []
+        self.rateints_per_segment = []
         self.times = np.array([])
 
         # Before actually reading the data, sort the filenames from the smallest to the largest segment:
         self.sort_filenames()       
 
         # Read data, including time-stamps: 
+        self.ints_per_segment = []
         for i in range( len(self.filenames) ):
 
             if self.datatype == 'ramps':
 
-                self.ramps.append( datamodels.RampModel( self.filenames[i] ) )
-                self.times = np.append(self.times, self.ramps[-1].int_times['int_mid_BJD_TDB'] + 2400000.5)
+                self.ramps_per_segment.append( datamodels.RampModel( self.filenames[i] ) )
+                self.times = np.append(self.times, self.ramps_per_segment[-1].int_times['int_mid_BJD_TDB'] + 2400000.5)
+                self.ints_per_segment.append( self.ramps_per_segment[-1].data.shape[0] )
 
             elif self.datatype == 'rates per integration':
 
-                self.rateints.append( datamodels.open( self.filenames[i] ) )
-                self.times = np.append(self.times, self.rateints[-1].int_times['int_mid_BJD_TDB'] + 2400000.5)
-         
+                self.rateints_per_segment.append( datamodels.open( self.filenames[i] ) )
+                self.times = np.append(self.times, self.rateints_per_segment[-1].int_times['int_mid_BJD_TDB'] + 2400000.5)
+                self.ints_per_segment.append( self.rateints_per_segment[-1].data.shape[0] )         
+
             else:
 
                 raise Exception('Error: JWST data type '+self.datatype+' not recognized.')
 
             self.datanames.append( get_dataname(self.filenames[i]) )
 
-        # Save important metadata; first, current status of the reduction (i.e., which steps were run, 
+        # Create a merged array with the data and also save important metadata; first, current status of the reduction (i.e., which steps were run, 
         # which are left to run, set in self.status) and check instrument (saved to self.instrument, self.filter and self.grating):
         if self.datatype == 'ramps':
 
-            self.check_status(self.ramps[-1])
-            self.nints = self.ramps[-1].meta.exposure.nints
-            self.ngroups = self.ramps[-1].meta.exposure.ngroups
+            self.check_status(self.ramps_per_segment[-1])
+            self.nints = self.ramps_per_segment[-1].meta.exposure.nints
+            self.ngroups = self.ramps_per_segment[-1].meta.exposure.ngroups
+            self.nrows = self.ramps_per_segment[-1].data.shape[2]
+            self.ncols = self.ramps_per_segment[-1].data.shape[3]
+
+            # Create self.ramps, self.pixeldq and self.groupdq; and link it with the per segment;
+            self.merge_ramps_segments()
         
         else:
 
-            self.check_status(self.rateints[-1])
-            self.nints = self.ramps[-1].meta.exposure.nints
-            self.ngroups = self.ramps[-1].meta.exposure.ngroups
+            self.check_status(self.rateints_per_segment[-1])
+            self.nints = self.rateints_per_segment[-1].meta.exposure.nints
+            self.ngroups = self.rateints_per_segment[-1].meta.exposure.ngroups
+            self.nrows = self.rateints_per_segment[-1].data.shape[1]
+            self.ncols = self.rateints_per_segment[-1].data.shape[2]
+            
+            # Create self.rateints,  self.pixeldq and self.groupdq; and link it with the per segment;
+            self.merge_rateints_segments()
 
 def get_dataname(filename):
 
