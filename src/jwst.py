@@ -727,7 +727,7 @@ class load(object):
 
         # First, fill the ramp and groupdq arrays:
         current_nintegrations = 0
-        for i in range( len(ramps_per_segment) ):
+        for i in range( len(self.ramps_per_segment) ):
 
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.ramps[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_segment[i].data
@@ -737,7 +737,7 @@ class load(object):
 
         # Now, to link this new full array and the segmented one, re-copy to re-point arrays --- link all pixeldq:
         current_nintegrations = 0
-        for i in range( len(ramps_per_segment) ):
+        for i in range( len(self.ramps_per_segment) ):
 
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.ramps_per_segment[i].data = self.ramps[current_nintegrations : end_nintegrations, :, :, :]
@@ -754,7 +754,7 @@ class load(object):
 
         # First, fill the rateint and groupdq arrays:
         current_nintegrations = 0
-        for i in range( len(rateints_per_segment) ):
+        for i in range( len(self.rateints_per_segment) ):
 
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.rateints[current_nintegrations : end_nintegrations, :, :] = self.rateints_per_segment[i].data
@@ -764,7 +764,7 @@ class load(object):
 
         # Now, to link this new full array and the segmented one, re-copy to re-point arrays --- link all pixeldq:
         current_nintegrations = 0
-        for i in range( len(rateints_per_segment) ):
+        for i in range( len(self.rateints_per_segment) ):
 
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.rateints_per_segment[i].data = self.rateints[current_nintegrations : end_nintegrations, :, :]
