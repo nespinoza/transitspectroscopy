@@ -721,8 +721,8 @@ class load(object):
 
     def merge_ramps_segments(self):
 
-        self.ramps = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols])
-        self.groupdq = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols])
+        self.ramps = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols], dtype = self.ramps_per_segment[0].data.dtype)
+        self.groupdq = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols] , dtype = self.ramps_per_segment[0].groupdq.dtype)
         self.pixeldq = self.ramps_per_segment[0].pixeldq
 
         # First, fill the ramp and groupdq arrays:
@@ -731,7 +731,7 @@ class load(object):
 
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.ramps[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_segment[i].data
-            self.groupdq[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_segment[i].groupdq    
+            self.groupdq[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_segment[i].groupdq 
 
             current_nintegrations = current_nintegrations + self.ints_per_segment[i]
 
@@ -748,8 +748,8 @@ class load(object):
 
     def merge_rateints_segments(self):
 
-        self.rateints = np.zeros([self.nints, self.nrows, self.ncols])
-        self.groupdq = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols])
+        self.rateints = np.zeros([self.nints, self.nrows, self.ncols], dtype = self.rateints_per_segment[0].data.dtype)
+        self.groupdq = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols], dtype = rateints_per_segment[0].groupdq.dtype)
         self.pixeldq = self.rateints_per_segment[0].pixeldq
 
         # First, fill the rateint and groupdq arrays:
@@ -758,7 +758,7 @@ class load(object):
 
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.rateints[current_nintegrations : end_nintegrations, :, :] = self.rateints_per_segment[i].data
-            self.groupdq[current_nintegrations : end_nintegrations, :, :, :] = self.rataints_per_segment[i].groupdq    
+            self.groupdq[current_nintegrations : end_nintegrations, :, :, :] = self.rateints_per_segment[i].groupdq    
 
             current_nintegrations = current_nintegrations + self.ints_per_segment[i]
 
