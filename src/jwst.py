@@ -164,7 +164,7 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
     # Pack outputs in lists so we can then ingest them into a dataframe:
 
     filenames = []
-    modes = []
+    description = []
     detectors = []
     subarrays = []
     filters = []
@@ -175,21 +175,21 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
         dm = datamodels.open(outputfolder+'/'+fname)
 
         filenames.append(fname)
-        modes.append(dm.meta.observation.observation_label)
+        description.append(dm.meta.observation.observation_label)
         detectors.append(dm.meta.instrument.detector)
         subarrays.append(dm.meta.subarray.name)
         filters.append(dm.meta.instrument.filter)
         exptypes.append(dm.meta.exposure.type)
 
     downloaded_files = { 'Filename': filenames,
-                         'Instrument/Mode': modes,
+                         'Description': description,
                          'Detector': detectors,
                          'Subarray': subarrays,
                          'Filter': filters,
                          'Exposure type': exptypes
                        }
 
-    # Convert to pandas:
+    # Convert to pandas for neater output to user:
     downloaded_files = pd.DataFrame(downloaded_files)
     print(downloaded_files)
 
@@ -369,9 +369,10 @@ class load(object):
                 self.calibration_parameters[step]['save_results'] = True
                 self.calibration_parameters[step]['suffix'] = self.actual_suffix+step+'step'
 
-        # Set nirspec/prism refpix parameters if not already set. TODO: if an if statement is added below, the same statements should be here:
+        # Set common parameters for various steps for different instrument/modes:
         if self.mode == 'nirspec/prism':
 
+            # Reference pixel parameters:
             if 'left_pixels' not in self.calibration_parameters['refpix'].keys():
 
                 self.calibration_parameters['refpix']['left_pixels'] = 25
@@ -380,7 +381,29 @@ class load(object):
 
                 self.calibration_parameters['refpix']['right_pixels'] = 25
 
-        # TSO jump is going to be used, remove some dict keys and set parameters:
+            # Tracing parameters:
+            if 'row_window' not in self.calibration_parameters['tracing'].keys():
+
+                self.calibration_parameters['tracing']['row_window'] = 1
+                self.calibration_parameters['tracing']['column_window'] = 7
+
+        elif self.mode == 'nirspec/g395h':
+
+             # Tracing parameters:
+            if 'row_window' not in self.calibration_parameters['tracing'].keys():
+
+                self.calibration_parameters['tracing']['row_window'] = 1
+                self.calibration_parameters['tracing']['column_window'] = 7
+
+        elif self.mode == 'nirspec/g395m':
+
+             # Tracing parameters:
+            if 'row_window' not in self.calibration_parameters['tracing'].keys():
+
+                self.calibration_parameters['tracing']['row_window'] = 1
+                self.calibration_parameters['tracing']['column_window'] = 7 
+
+        # If TSO jump is going to be used, remove some dict keys and set parameters:
         if use_tso_jump:
 
             if save:
@@ -475,6 +498,24 @@ class load(object):
 
                 self.actual_suffix = ''
 
+    def check_nans(self, array):
+
+        self.has_nan = False
+        # Get indexes of nan:
+        self.nan_locations = np.where( np.isnan(array) )
+
+        # Count them and compare against all pixels:
+        number_of_nans = len(self.nan_locations[0])
+        number_of_pixels = np.prod(array.shape)
+        fraction_of_nans = ( float(number_of_nans) / float(number_of_pixels) ) * 100.
+
+        # Report to user:
+        if number_of_nans > 0:
+
+            print('\t Warning: input array has {0:.2f}% of pixels marked as nan. These will be treated as zeroes.'.format( fraction_of_nans ))
+            self.has_nan = True
+
+
     def trace_spectra(self, parameters ={}, save = True, suffix = None, outputfolder = None, **kwargs):
         """
         This function performs spectral tracing to all the rates per integration in self.rateints.
@@ -484,6 +525,9 @@ class load(object):
 
         print('\t >> Performing (Spectral) Tracing step...\n')
 
+        # First, check if there are any nans; return mask and report to user:
+        self.nan_mask = np.wher
+        
         
 
     def fit_ramps(self, parameters = {}, save = True, suffix = None, outputfolder = None, **kwargs):
@@ -722,6 +766,7 @@ class load(object):
     def merge_ramps_segments(self):
 
         self.ramps = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols], dtype = self.ramps_per_segment[0].data.dtype)
+        self.ramps_err = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols], dtype = self.ramps_per_segment[0].err.dtype)
         self.groupdq = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols] , dtype = self.ramps_per_segment[0].groupdq.dtype)
         self.pixeldq = self.ramps_per_segment[0].pixeldq
 
@@ -731,6 +776,7 @@ class load(object):
 
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.ramps[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_segment[i].data
+            self.ramps_err[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_segment[i].err
             self.groupdq[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_segment[i].groupdq 
 
             current_nintegrations = current_nintegrations + self.ints_per_segment[i]
@@ -741,6 +787,7 @@ class load(object):
 
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.ramps_per_segment[i].data = self.ramps[current_nintegrations : end_nintegrations, :, :, :]
+            self.ramps_per_segment[i].err = self.ramps_err[current_nintegrations : end_nintegrations, :, :, :]
             self.ramps_per_segment[i].pixeldq = self.pixeldq
             self.ramps_per_segment[i].groupdq = self.groupdq[current_nintegrations : end_nintegrations, :, :, :]
 
@@ -749,6 +796,7 @@ class load(object):
     def merge_rateints_segments(self):
 
         self.rateints = np.zeros([self.nints, self.nrows, self.ncols], dtype = self.rateints_per_segment[0].data.dtype)
+        self.rateints_err = np.zeros([self.nints, self.nrows, self.ncols], dtype = self.rateints_per_segment[0].err.dtype)
         self.groupdq = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols], dtype = rateints_per_segment[0].groupdq.dtype)
         self.pixeldq = self.rateints_per_segment[0].pixeldq
 
@@ -758,6 +806,7 @@ class load(object):
 
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.rateints[current_nintegrations : end_nintegrations, :, :] = self.rateints_per_segment[i].data
+            self.rateints_err[current_nintegrations : end_nintegrations, :, :] = self.rateints_per_segment[i].err
             self.groupdq[current_nintegrations : end_nintegrations, :, :, :] = self.rateints_per_segment[i].groupdq    
 
             current_nintegrations = current_nintegrations + self.ints_per_segment[i]
@@ -768,6 +817,7 @@ class load(object):
 
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.rateints_per_segment[i].data = self.rateints[current_nintegrations : end_nintegrations, :, :]
+            self.rateints_per_segment[i].err = self.rateints_err[current_nintegrations : end_nintegrations, :, :]
             self.rateints_per_segment[i].pixeldq = self.pixeldq
             self.rateints_per_segment[i].groupdq = self.groupdq[current_nintegrations : end_nintegrations, :, :, :]
 
