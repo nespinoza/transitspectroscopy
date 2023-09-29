@@ -169,6 +169,7 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
     subarrays = []
     filters = []
     exptypes = []
+    gratings = []
 
     for fname in fnames:
 
@@ -180,10 +181,12 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
         subarrays.append(dm.meta.subarray.name)
         filters.append(dm.meta.instrument.filter)
         exptypes.append(dm.meta.exposure.type)
+        gratings.append(dm.meta.instrument.grating)
 
     downloaded_files = { 'Filename': filenames,
                          'Description': description,
                          'Detector': detectors,
+                         'Grating' : gratings,
                          'Subarray': subarrays,
                          'Filter': filters,
                          'Exposure type': exptypes
@@ -507,14 +510,12 @@ class load(object):
         # Count them and compare against all pixels:
         number_of_nans = len(self.nan_locations[0])
         number_of_pixels = np.prod(array.shape)
-        fraction_of_nans = ( float(number_of_nans) / float(number_of_pixels) ) * 100.
+        self.nan_fraction = ( float(number_of_nans) / float(number_of_pixels) ) * 100.
 
         # Report to user:
         if number_of_nans > 0:
 
-            print('\t Warning: input array has {0:.2f}% of pixels marked as nan. These will be treated as zeroes.'.format( fraction_of_nans ))
             self.has_nan = True
-
 
     def trace_spectra(self, parameters ={}, save = True, suffix = None, outputfolder = None, **kwargs):
         """
@@ -525,9 +526,18 @@ class load(object):
 
         print('\t >> Performing (Spectral) Tracing step...\n')
 
-        # First, check if there are any nans; return mask and report to user:
-        self.nan_mask = np.wher
-        
+        # First, check if there are any nans; if there are, tell to the user what is going to happen:
+        self.check_nans(self.rateints)
+
+        if self.has_nan:
+
+           print('\t Warning: rateints array has {0:.2f}% of pixels marked as nan. These will be replaced by local values via spatial interpolation for tracing.'.format( self.nan_fraction ))
+
+        # To prepare the interpolator, first obtain the median integration:
+        self.median_rateints = np.nanmedian(self.rateints, axis = 0)
+
+        # Interpolate through all nans; this assumes the spectra goes in the direction of the columns:
+        self.interpolate_nans(self.median_rateints)
         
 
     def fit_ramps(self, parameters = {}, save = True, suffix = None, outputfolder = None, **kwargs):
