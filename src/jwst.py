@@ -277,6 +277,7 @@ class load(object):
         self.status['dark_sub'] = data.meta.cal_step.dark_sub
         self.status['jump'] = data.meta.cal_step.jump
         self.status['ramp_fit'] = data.meta.cal_step.ramp_fit
+        self.status['tracing'] = False
 
         # Extract instrument/mode:
         self.instrument = data.meta.instrument.name.lower()
