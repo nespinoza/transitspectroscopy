@@ -293,7 +293,14 @@ class load(object):
         # Extract instrument/mode:
         self.instrument = data.meta.instrument.name.lower()
         self.filter = data.meta.instrument.filter.lower()
-        self.grating = data.meta.instrument.grating.lower()
+
+        if data.meta.instrument.grating is not None:
+        
+            self.disperive_element = data.meta.instrument.grating.lower()
+
+        elif data.meta.instrument.pupil is not None:
+        
+            self.disperive_element = data.meta.instrument.pupil.lower()
 
         # Different checks for NIR and MIRI:
         if self.instrument in ['nirspec', 'nircam', 'niriss']:
@@ -307,24 +314,24 @@ class load(object):
             self.status['reset'] = data.meta.cal_step.reset
 
         # Take the chance to populate the mode:
-        if self.instrument == 'nirspec' and self.grating == 'prism':
+        if self.instrument == 'nirspec' and self.disperive_element == 'prism':
 
             print('\t    - Instrument/Mode: NIRSpec/PRISM\n')
             self.mode = 'nirspec/prism'
 
-        elif self.instrument == 'nirspec' and self.grating == 'g395h':
+        elif self.instrument == 'nirspec' and self.disperive_element == 'g395h':
 
             print('\t    - Instrument/Mode: NIRSpec/G395H\n')
             self.mode = 'nirspec/g395h'
 
-        elif self.instrument == 'nirspec' and self.grating == 'g395m':
+        elif self.instrument == 'nirspec' and self.disperive_element == 'g395m':
 
             print('\t    - Instrument/Mode: NIRSpec/G395M\n')
             self.mode = 'nirspec/g395m'
 
         else:
 
-            raise Exception('\t Error: Instrument/Grating/Filter: '+self.instrument+'/'+self.grating+'/'+self.filter+' not yet supported!')
+            raise Exception('\t Error: Instrument/Grating/Filter: '+self.instrument+'/'+self.disperive_element+'/'+self.filter+' not yet supported!')
 
     def fill_calibration_parameters(self, parameters = {}, use_tso_jump = True, group_1f = False, save = True):
         """
@@ -892,7 +899,7 @@ class load(object):
             self.datanames.append( get_dataname(self.filenames[i]) )
 
         # Create a merged array with the data and also save important metadata; first, current status of the reduction (i.e., which steps were run, 
-        # which are left to run, set in self.status) and check instrument (saved to self.instrument, self.filter and self.grating):
+        # which are left to run, set in self.status) and check instrument (saved to self.instrument, self.filter and self.disperive_element):
         if self.datatype == 'ramps':
 
             self.check_status(self.ramps_per_segment[-1])
