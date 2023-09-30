@@ -463,7 +463,9 @@ class load(object):
 
                     self.calibration_parameters['jump']['nsigma'] = 10
 
-                elif self.mode == 'niriss/soss'
+                elif self.mode == 'niriss/soss':
+
+                    self.calibration_parameters['jump']['nsigma'] = 10
 
         else:
 
