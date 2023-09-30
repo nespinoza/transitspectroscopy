@@ -839,7 +839,7 @@ class load(object):
 
         self.rateints = np.zeros([self.nints, self.nrows, self.ncols], dtype = self.rateints_per_segment[0].data.dtype)
         self.rateints_err = np.zeros([self.nints, self.nrows, self.ncols], dtype = self.rateints_per_segment[0].err.dtype)
-        self.groupdq = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols], dtype = rateints_per_segment[0].groupdq.dtype)
+        self.groupdq = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols], dtype = self.rateints_per_segment[0].groupdq.dtype)
         self.pixeldq = self.rateints_per_segment[0].pixeldq
 
         # First, fill the rateint and groupdq arrays:
