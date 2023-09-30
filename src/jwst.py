@@ -449,6 +449,10 @@ class load(object):
 
                     self.calibration_parameters['jump']['window'] = 10
 
+                elif self.mode == 'niriss/soss':
+
+                    self.calibration_parameters['jump']['window'] = 10 
+
             if 'nsigma' not in self.calibration_parameters['jump'].keys():
 
                 if self.mode == 'nirspec/prism':
@@ -458,6 +462,8 @@ class load(object):
                 elif self.mode == 'nirspec/g395h' or self.mode == 'nirspec/g395m':
 
                     self.calibration_parameters['jump']['nsigma'] = 10
+
+                elif self.mode == 'niriss/soss'
 
         else:
 
