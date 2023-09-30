@@ -181,12 +181,23 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
         subarrays.append(dm.meta.subarray.name)
         filters.append(dm.meta.instrument.filter)
         exptypes.append(dm.meta.exposure.type)
-        gratings.append(dm.meta.instrument.grating)
+
+        if dm.meta.instrument.grating is not None:
+
+            gratings.append(dm.meta.instrument.grating)
+
+        elif dm.meta.instrument.pupil is not None:
+
+            gratings.append(dm.meta.instrument.pupil)
+
+        else:
+
+            gratings.append('N/A')
 
     downloaded_files = { 'Filename': filenames,
                          'Description': description,
                          'Detector': detectors,
-                         'Grating' : gratings,
+                         'Grating/Pupil' : gratings,
                          'Subarray': subarrays,
                          'Filter': filters,
                          'Exposure type': exptypes
