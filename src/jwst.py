@@ -839,8 +839,7 @@ class load(object):
 
         self.rateints = np.zeros([self.nints, self.nrows, self.ncols], dtype = self.rateints_per_segment[0].data.dtype)
         self.rateints_err = np.zeros([self.nints, self.nrows, self.ncols], dtype = self.rateints_per_segment[0].err.dtype)
-        self.groupdq = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols], dtype = self.rateints_per_segment[0].groupdq.dtype)
-        self.pixeldq = self.rateints_per_segment[0].pixeldq
+        self.pixeldq = self.rateints_per_segment[0].dq
 
         # First, fill the rateint and groupdq arrays:
         current_nintegrations = 0
@@ -849,7 +848,6 @@ class load(object):
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.rateints[current_nintegrations : end_nintegrations, :, :] = self.rateints_per_segment[i].data
             self.rateints_err[current_nintegrations : end_nintegrations, :, :] = self.rateints_per_segment[i].err
-            self.groupdq[current_nintegrations : end_nintegrations, :, :, :] = self.rateints_per_segment[i].groupdq    
 
             current_nintegrations = current_nintegrations + self.ints_per_segment[i]
 
@@ -860,8 +858,7 @@ class load(object):
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.rateints_per_segment[i].data = self.rateints[current_nintegrations : end_nintegrations, :, :]
             self.rateints_per_segment[i].err = self.rateints_err[current_nintegrations : end_nintegrations, :, :]
-            self.rateints_per_segment[i].pixeldq = self.pixeldq
-            self.rateints_per_segment[i].groupdq = self.groupdq[current_nintegrations : end_nintegrations, :, :, :]
+            self.rateints_per_segment[i].dq = self.pixeldq
 
             current_nintegrations = current_nintegrations + self.ints_per_segment[i]
             
