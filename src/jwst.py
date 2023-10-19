@@ -2303,7 +2303,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
     return output_dictionary
 
-def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, optimal_extraction = False, outputfolder = '', suffix = '', aperture_radius = None, **kwargs):
+def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, optimal_extraction = False, outputfolder = '', suffix = '', aperture_radius = None, mask_dq = False, **kwargs):
     """
     This function takes an `input_dictionary` having as keys the `rampstep` products on a (chronologically-ordered) list, `times` having the times at 
     each integration in BJD and the integrations per segment `ints_per_segment`. Using those, it performs wavelength calibration, spectral tracing and 
@@ -2335,6 +2335,8 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         (Optional) String indicating the folder where the outputs want to be saved. Default is current working directory.
     suffix  : string
         (Optional) Suffix to add to each out the outputs.
+    mask_dq : string
+        (Optional) Mask pixels that don't have dq of 0.
 
     Returns
     -------
@@ -2438,12 +2440,14 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     # First things first, save the results from the rates in a single array for the rates and the errors:
     nints = np.sum( input_dictionary['ints_per_segment'] )
     tso = np.zeros([nints, input_dictionary['rampstep'][0].data.shape[1], input_dictionary['rampstep'][0].data.shape[2]])
+    tso_dq = np.zeros([nints, input_dictionary['rampstep'][0].dq.shape[1], input_dictionary['rampstep'][0].dq.shape[2]])
     tso_err = np.zeros([nints, input_dictionary['rampstep'][0].data.shape[1], input_dictionary['rampstep'][0].data.shape[2]])
 
     current_integration = 0
     for i in range( len(input_dictionary['rampstep']) ):
 
         tso[current_integration:current_integration + input_dictionary['ints_per_segment'][i], :, :] = input_dictionary['rampstep'][i].data
+        tso_dq[current_integration:current_integration + input_dictionary['ints_per_segment'][i], :, :] = input_dictionary['rampstep'][i].dq
         tso_err[current_integration:current_integration + input_dictionary['ints_per_segment'][i], :, :] = input_dictionary['rampstep'][i].err
         current_integration += input_dictionary['ints_per_segment'][i]
 
@@ -2470,7 +2474,13 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     # Same for the entire TSO:
     for i in range(tso.shape[0]):
 
-        idx = np.where( np.isnan( tso[i,:,:] ) )
+        if mask_dq:
+
+            idx = np.where( np.isnan( tso[i,:,:] ) & ( tso_dq[i, :, :] != 0. ) )
+
+        else:
+
+            idx = np.where( np.isnan( tso[i,:,:] ) )
 
         if len(idx[0])!=0:
 
