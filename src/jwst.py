@@ -243,7 +243,7 @@ class load(object):
 
         # Check first element first:
         datatype = fnames[0].split('_')[-1].split('.fits')[0]
-        if datatype == 'rampfitstep' or datatype == 'rateints':
+        if datatype == 'rampfitstep' or datatype == 'rateints' or datatype == 'ramp_fitstep':
 
             first_datatype = 'rates per integration'
 
