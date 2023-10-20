@@ -2476,7 +2476,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
         if mask_dq:
 
-            idx = np.where( np.isnan( tso[i,:,:] ) & ( tso_dq[i, :, :] != 0. ) )
+            idx = np.where( np.isnan( tso[i,:,:] ) | ( tso_dq[i, :, :] != 0. ) )
 
         else:
 
