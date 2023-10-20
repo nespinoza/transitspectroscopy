@@ -2744,6 +2744,11 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             scale_1f_columns = [200,450]
             scale_1f_window = 200
 
+            # Optimal extraction parameters:
+            spectra_oe_polynomial_spacing = 0.1
+            spectra_oe_nsigma = 10 
+            spectra_oe_polynomial_order = 3
+
             if aperture_radius is None:
 
                 spectra_aperture_radius = 10
