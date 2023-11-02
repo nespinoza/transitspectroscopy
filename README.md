@@ -17,7 +17,7 @@ Or via PyPi:
 
         pip install transitspectroscopy
 
-Note you need to have the [GNU Scientific Library (GSL)](https://www.gnu.org/software/gsl/) installed for these scripts to successfully install `transitspectroscopy` on your machine. In MacOS, installing the GSL library is as easy as doing `brew install gsl`.
+Note you need to have the [GNU Scientific Library (GSL)](https://www.gnu.org/software/gsl/) installed for these scripts to successfully install `transitspectroscopy` on your machine. In MacOS, installing the GSL library is as easy as doing `brew install gsl`. For local installations of GSL both on MacOS and Linux, [this tutorial](https://coral.ise.lehigh.edu/jild13/2016/07/11/hello/) is a very nice way of getting GSL installed.
 
 ## Licence and attribution
 

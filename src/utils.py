@@ -467,6 +467,21 @@ def transit_predictor(year, month, P, t0, tduration, day=None):
     day : float (optional)
         Day on which transits want to be predicted.
 
+    Returns
+    -------
+
+    Function prints out the times of the transit ingress, mid-transit and egress in calendar and JD forms, and 
+    outputs:
+
+    ingresses : list
+           List of all the JD times for the ingress times. 
+
+    mid_transit_times : list
+           Same for the mid-transit times.
+
+    egresses : list
+           Same for the egress times.
+
     """
    
     # If no input day, get all days in the month:
@@ -537,27 +552,37 @@ def transit_predictor(year, month, P, t0, tduration, day=None):
 
         print('No transits found for this planet in the input period')
 
+    ingresses = []
+    mid_transits = []
+    egresses = []
+
     for ct0 in transits_t0:
 
         print('\t Transit number '+str(counter+1)+':')
         print('\t ----------------------------')
+
+        ingresses.append( ct0 - (tduration / (2. * 24.)) )
 
         tyear, tmonth, tday, thh, tmm, tss = getCalDay( ct0 - (tduration / (2. * 24.)) ) 
 
         print('\t Ingress     : '+str(tyear)+'-'+str(tmonth)+'-'+str(tday)+' at '+str(thh)+\
               ':'+str(tmm)+':'+str(tss)+' ('+str( ct0 - (tduration / (2. * 24.) ) )+' JD)')
 
+        mid_transits.append( ct0 )
         tyear,tmonth,tday,thh,tmm,tss = getCalDay(ct0)
 
         print('\t Mid-transit : '+str(tyear)+'-'+str(tmonth)+'-'+str(tday)+' at '+str(thh)+\
               ':'+str(tmm)+':'+str(tss)+' ('+str(ct0)+' JD)')
 
+        egresses.append( ct0 + ( tduration/(2. * 24.) ) )
         tyear,tmonth,tday,thh,tmm,tss = getCalDay( ct0 + ( tduration/(2. * 24.) ) )
 
         print('\t Egress      : '+str(tyear)+'-'+str(tmonth)+'-'+str(tday)+' at '+str(thh)+\
               ':'+str(tmm)+':'+str(tss)+' ('+str( ct0 + (tduration / (2. * 24.) ) )+' JD)')
 
         counter = counter + 1
+
+    return ingresses, mid_transits, egresses
 
 def bin_at_resolution(wavelengths, depths, depths_errors = None, R = 100, method = 'mean'):
     """
