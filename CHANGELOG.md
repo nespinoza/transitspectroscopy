@@ -6,7 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # [0.4.1] - 
 ### Added
-- Import ot `Marsh` and `CCF` is now optional.
+- Import of `Marsh` and `CCF` is now optional.
+- Removed `Marsh` setup. Plan is to convert it to Python in the summer.
 
 # [0.4.0] - 2023-02-13 
 ### Added
