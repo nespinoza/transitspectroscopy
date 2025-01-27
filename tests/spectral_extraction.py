@@ -24,6 +24,7 @@ aperture_radius = 15
 correct_bkg = False
 simple_spectrum = spectroscopy.getSimpleSpectrum(data, x, y, aperture_radius, correct_bkg = correct_bkg)
 
+"""
 # Let's now try the *fast* simple extraction:
 fast_simple_spectrum = spectroscopy.getFastSimpleSpectrum(data, y, aperture_radius)
 
@@ -34,15 +35,16 @@ nsigma = 10
 polynomial_spacing = 0.5
 polynomial_order = 2
 optimal_spectrum = spectroscopy.getOptimalSpectrum(data, y, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, data_variance = np.ones(data.shape))
+"""
 
 # Plot:
 plt.plot(x, simple_spectrum, label = 'Simple spectrum', alpha = 0.5)
-plt.plot(x, fast_simple_spectrum, label = 'Simple spectrum (fast)', alpha = 0.5)
-plt.plot(x, optimal_spectrum[1,:], label = 'Optimal spectrum', alpha = 0.5)
-plt.errorbar(x, optimal_spectrum[1,:], np.sqrt(1./optimal_spectrum[2,:]), fmt = '.')
+#plt.plot(x, fast_simple_spectrum, label = 'Simple spectrum (fast)', alpha = 0.5)
+#plt.plot(x, optimal_spectrum[1,:], label = 'Optimal spectrum', alpha = 0.5)
+#plt.errorbar(x, optimal_spectrum[1,:], np.sqrt(1./optimal_spectrum[2,:]), fmt = '.')
 plt.legend()
 plt.show()
 
-plt.plot(x, simple_spectrum - fast_simple_spectrum)
-plt.title('Simple - (Fast) Simple')
-plt.show()
+#plt.plot(x, simple_spectrum - fast_simple_spectrum)
+#plt.title('Simple - (Fast) Simple')
+#plt.show()

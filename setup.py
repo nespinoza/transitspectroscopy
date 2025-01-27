@@ -12,10 +12,10 @@ if mo:
 else:
     raise RuntimeError("Unable to find version string in %s." % (VERSIONFILE,))
 
-marsh_module = Extension('Marsh', 
-                         sources = ['src/c-code/OptimalExtraction/Marsh.c'], 
-                         libraries=['gsl', 'gslcblas', 'm'], 
-                         include_dirs=[numpy.get_include(),'/usr/local/include'])
+#marsh_module = Extension('Marsh', 
+#                         sources = ['src/c-code/OptimalExtraction/Marsh.c'], 
+#                         libraries=['gsl', 'gslcblas', 'm'], 
+#                         include_dirs=[numpy.get_include(),'/usr/local/include'])
 
 ccf_module = Extension('CCF',
                        sources = ['src/c-code/Utilities/CCF.c'],
@@ -33,5 +33,6 @@ setup(name='transitspectroscopy',
       package_dir={'transitspectroscopy': 'src'},
       install_requires=['numpy','scipy', 'jwst', 'astropy', 'jdcal', 'tqdm'],
       python_requires='>=3.0',
-      ext_modules = [marsh_module, ccf_module],
+      ext_modules = [ccf_module],
+#      ext_modules = [marsh_module, ccf_module],
       zip_safe=False)
