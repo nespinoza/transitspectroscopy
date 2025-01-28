@@ -644,7 +644,7 @@ class load(object):
 
         # Next-up, create nan-corrected rateints using this median rateints. To do this, simply scale the 
         # median frame to local pixels for each nan:
-        for i in range
+        #for i in range
                
  
 
