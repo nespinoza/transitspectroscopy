@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Import of `Marsh` and `CCF` is now optional.
 - Removed `Marsh` setup. Plan is to convert it to Python in the summer.
 
+### Fixed
+- Error because jwst build 11.3 removes the .err array in the 4D ramp products (see https://jwst-docs.stsci.edu/jwst-science-calibration-pipeline/jwst-operations-pipeline-build-information/jwst-operations-pipeline-build-11-3-release-notes?utm_source=chatgpt.com#gsc.tab=0). Now if products were created with build 11.3 and above, 4D ramps have error arrays of zeros. If below, save the error arrays.
+
 # [0.4.0] - 2023-02-13 
 ### Added
 - Initial a-la-`juliet` retrieval functionality.

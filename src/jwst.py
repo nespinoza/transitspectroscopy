@@ -919,7 +919,18 @@ class load(object):
     def merge_ramps_segments(self):
 
         self.ramps = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols], dtype = self.ramps_per_segment[0].data.dtype)
-        self.ramps_err = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols], dtype = self.ramps_per_segment[0].err.dtype)
+       
+        # In build 11.3, the error array on 4D ramp models was unused and was removed (see: https://jwst-docs.stsci.edu/jwst-science-calibration-pipeline/jwst-operations-pipeline-build-information/jwst-operations-pipeline-build-11-3-release-notes?utm_source=chatgpt.com#gsc.tab=0). This below allows to use any version of the products: 
+        try:
+
+            have_errors = True
+            self.ramps_err = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols], dtype = self.ramps_per_segment[0].err.dtype)
+
+        except:
+
+            have_errors = False
+            self.ramps_err = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols], dtype = self.ramps_per_segment[0].data.dtype)
+
         self.groupdq = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols] , dtype = self.ramps_per_segment[0].groupdq.dtype)
         self.pixeldq = self.ramps_per_segment[0].pixeldq
 
@@ -929,7 +940,11 @@ class load(object):
 
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.ramps[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_segment[i].data
-            self.ramps_err[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_segment[i].err
+
+            if have_errors:
+
+                self.ramps_err[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_segment[i].err
+
             self.groupdq[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_segment[i].groupdq 
 
             current_nintegrations = current_nintegrations + self.ints_per_segment[i]
@@ -940,7 +955,11 @@ class load(object):
 
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.ramps_per_segment[i].data = self.ramps[current_nintegrations : end_nintegrations, :, :, :]
-            self.ramps_per_segment[i].err = self.ramps_err[current_nintegrations : end_nintegrations, :, :, :]
+            
+            if have_errors:
+            
+                self.ramps_per_segment[i].err = self.ramps_err[current_nintegrations : end_nintegrations, :, :, :]
+            
             self.ramps_per_segment[i].pixeldq = self.pixeldq
             self.ramps_per_segment[i].groupdq = self.groupdq[current_nintegrations : end_nintegrations, :, :, :]
 
