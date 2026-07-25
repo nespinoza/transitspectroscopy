@@ -663,33 +663,59 @@ def bin_at_resolution(wavelengths, depths, depths_errors = None, R = 100, method
             # Calculate current mean R:
             if method == 'mean':
 
-                current_R = np.mean(current_wavs) / np.abs(current_wavs[0] - current_wavs[-1])
+                representative_wavelength = np.mean(current_wavs)
 
             elif method == 'median':
 
-                current_R = np.median(current_wavs) / np.abs(current_wavs[0] - current_wavs[-1])
+                representative_wavelength = np.median(current_wavs)
 
             else:
 
-                raise Exception('Method '+method+' not supported. Try "mean" or "median".' )
+                raise Exception(
+                    'Method ' + method +
+                    ' not supported. Try "mean" or "median".'
+                )
 
-                
+            delta_wavelength = np.abs(current_wavs[-1] - current_wavs[0])
+
+            delta_wavelength += 0.5 * np.abs(
+                current_wavs[1] - current_wavs[0]
+            )
+
+            delta_wavelength += 0.5 * np.abs(
+                current_wavs[-1] - current_wavs[-2]
+            )
+
+            current_R = representative_wavelength / delta_wavelength
+                            
 
             # If the current set of wavs/depths is below or at the target resolution, stop, save 
             # and move to next bin:
             if current_R <= R:
 
                 wout = np.append(wout, np.mean(current_wavs))
-                dout = np.append(dout, np.mean(current_depths))
 
                 if depths_errors is None:
 
-                    derrout = np.append(derrout, np.sqrt(np.var(current_depths)) / np.sqrt(len(current_depths)))
+                    dout = np.append(dout, np.mean(current_depths))
+                    derrout = np.append(
+                        derrout,
+                        np.sqrt(np.var(current_depths)) / np.sqrt(len(current_depths))
+                    )
 
                 else:
 
-                    errors = np.sqrt( np.sum( current_depth_errors**2 ) ) / len(current_depth_errors)
-                    derrout = np.append(derrout, errors )
+                    weights = 1.0 / current_depth_errors**2
+
+                    dout = np.append(
+                        dout,
+                        np.sum(weights * current_depths) / np.sum(weights)
+                    )
+
+                    derrout = np.append(
+                        derrout,
+                        1.0 / np.sqrt(np.sum(weights))
+                    )
 
                 oncall = False
 
