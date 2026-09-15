@@ -20,7 +20,8 @@ else:
 ccf_module = Extension('CCF',
                        sources = ['src/c-code/Utilities/CCF.c'],
                        libraries=['m'],
-                       include_dirs=[numpy.get_include(),'/usr/local/include'])
+                       include_dirs=[numpy.get_include(),'/usr/local/include'],
+                       optional=True)
 
 setup(name='transitspectroscopy',
       version=verstr,
@@ -32,6 +33,9 @@ setup(name='transitspectroscopy',
       packages=['transitspectroscopy'],
       package_dir={'transitspectroscopy': 'src'},
       install_requires=['numpy','scipy', 'jwst', 'astropy', 'jdcal', 'tqdm'],
+      extras_require={'fitting': ['juliet'], 'parallel': ['ray[default]'],
+                      'download': ['astroquery', 'pandas'],
+                      'test': ['pytest', 'matplotlib']},
       python_requires='>=3.0',
       ext_modules = [ccf_module],
 #      ext_modules = [marsh_module, ccf_module],

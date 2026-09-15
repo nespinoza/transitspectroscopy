@@ -1,0 +1,86 @@
+{
+  "polynomial": {
+    "options": {
+      "amplitude": 7.005573545217917
+    },
+    "training_indices": [
+      0,
+      1,
+      2,
+      12,
+      13,
+      14,
+      15
+    ],
+    "normalized_residual_mean": -3.56213597438401,
+    "normalized_residual_std": 3.68102476655882,
+    "full_source_normalized_residual_mean": -3.648746502562405,
+    "recovered_depth": 0.010559883739056919,
+    "injected_depth": 0.01,
+    "fit_seconds": 11.223288750014035,
+    "boundary_parameters": []
+  },
+  "gp": {
+    "options": {
+      "amplitude": 1.7502662271407374,
+      "length_scale": 30.89357277887507,
+      "kernel": "matern32",
+      "n_inducing": 12
+    },
+    "training_indices": [
+      0,
+      1,
+      2,
+      12,
+      13,
+      14,
+      15
+    ],
+    "normalized_residual_mean": -0.020984911407527868,
+    "normalized_residual_std": 0.9951284086065381,
+    "full_source_normalized_residual_mean": -0.1049385924999842,
+    "recovered_depth": 0.010519217174592588,
+    "injected_depth": 0.01,
+    "fit_seconds": 33.27732024999568,
+    "boundary_parameters": []
+  },
+  "diagnostics": {
+    "stable": [
+      1.1421563137246442,
+      1.0435403666614183,
+      1.0672389567371303,
+      1.0301588641108306,
+      1.0711170270144956,
+      1.083329060847265,
+      1.1018658919646458,
+      1.1726466459775917,
+      1.1236167391986467,
+      1.1090889607684253,
+      1.0891172198752177,
+      1.1022783423193097,
+      1.0872004823353123,
+      1.0078911025306723,
+      1.0291103224005962,
+      1.0251828102409974
+    ],
+    "broadened": [
+      3.5564402485724833,
+      3.4337445670478477,
+      3.4391255483797827,
+      3.347305071845104,
+      3.5057231867483822,
+      3.456244027155232,
+      3.578668997797768,
+      3.335813225126347,
+      3.71795545942606,
+      3.609501355588684,
+      3.4666793388822428,
+      3.521023208561357,
+      3.5421184644226704,
+      3.515404923350548,
+      3.431589273975361,
+      3.4340953896352087
+    ],
+    "note": "New positive normalized models; errors condition on P. Recovery uses injected aperture flux; the comparison does not claim an inferred aperture correction."
+  }
+}

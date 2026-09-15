@@ -1,0 +1,30 @@
+{
+  "configuration": {
+    "integrations": 100,
+    "columns": 2048,
+    "rows": 256,
+    "aperture": 7,
+    "spacing": 1.0,
+    "method": "gp",
+    "inducing": 16,
+    "workers": 4,
+    "optimize": false,
+    "max_seconds": 300.0,
+    "output": "tests/shared_profile_comparison/benchmark_2048_100_ray4.json"
+  },
+  "platform": "macOS-26.4.1-arm64-arm-64bit",
+  "numpy": "1.26.4",
+  "scipy": "1.17.1",
+  "implementation_sha256": "ed112ca8de8b9c0cb0182940fb9d4c9e69a1df49d74ba667a073dce1e5276dee",
+  "status": "failed",
+  "failure": {
+    "type": "RuntimeError",
+    "message": "shared coefficient fit did not converge: coefficient line search failed at iteration 25: scaled_gradient=7.54453e-05, Newton_decrement=3.73732e-08, scaled_step=0.0423073"
+  },
+  "fitting_seconds": null,
+  "elapsed_seconds": 201.1766634590167,
+  "extraction_seconds_per_integration": null,
+  "driver_peak_rss_mb": 459.24352,
+  "memory_note": "Driver peak RSS; excludes Ray workers. Synthetic images generated lazily during preparation.",
+  "diagnostics": null
+}

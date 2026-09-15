@@ -1,0 +1,85 @@
+{
+  "numpy": "1.26.4",
+  "scipy": "1.17.1",
+  "platform": "macOS-26.4.1-arm64-arm-64bit",
+  "c_build": {
+    "python": "3.11.4 (main, Jul  5 2023, 08:54:11) [Clang 14.0.6 ]",
+    "numpy": "1.26.4",
+    "platform": "macOS-26.4.1-arm64-arm-64bit",
+    "gsl": "2.8",
+    "source_sha256": {
+      "Marsh": "b3c8d3863bb814934053b2bc21e3d35b4851cca3f6499b4681a24738383bcd46",
+      "CCF": "187f30e87943baf423f9ca15aa76c11404f61aeaeaf9db0b6f71307d80a6a163"
+    }
+  },
+  "parameters": {
+    "aperture_radius": 7,
+    "nsigma": 8,
+    "polynomial_spacing": 1.0,
+    "polynomial_order": 3,
+    "gp": {
+      "kernel": "matern32",
+      "length_scale": 19.2,
+      "amplitude": 1.0,
+      "n_inducing": 16
+    }
+  },
+  "cases": {
+    "smooth_noisy": {
+      "seed": 123,
+      "evolving": false,
+      "cosmic": false,
+      "max_abs_flux_difference": 6.061782187316567e-10,
+      "max_flux_difference_in_c_sigma": 1.0678442282778377e-11,
+      "max_abs_profile_difference": 2.130240428499519e-12,
+      "max_abs_inverse_variance_difference": 4.889751797909625e-17,
+      "seconds": {
+        "c": 0.00594704199465923,
+        "python": 0.010399541002698243,
+        "gp": 0.022484749992145225
+      },
+      "normalized_residuals": {
+        "c": {
+          "mean": 0.011331264312727565,
+          "std": 1.0589725803891865
+        },
+        "python": {
+          "mean": 0.011331264312357614,
+          "std": 1.058972580389174
+        },
+        "gp": {
+          "mean": 0.036111413106765376,
+          "std": 1.063790354482754
+        }
+      }
+    },
+    "varying_profile_cosmics": {
+      "seed": 456,
+      "evolving": true,
+      "cosmic": true,
+      "max_abs_flux_difference": 1.1173142411280423e-09,
+      "max_flux_difference_in_c_sigma": 1.9596861399419367e-11,
+      "max_abs_profile_difference": 1.768085677866793e-12,
+      "max_abs_inverse_variance_difference": 1.3200161450011016e-16,
+      "seconds": {
+        "c": 0.012219583004480228,
+        "python": 0.00838241699966602,
+        "gp": 0.03853950000484474
+      },
+      "normalized_residuals": {
+        "c": {
+          "mean": -1.816897037826554,
+          "std": 2.4929586187364934
+        },
+        "python": {
+          "mean": -1.816897037828677,
+          "std": 2.492958618739498
+        },
+        "gp": {
+          "mean": -0.09061514929216989,
+          "std": 1.0720563549733366
+        }
+      }
+    }
+  }
+}

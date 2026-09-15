@@ -1,0 +1,732 @@
+{
+  "configuration": {
+    "integrations": 1,
+    "columns": 2048,
+    "rows": 256,
+    "aperture": 7,
+    "spacing": 1.0,
+    "method": "gp",
+    "inducing": 16,
+    "workers": 0,
+    "optimize": true,
+    "max_seconds": 120.0,
+    "output": "tests/shared_profile_comparison/benchmark_2048_1_optimized.json"
+  },
+  "platform": "macOS-26.4.1-arm64-arm-64bit",
+  "numpy": "1.26.4",
+  "scipy": "1.17.1",
+  "implementation_sha256": "2bb54ff34638d27ea7dcbc153609f7876aec2099a0c550064d40476ae477e55e",
+  "status": "converged",
+  "failure": null,
+  "fitting_seconds": 20.019761541014304,
+  "elapsed_seconds": 20.019761541014304,
+  "extraction_seconds_per_integration": 0.011850612499983981,
+  "driver_peak_rss_mb": 221.609984,
+  "memory_note": "Driver peak RSS; excludes Ray workers. Synthetic images generated lazily during preparation.",
+  "diagnostics": {
+    "version": 1,
+    "approximation": "Laplace conditional on optimized training fluxes",
+    "objective": 124195.46744927378,
+    "hyperparameters_optimized": true,
+    "hyperparameter_bounds": {
+      "amplitude": [
+        0.03,
+        10.0
+      ],
+      "length_scale": [
+        136.46666666666667,
+        20470.0
+      ]
+    },
+    "boundary_parameters": [],
+    "starts": [
+      [
+        1.0,
+        409.39999999999986
+      ]
+    ],
+    "outer_results": [
+      {
+        "success": true,
+        "message": "CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH",
+        "objective": 124195.46744666413,
+        "iterations": 7
+      }
+    ],
+    "evaluations": [
+      {
+        "objective": 124548.55862335015,
+        "options": {
+          "amplitude": 1.0,
+          "length_scale": 409.39999999999986,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 17,
+        "gradient_max": 7.600960540676827e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 34
+      },
+      {
+        "objective": 124548.71192402518,
+        "options": {
+          "amplitude": 1.0010005001667084,
+          "length_scale": 409.39999999999986,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 7,
+        "gradient_max": 5.382410720911057e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 14
+      },
+      {
+        "objective": 124548.40549764376,
+        "options": {
+          "amplitude": 0.999000499833375,
+          "length_scale": 409.39999999999986,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 8,
+        "gradient_max": 6.488184032793498e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 16
+      },
+      {
+        "objective": 124548.42193156648,
+        "options": {
+          "amplitude": 1.0,
+          "length_scale": 409.8096047682504,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 7,
+        "gradient_max": 5.373997473612224e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 14
+      },
+      {
+        "objective": 124548.69541378654,
+        "options": {
+          "amplitude": 1.0,
+          "length_scale": 408.9908046317834,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 5,
+        "gradient_max": 3.6953330759037506e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 10
+      },
+      {
+        "objective": 124613.90176879171,
+        "options": {
+          "amplitude": 0.029999999999999995,
+          "length_scale": 20469.99999999998,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 6,
+        "gradient_max": 3.9996264750818966e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 12
+      },
+      {
+        "objective": 124613.71671759449,
+        "options": {
+          "amplitude": 0.030030015005001243,
+          "length_scale": 20469.99999999998,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 6.0500826476683756e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124613.88868482337,
+        "options": {
+          "amplitude": 0.029999999999999995,
+          "length_scale": 20449.54023158918,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 6.024782961588926e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124206.61272276813,
+        "options": {
+          "amplitude": 0.24542380152087928,
+          "length_scale": 1962.3452130436908,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 8,
+        "gradient_max": 2.8462935071527085e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 16
+      },
+      {
+        "objective": 124206.65525513903,
+        "options": {
+          "amplitude": 0.2456693480752151,
+          "length_scale": 1962.3452130436908,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 4,
+        "gradient_max": 2.85534130801679e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 8
+      },
+      {
+        "objective": 124206.57027242199,
+        "options": {
+          "amplitude": 0.24517850039036546,
+          "length_scale": 1962.3452130436908,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 4,
+        "gradient_max": 5.794841241835158e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 8
+      },
+      {
+        "objective": 124206.56839718613,
+        "options": {
+          "amplitude": 0.24542380152087928,
+          "length_scale": 1964.3085397564812,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 4,
+        "gradient_max": 3.150942544283275e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 8
+      },
+      {
+        "objective": 124206.65716793782,
+        "options": {
+          "amplitude": 0.24542380152087928,
+          "length_scale": 1960.3838486762772,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 2.0257217989261278e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124246.6619587902,
+        "options": {
+          "amplitude": 0.1430516377472858,
+          "length_scale": 4164.151847716587,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 7,
+        "gradient_max": 2.879250566212299e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 14
+      },
+      {
+        "objective": 124246.57707264538,
+        "options": {
+          "amplitude": 0.14319476093469985,
+          "length_scale": 4164.151847716587,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 7.118787059190446e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124246.74693735514,
+        "options": {
+          "amplitude": 0.1429086576115214,
+          "length_scale": 4164.151847716587,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 4,
+        "gradient_max": 2.2615348438614902e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 8
+      },
+      {
+        "objective": 124246.78709059015,
+        "options": {
+          "amplitude": 0.1430516377472858,
+          "length_scale": 4168.318082334425,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 7.492152273647079e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124246.53695701981,
+        "options": {
+          "amplitude": 0.1430516377472858,
+          "length_scale": 4159.989777250945,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 6.192575795038735e-06,
+        "inner_message": "scaled coefficient gradient converged",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124197.53628479625,
+        "options": {
+          "amplitude": 0.2092697529527046,
+          "length_scale": 2450.439111496595,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 7,
+        "gradient_max": 5.419461436062534e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 14
+      },
+      {
+        "objective": 124197.54430130079,
+        "options": {
+          "amplitude": 0.2094791273754208,
+          "length_scale": 2450.439111496595,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 4,
+        "gradient_max": 2.3644535677824763e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 8
+      },
+      {
+        "objective": 124197.52834963534,
+        "options": {
+          "amplitude": 0.20906058779975883,
+          "length_scale": 2450.439111496595,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 4,
+        "gradient_max": 4.652211285360863e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 8
+      },
+      {
+        "objective": 124197.53756240847,
+        "options": {
+          "amplitude": 0.2092697529527046,
+          "length_scale": 2452.890776236157,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 4,
+        "gradient_max": 2.504401132963352e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 8
+      },
+      {
+        "objective": 124197.53514568068,
+        "options": {
+          "amplitude": 0.2092697529527046,
+          "length_scale": 2447.9898971963494,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 1.572057843746144e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124197.27271653023,
+        "options": {
+          "amplitude": 0.20165393569641338,
+          "length_scale": 2435.602758498887,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 6,
+        "gradient_max": 3.265510846506281e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 12
+      },
+      {
+        "objective": 124197.27811137278,
+        "options": {
+          "amplitude": 0.201855690492695,
+          "length_scale": 2435.602758498887,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 0.00011146645885506956,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124197.26741771573,
+        "options": {
+          "amplitude": 0.20145238255408424,
+          "length_scale": 2435.602758498887,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 4,
+        "gradient_max": 4.27584737281439e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 8
+      },
+      {
+        "objective": 124197.2770094472,
+        "options": {
+          "amplitude": 0.20165393569641338,
+          "length_scale": 2438.039579464801,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 4,
+        "gradient_max": 2.3603527267823665e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 8
+      },
+      {
+        "objective": 124197.26856704782,
+        "options": {
+          "amplitude": 0.20165393569641338,
+          "length_scale": 2433.168373135934,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 1.5498981603467854e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124196.2660953068,
+        "options": {
+          "amplitude": 0.1658510308634629,
+          "length_scale": 2212.075075561909,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 6,
+        "gradient_max": 0.00010127460733544424,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 12
+      },
+      {
+        "objective": 124196.26367444026,
+        "options": {
+          "amplitude": 0.1660169648474905,
+          "length_scale": 2212.075075561909,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 8.669326659394017e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124196.26860752559,
+        "options": {
+          "amplitude": 0.16568526273047995,
+          "length_scale": 2212.075075561909,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 4,
+        "gradient_max": 2.8815026956285905e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 8
+      },
+      {
+        "objective": 124196.27654999403,
+        "options": {
+          "amplitude": 0.1658510308634629,
+          "length_scale": 2214.288257043781,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 9.11568681152275e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124196.25578659232,
+        "options": {
+          "amplitude": 0.1658510308634629,
+          "length_scale": 2209.864106155297,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 1.0821320573395354e-05,
+        "inner_message": "scaled coefficient gradient converged",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124195.68546934504,
+        "options": {
+          "amplitude": 0.13960650846950137,
+          "length_scale": 1933.659574047948,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 6,
+        "gradient_max": 4.3372776216354936e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 12
+      },
+      {
+        "objective": 124195.68002215598,
+        "options": {
+          "amplitude": 0.13974618480449866,
+          "length_scale": 1933.659574047948,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 6.058933151575907e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124195.69102014598,
+        "options": {
+          "amplitude": 0.13946697174102418,
+          "length_scale": 1933.659574047948,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 4,
+        "gradient_max": 1.7944746448783633e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 8
+      },
+      {
+        "objective": 124195.6936095248,
+        "options": {
+          "amplitude": 0.13960650846950137,
+          "length_scale": 1935.5942007741405,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 6.586151305554289e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124195.6774784955,
+        "options": {
+          "amplitude": 0.13960650846950137,
+          "length_scale": 1931.7268809814902,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 1.0404229501270734e-05,
+        "inner_message": "scaled coefficient gradient converged",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124195.4722340319,
+        "options": {
+          "amplitude": 0.13871139490296747,
+          "length_scale": 1837.478899889669,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 5,
+        "gradient_max": 1.5635878646502732e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 10
+      },
+      {
+        "objective": 124195.47134203289,
+        "options": {
+          "amplitude": 0.13885017567669222,
+          "length_scale": 1837.478899889669,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 5.751283086596892e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124195.47323440913,
+        "options": {
+          "amplitude": 0.13857275284064918,
+          "length_scale": 1837.478899889669,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 4,
+        "gradient_max": 1.7294237612430763e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 8
+      },
+      {
+        "objective": 124195.47344735134,
+        "options": {
+          "amplitude": 0.13871139490296747,
+          "length_scale": 1839.3172978353323,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 6.433159326468818e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124195.47117159967,
+        "options": {
+          "amplitude": 0.13871139490296747,
+          "length_scale": 1835.6423394230587,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 1.0850977586684962e-05,
+        "inner_message": "scaled coefficient gradient converged",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124195.46744666413,
+        "options": {
+          "amplitude": 0.13956498793823782,
+          "length_scale": 1831.1143506330493,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 4,
+        "gradient_max": 5.203895499228395e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 8
+      },
+      {
+        "objective": 124195.46753708717,
+        "options": {
+          "amplitude": 0.13970462273193665,
+          "length_scale": 1831.1143506330493,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 5.73114678847908e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124195.46746771122,
+        "options": {
+          "amplitude": 0.13942549270953855,
+          "length_scale": 1831.1143506330493,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 4,
+        "gradient_max": 1.757829421999979e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 8
+      },
+      {
+        "objective": 124195.4675348582,
+        "options": {
+          "amplitude": 0.13956498793823782,
+          "length_scale": 1832.9463808461203,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 6.507587573900686e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124195.46751234964,
+        "options": {
+          "amplitude": 0.13956498793823782,
+          "length_scale": 1829.2841515344815,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 3,
+        "gradient_max": 1.0991761004719436e-05,
+        "inner_message": "scaled coefficient gradient converged",
+        "coefficient_objective_calls": 6
+      },
+      {
+        "objective": 124195.46744927378,
+        "options": {
+          "amplitude": 0.13956498793823782,
+          "length_scale": 1831.1143506330493,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 2,
+        "gradient_max": 0.0012464712517619159,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 4
+      }
+    ],
+    "training_indices": [
+      0
+    ],
+    "integration_ids": [
+      "0"
+    ],
+    "training_fingerprint": "7dd01eda38863becb40392f965c028f77cc5fab86b2215b165dd686df1985169",
+    "training": [
+      {
+        "index": 0,
+        "chi2": 28448.35262076922,
+        "valid_pixels": 30720,
+        "flux_min": 8226.242458802426,
+        "flux_max": 12363.749413368747,
+        "flux_median": 10958.73670222674
+      }
+    ],
+    "execution": "serial",
+    "n_workers": 1,
+    "active_workers": 1,
+    "batch_size": 8,
+    "initial_width": 1.5,
+    "polynomial_order": 3,
+    "coefficient_dimension": 256,
+    "cropped_data_mb": 0.784384,
+    "curvature_mb": 0.524288,
+    "estimated_working_memory_mb": 72.108032,
+    "seconds": 20.01930691700545,
+    "timing": {
+      "preparation_seconds": 0.028447709017200395,
+      "coefficient_objective_seconds": 16.15278096005204,
+      "curvature_seconds": 3.6053938289696816,
+      "coefficient_solver_seconds": 16.27877642205567,
+      "executor_setup_seconds": 8.791015716269612e-06
+    },
+    "uncertainty": "coefficient covariance conditional on fluxes and hyperparameters; extracted inverse variance conditional on profile"
+  }
+}

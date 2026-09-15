@@ -7,23 +7,46 @@ from scipy.interpolate import splev, splrep, sproot, interp1d
 from scipy.ndimage import gaussian_filter1d, median_filter
 from scipy.optimize import fminbound
 
-try:
+from importlib import import_module as _import_module
+from . import _optimal_extraction as _optimal
+from ._optional import OptionalModule as _OptionalModule
 
-    import CCF
+CCF = _OptionalModule('CCF')
+Marsh = _OptionalModule('Marsh')
 
-except:
 
-    print('\t Warning: import CCF did not work. Some CCF utilities might not work.')
+def _select_backend(module, backend):
+    if backend not in ('auto', 'c', 'python'):
+        raise ValueError('backend must be auto, c or python')
+    if backend == 'python':
+        return None
+    try:
+        return _import_module(module)
+    except ImportError as exc:
+        if backend == 'c':
+            raise ImportError(f'{module} C backend is unavailable; build it or use backend="python"') from exc
+        return None
 
-try:
 
-    import Marsh
+def _extraction_inputs(data, centroids, variance, aperture, spacing, ron, gain,
+                       nsigma, min_column, max_column):
+    data, centroids, variance = _optimal.validate(data, centroids, variance)
+    if variance is None and (not np.isfinite(ron) or ron < 0 or not np.isfinite(gain) or gain <= 0):
+        raise ValueError('ron must be nonnegative and gain positive and finite')
+    if not np.isfinite(nsigma) or nsigma < 0:
+        raise ValueError('nsigma must be finite and nonnegative')
+    # Validate before passing any raw pointers to the historical C backend.
+    columns, _, _, inside, _, _, _ = _optimal.geometry(
+        centroids, data.shape[0], aperture, spacing, min_column, max_column)
+    if variance is not None:
+        good = inside & (data[:, columns].T != -9999)
+        v = variance[:, columns].T[good]
+        if np.any(v <= 0) or not np.all(np.isfinite(v)):
+            raise ValueError('data_variance must be finite and positive in the valid aperture')
+    return data, centroids, variance
 
-except:
 
-    print('\t Warning: import Marsh did not work. The fast optimal extraction algorithm will not work.')
-
-def getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, min_column = None, max_column = None, return_flat = False, data_variance = None):
+def getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, min_column = None, max_column = None, return_flat = False, data_variance = None, backend='auto', profile_method='polynomial', gp_options=None):
     """
     Given a 2D-spectrum, centroids over it and various properties of the noise, this function returns the light 
     fractions of a spectrum using the algorithm described in detail in Marsh (1989, PASP 101, 1032). 
@@ -66,6 +89,19 @@ def getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing
     data_variance : numpy.array
         (Optional) Array containing the variances of each of the points in the 2-D `data` array. If defined, the `ron` and `gain` will be ignored.
 
+    backend : {'auto', 'c', 'python'}
+        Auto uses Marsh if installed, otherwise the NumPy/SciPy implementation.
+        Existing polynomial calls retain their numerical model and return layout.
+    profile_method : {'polynomial', 'gp'}
+        GP is an experimental joint inducing-point profile fit along dispersion.
+        It requires Python and never becomes active without explicit selection.
+    gp_options : dict or None
+        Fixed kernel ('matern32' or 'matern52'), length_scale in dispersion pixels,
+        amplitude in unnormalized profile units, and n_inducing. Defaults are
+        matern32, max(10, selected_columns/5), 1, min(16, selected_columns).
+        The model clips negative predictions and normalizes each column; it does
+        not propagate profile uncertainty into extracted-spectrum errors.
+
     Returns
     -------
 
@@ -73,6 +109,24 @@ def getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing
         Light frations (weights) of the optimal extraction.
 
     """
+
+    data, centroids, data_variance = _extraction_inputs(
+        data, centroids, data_variance, aperture_radius, polynomial_spacing,
+        ron, gain, nsigma, min_column, max_column)
+    if profile_method not in ('polynomial', 'gp'):
+        raise ValueError('profile_method must be polynomial or gp')
+    if int(polynomial_order) != polynomial_order or polynomial_order < 1 or nsigma == 0:
+        raise ValueError('profile fitting requires positive polynomial_order and nsigma')
+    if profile_method == 'gp' and backend == 'c':
+        raise ValueError('GP profile fitting requires the Python backend')
+    if gp_options is not None and profile_method != 'gp':
+        raise ValueError('gp_options requires profile_method="gp"')
+    Marsh = _select_backend('Marsh', 'python' if profile_method == 'gp' and backend == 'auto' else backend)
+    if Marsh is None:
+        P = _optimal.fit_profile(data, centroids, aperture_radius, ron, gain, nsigma,
+            polynomial_spacing, polynomial_order, min_column, max_column,
+            data_variance, profile_method, gp_options)
+        return P.ravel() if return_flat else P
 
     # Prepare inputs to the algorithm:
     flattened_data = data.flatten().astype('double')
@@ -138,7 +192,7 @@ def getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing
     # Return light fractions:
     return P
 
-def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, min_column = None, max_column = None, P = None, return_P = False, data_variance = None):
+def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, min_column = None, max_column = None, P = None, return_P = False, data_variance = None, backend='auto', profile_method='polynomial', gp_options=None):
 
     """
     Given a 2D-spectrum, this function returns the optimal extracted spectrum using the algorithm detailed in Marsh (1989, PASP 101, 1032). 
@@ -194,23 +248,54 @@ def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, poly
         A 3-dimensional cube with spectrum[0,:] indicating the columns, spectrum[1,:] the optimally extracted spectra at those columns and 
         spectrum[2,:] having the *inverse* of the variance of the spectra.
 
+    Notes
+    -----
+    backend, profile_method and gp_options follow getP. Supplying P bypasses
+    profile fitting. Returned errors condition on P, including with a GP profile;
+    they do not include GP posterior uncertainty or cross-column covariance.
+    Polynomial order counts terms (maximum degree is polynomial_order - 1).
+    A SharedProfile instance supplied as P uses its native-pixel extraction
+    (supplied variance required), evaluating the trace without retraining.
+
     """
 
-    if P is not None:
-
-        flattened_P = P.flatten().astype('double')
-
-    else:
-
+    from .shared_profile import SharedProfile
+    if isinstance(P, SharedProfile):
+        if backend not in ('auto', 'python'):
+            raise ValueError('SharedProfile requires the Python backend')
         if data_variance is None:
+            raise ValueError('SharedProfile requires supplied data_variance')
+        if aperture_radius != P.aperture_radius or polynomial_spacing != P.spacing:
+            raise ValueError('aperture/spacing must match the trained SharedProfile')
+        if min_column is not None or max_column is not None or gp_options is not None:
+            raise ValueError('SharedProfile uses its trained grid/options; crop before training')
+        return P.extract(data, centroids, data_variance, nsigma=nsigma, return_P=return_P)
 
-            flattened_P = getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order, 
-                               min_column = min_column, max_column = max_column, return_flat = True)
+    data, centroids, data_variance = _extraction_inputs(
+        data, centroids, data_variance, aperture_radius, polynomial_spacing,
+        ron, gain, nsigma, min_column, max_column)
+    if profile_method not in ('polynomial', 'gp'):
+        raise ValueError('profile_method must be polynomial or gp')
+    if profile_method == 'gp' and backend == 'c':
+        raise ValueError('GP profile fitting requires the Python backend')
+    if gp_options is not None and profile_method != 'gp':
+        raise ValueError('gp_options requires profile_method="gp"')
+    Marsh = _select_backend('Marsh', 'python' if profile_method == 'gp' and backend == 'auto' else backend)
+    if P is not None:
+        P = np.array(P, dtype=float, copy=True)
+        if P.shape != data.shape or not np.all(np.isfinite(P)) or np.any(P < 0):
+            raise ValueError('P must be a finite nonnegative image matching data.shape')
+    else:
+        P = getP(data, centroids, aperture_radius, ron, gain, nsigma,
+                 polynomial_spacing, polynomial_order, min_column, max_column,
+                 data_variance=data_variance, backend=backend,
+                 profile_method=profile_method, gp_options=gp_options)
+    if Marsh is None:
+        spectrum = _optimal.extract(data, centroids, aperture_radius, ron, gain,
+            nsigma, polynomial_spacing, P, min_column, max_column, data_variance)
+        return (spectrum, P) if return_P else spectrum
 
-        else:
-
-            flattened_P = getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing, polynomial_order,
-                               min_column = min_column, max_column = max_column, return_flat = True, data_variance = data_variance)
+    flattened_P = P.flatten().astype('double')
 
     # Prepare inputs:
     flattened_data = data.flatten().astype('double')
@@ -279,7 +364,7 @@ def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, poly
 
         return spectrum, P
 
-def getFastSimpleSpectrum(data, centroids, aperture_radius, min_column = None, max_column = None, return_aperture = False):
+def getFastSimpleSpectrum(data, centroids, aperture_radius, min_column = None, max_column = None, return_aperture = False, backend='auto'):
 
     """
     Given a 2D-spectrum, this function returns a simple-extracted spectrum. This function is fast to 
@@ -306,7 +391,18 @@ def getFastSimpleSpectrum(data, centroids, aperture_radius, min_column = None, m
         (Optional) If the spectral trace (centroids) hits edges with the aperture, algorithm will select
         a smaller aperture for the extraction. If `True`, this function returns that selected aperture.
 
+    backend : {'auto', 'c', 'python'}
+        Auto retains C when available and otherwise uses Python. The legacy
+        integer aperture and fractional-edge conventions are preserved.
+
     """
+
+    data, centroids, _ = _optimal.validate(data, centroids)
+    _optimal.geometry(centroids, data.shape[0], aperture_radius, 1., min_column, max_column, simple=True)
+    Marsh = _select_backend('Marsh', backend)
+    if Marsh is None:
+        spectrum, aperture = _optimal.simple_extract(data, centroids, aperture_radius, min_column, max_column)
+        return (spectrum, aperture) if return_aperture else spectrum
 
     # Prepare inputs:
     flattened_data = data.flatten().astype('double')
@@ -640,8 +736,8 @@ def get_pm_ccf(x1, y1, x2, y2, max_shift = 5, delta = 0.1, method = 'abs'):
     new_y2 = np.append(0., new_y2)
     
     # Interpoalte both series:
-    f1 = interpolate.interp1d( new_x1, new_y1 )
-    f2 = interpolate.interp1d( new_x2, new_y2 )
+    f1 = interp1d( new_x1, new_y1 )
+    f2 = interp1d( new_x2, new_y2 )
     
     # Evaluate absolute difference on a common grid:    
     for i in range( len(shifts) ):
@@ -656,7 +752,7 @@ def get_pm_ccf(x1, y1, x2, y2, max_shift = 5, delta = 0.1, method = 'abs'):
     
     return shifts, residuals
 
-def get_ccf(x, y, function = 'gaussian', parameters = None, pixelation = False, lag_step = 0.001):
+def get_ccf(x, y, function = 'gaussian', parameters = None, pixelation = False, lag_step = 0.001, backend='auto'):
     """
     Function that obtains the CCF between input data defined between x and y and a pre-defined function.
 
@@ -679,6 +775,9 @@ def get_ccf(x, y, function = 'gaussian', parameters = None, pixelation = False, 
         Boolean deciding whether to apply pixelation effects (i.e., integrating function over a pixel)
     lag_step : double
         Steps used to lag the `function` along all the input x-values. Default is 0.001.
+    backend : {'auto', 'c', 'python'}
+        Auto retains C when available and otherwise uses NumPy. Built-in Python
+        profiles use the historical C pi approximation and lag convention.
         
 
     Returns
@@ -687,6 +786,16 @@ def get_ccf(x, y, function = 'gaussian', parameters = None, pixelation = False, 
         Array containing the cross-correlation function between y and the selected function
 
     """
+
+    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    if x.ndim != 1 or y.shape != x.shape or x.size == 0 or not np.all(np.isfinite(x)) or not np.all(np.isfinite(y)):
+        raise ValueError('x and y must be matching nonempty finite vectors')
+    if not np.isfinite(lag_step) or lag_step <= 0:
+        raise ValueError('lag_step must be finite and positive')
+    CCF = _select_backend('CCF', backend)
+    if CCF is None:
+        from ._ccf import correlate
+        return correlate(x, y, function, parameters, lag_step)
 
     # Create array of lags:
     lags = np.arange(np.min(x), np.max(x), lag_step) 
@@ -732,6 +841,9 @@ def get_ccf(x, y, function = 'gaussian', parameters = None, pixelation = False, 
         evaluated_function = function(all_lags)
 
         # Compute CCF in C:
+        evaluated_function = np.asarray(evaluated_function, dtype='double')
+        if evaluated_function.shape != all_lags.shape:
+            raise ValueError('CCF callable must preserve the input array shape')
         ccf = CCF.AnyFunction(y.astype('double'), evaluated_function.flatten(), len(x), len(lags))
 
     return lags, ccf 
@@ -814,6 +926,8 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
     else:
 
         x = np.arange(0, xstart + 1)
+        indexes = range(len(x))[::-1]
+        direction = 'left'
         
     # Define y-axis:
     y = np.arange(image.shape[0])
@@ -824,7 +938,8 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
     # Define array that will save trace at each x:
     ytraces = np.zeros(len(x))
    
-    first_time = True 
+    first_time = True
+    previous_trace = ystart
     for i in indexes:
 
         xcurrent = x[i]
@@ -928,7 +1043,7 @@ def trace_spectrum(image, dqflags, xstart, ystart, profile_radius=20, correct_ou
         else:
 
             print(xcurrent,'is a bad column. Setting to previous trace position:')
-            ytraces[i] = previous_trace
+            ytraces[i] = ystart
             status[i] = True
     
     # Return all trace positions:

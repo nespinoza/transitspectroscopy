@@ -1,0 +1,186 @@
+{
+  "configuration": {
+    "integrations": 10,
+    "columns": 2048,
+    "rows": 256,
+    "aperture": 7,
+    "spacing": 1.0,
+    "method": "gp",
+    "inducing": 16,
+    "workers": 0,
+    "optimize": false,
+    "max_seconds": 300.0,
+    "output": "tests/shared_profile_comparison/benchmark_2048_10.json"
+  },
+  "platform": "macOS-26.4.1-arm64-arm-64bit",
+  "numpy": "1.26.4",
+  "scipy": "1.17.1",
+  "implementation_sha256": "2bb54ff34638d27ea7dcbc153609f7876aec2099a0c550064d40476ae477e55e",
+  "status": "converged",
+  "failure": null,
+  "fitting_seconds": 7.764023374998942,
+  "elapsed_seconds": 7.764023374998942,
+  "extraction_seconds_per_integration": 0.008882458400330506,
+  "driver_peak_rss_mb": 270.336,
+  "memory_note": "Driver peak RSS; excludes Ray workers. Synthetic images generated lazily during preparation.",
+  "diagnostics": {
+    "version": 1,
+    "approximation": "Laplace conditional on optimized training fluxes",
+    "objective": 1245932.2411732904,
+    "hyperparameters_optimized": false,
+    "hyperparameter_bounds": {
+      "amplitude": [
+        0.03,
+        10.0
+      ],
+      "length_scale": [
+        136.46666666666667,
+        20470.0
+      ]
+    },
+    "boundary_parameters": [],
+    "starts": [],
+    "outer_results": [],
+    "evaluations": [
+      {
+        "objective": 1245932.2411732904,
+        "options": {
+          "amplitude": 1.0,
+          "length_scale": 409.39999999999986,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 14,
+        "gradient_max": 4.615744788732945e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 28
+      }
+    ],
+    "training_indices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "integration_ids": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9"
+    ],
+    "training_fingerprint": "2f1beb02bdaa4a70bff97caaf003ec1066674d4a670c5aa12fd88e30a3f99ffe",
+    "training": [
+      {
+        "index": 0,
+        "chi2": 30103.00168478242,
+        "valid_pixels": 30720,
+        "flux_min": 8224.256841353157,
+        "flux_max": 12359.749398852458,
+        "flux_median": 10957.187049025775
+      },
+      {
+        "index": 1,
+        "chi2": 29032.640676605803,
+        "valid_pixels": 30720,
+        "flux_min": 8139.816169001182,
+        "flux_max": 12260.8435113384,
+        "flux_median": 10958.707694087518
+      },
+      {
+        "index": 2,
+        "chi2": 29012.81652720247,
+        "valid_pixels": 30720,
+        "flux_min": 8266.415129009598,
+        "flux_max": 12262.018028426657,
+        "flux_median": 10963.735946971341
+      },
+      {
+        "index": 3,
+        "chi2": 29700.96183213118,
+        "valid_pixels": 30720,
+        "flux_min": 8171.801737756187,
+        "flux_max": 12266.70416423759,
+        "flux_median": 10964.285426446226
+      },
+      {
+        "index": 4,
+        "chi2": 29240.809652653086,
+        "valid_pixels": 30720,
+        "flux_min": 8085.875234962944,
+        "flux_max": 12179.25437890149,
+        "flux_median": 10960.797645270402
+      },
+      {
+        "index": 5,
+        "chi2": 29215.40675870778,
+        "valid_pixels": 30720,
+        "flux_min": 8235.161364328414,
+        "flux_max": 12227.963657607612,
+        "flux_median": 10964.714151441238
+      },
+      {
+        "index": 6,
+        "chi2": 29866.274240761457,
+        "valid_pixels": 30720,
+        "flux_min": 8266.174970320179,
+        "flux_max": 12206.961717489927,
+        "flux_median": 10976.289230070961
+      },
+      {
+        "index": 7,
+        "chi2": 29028.849931574303,
+        "valid_pixels": 30720,
+        "flux_min": 8169.728218145237,
+        "flux_max": 12220.781610348127,
+        "flux_median": 10938.401363357047
+      },
+      {
+        "index": 8,
+        "chi2": 29696.096298704928,
+        "valid_pixels": 30720,
+        "flux_min": 8182.083768134219,
+        "flux_max": 12237.747249884895,
+        "flux_median": 10968.447504600834
+      },
+      {
+        "index": 9,
+        "chi2": 29726.429452223685,
+        "valid_pixels": 30720,
+        "flux_min": 8255.253061053656,
+        "flux_max": 12235.074301845692,
+        "flux_median": 10960.38206797725
+      }
+    ],
+    "execution": "serial",
+    "n_workers": 1,
+    "active_workers": 1,
+    "batch_size": 8,
+    "initial_width": 1.5,
+    "polynomial_order": 3,
+    "coefficient_dimension": 256,
+    "cropped_data_mb": 7.84384,
+    "curvature_mb": 0.524288,
+    "estimated_working_memory_mb": 79.167488,
+    "seconds": 7.762097415979952,
+    "timing": {
+      "preparation_seconds": 0.18440979099250399,
+      "coefficient_objective_seconds": 7.0288827500189655,
+      "curvature_seconds": 0.49012645898619667,
+      "coefficient_solver_seconds": 7.034927375003463,
+      "executor_setup_seconds": 1.1374999303370714e-05
+    },
+    "uncertainty": "coefficient covariance conditional on fluxes and hyperparameters; extracted inverse variance conditional on profile"
+  }
+}

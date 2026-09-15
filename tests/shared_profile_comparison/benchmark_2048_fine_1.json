@@ -1,0 +1,30 @@
+{
+  "configuration": {
+    "integrations": 1,
+    "columns": 2048,
+    "rows": 256,
+    "aperture": 7,
+    "spacing": 0.1,
+    "method": "gp",
+    "inducing": 4,
+    "workers": 0,
+    "optimize": false,
+    "max_seconds": 60.0,
+    "output": "tests/shared_profile_comparison/benchmark_2048_fine_1.json"
+  },
+  "platform": "macOS-26.4.1-arm64-arm-64bit",
+  "numpy": "1.26.4",
+  "scipy": "1.17.1",
+  "implementation_sha256": "2bb54ff34638d27ea7dcbc153609f7876aec2099a0c550064d40476ae477e55e",
+  "status": "timeout",
+  "failure": {
+    "type": "TimeoutError",
+    "message": "benchmark training exceeded its wall-time limit"
+  },
+  "fitting_seconds": null,
+  "elapsed_seconds": 60.00481504198979,
+  "extraction_seconds_per_integration": null,
+  "driver_peak_rss_mb": 456.081408,
+  "memory_note": "Driver peak RSS; excludes Ray workers. Synthetic images generated lazily during preparation.",
+  "diagnostics": null
+}

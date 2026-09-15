@@ -223,6 +223,9 @@ def fit_spline(x, y, nknots = None, x_knots = None):
 
     xmin, xmax = np.min(x), np.max(x)
 
+    if nknots is None and x_knots is None:
+        raise ValueError('Supply nknots or x_knots to fit_spline')
+
     if (nknots is not None) and (x_knots is not None): 
 
         knots = np.array([])

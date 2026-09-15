@@ -1,0 +1,942 @@
+{
+  "spectroscopy.getP": {
+    "args": [
+      "data",
+      "centroids",
+      "aperture_radius",
+      "ron",
+      "gain",
+      "nsigma",
+      "polynomial_spacing",
+      "polynomial_order",
+      "min_column",
+      "max_column",
+      "return_flat",
+      "data_variance"
+    ],
+    "defaults": [
+      "None",
+      "None",
+      "False",
+      "None"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "spectroscopy.getOptimalSpectrum": {
+    "args": [
+      "data",
+      "centroids",
+      "aperture_radius",
+      "ron",
+      "gain",
+      "nsigma",
+      "polynomial_spacing",
+      "polynomial_order",
+      "min_column",
+      "max_column",
+      "P",
+      "return_P",
+      "data_variance"
+    ],
+    "defaults": [
+      "None",
+      "None",
+      "None",
+      "False",
+      "None"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "spectroscopy.getFastSimpleSpectrum": {
+    "args": [
+      "data",
+      "centroids",
+      "aperture_radius",
+      "min_column",
+      "max_column",
+      "return_aperture"
+    ],
+    "defaults": [
+      "None",
+      "None",
+      "False"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "spectroscopy.getSimpleSpectrum": {
+    "args": [
+      "data",
+      "x",
+      "y",
+      "aperture_radius",
+      "background_radius",
+      "error_data",
+      "correct_bkg",
+      "method",
+      "bkg_method"
+    ],
+    "defaults": [
+      "50",
+      "None",
+      "False",
+      "'sum'",
+      "'all'"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "spectroscopy.gaussian": {
+    "args": [
+      "x",
+      "mean",
+      "sigma"
+    ],
+    "defaults": [
+      "0.0",
+      "1.0"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "spectroscopy.double_gaussian": {
+    "args": [
+      "x",
+      "mean1",
+      "mean2",
+      "sigma1",
+      "sigma2"
+    ],
+    "defaults": [
+      "-7.9",
+      "7.9",
+      "1.0",
+      "1.0"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "spectroscopy.get_ccf_convolve": {
+    "args": [
+      "signal",
+      "function",
+      "ccf_parameters"
+    ],
+    "defaults": [
+      "'gaussian'",
+      "None"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "spectroscopy.get_pm_ccf": {
+    "args": [
+      "x1",
+      "y1",
+      "x2",
+      "y2",
+      "max_shift",
+      "delta",
+      "method"
+    ],
+    "defaults": [
+      "5",
+      "0.1",
+      "'abs'"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "spectroscopy.get_ccf": {
+    "args": [
+      "x",
+      "y",
+      "function",
+      "parameters",
+      "pixelation",
+      "lag_step"
+    ],
+    "defaults": [
+      "'gaussian'",
+      "None",
+      "False",
+      "0.001"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "spectroscopy.trace_spectrum": {
+    "args": [
+      "image",
+      "dqflags",
+      "xstart",
+      "ystart",
+      "profile_radius",
+      "correct_outliers",
+      "nsigma",
+      "median_filter_radius",
+      "method",
+      "ccf_function",
+      "ccf_parameters",
+      "ccf_step",
+      "gaussian_filter",
+      "gauss_filter_width",
+      "xend",
+      "y_tolerance",
+      "verbose"
+    ],
+    "defaults": [
+      "20",
+      "False",
+      "100",
+      "5",
+      "'ccf'",
+      "'gaussian'",
+      "None",
+      "0.001",
+      "False",
+      "10",
+      "None",
+      "2",
+      "False"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "spectroscopy.get_fwhm": {
+    "args": [
+      "x",
+      "y",
+      "k"
+    ],
+    "defaults": [
+      "3"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "spectroscopy.trace_fwhm": {
+    "args": [
+      "tso",
+      "x",
+      "y",
+      "distance_from_trace"
+    ],
+    "defaults": [
+      "15"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "spectroscopy.get_mad_sigma": {
+    "args": [
+      "x"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "transitfitting.fit_lightcurves": {
+    "args": [
+      "data_dictionaries",
+      "priors",
+      "sampler",
+      "starting_points",
+      "nthreads"
+    ],
+    "defaults": [
+      "'multinest'",
+      "None",
+      "None"
+    ],
+    "vararg": null,
+    "kwarg": "kwargs"
+  },
+  "transitfitting.fit_data": {
+    "args": [
+      "data_dictionary",
+      "priors",
+      "ld_laws",
+      "output_folder",
+      "starting_point",
+      "sampler"
+    ],
+    "defaults": [
+      "'quadratic'",
+      "None",
+      "{}",
+      "'multinest'"
+    ],
+    "vararg": null,
+    "kwarg": "kwargs"
+  },
+  "transitfitting.notremote_fit_data": {
+    "args": [
+      "data_dictionary",
+      "priors",
+      "ld_laws",
+      "output_folder",
+      "starting_point",
+      "sampler"
+    ],
+    "defaults": [
+      "'quadratic'",
+      "None",
+      "{}",
+      "'multinest'"
+    ],
+    "vararg": null,
+    "kwarg": "kwargs"
+  },
+  "utils.get_transpec_signal": {
+    "args": [
+      "Rp",
+      "Rstar",
+      "Mp",
+      "aR",
+      "Teff",
+      "mu",
+      "albedo",
+      "emissivity"
+    ],
+    "defaults": [
+      "2.3",
+      "0.0",
+      "1.0"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.get_scaleheight": {
+    "args": [
+      "Rp",
+      "Mp",
+      "aR",
+      "Teff",
+      "mu",
+      "albedo",
+      "emissivity"
+    ],
+    "defaults": [
+      "2.3",
+      "0.0",
+      "1.0"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.get_phases": {
+    "args": [
+      "t",
+      "P",
+      "t0"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.function_quantiles": {
+    "args": [
+      "X",
+      "alpha",
+      "method"
+    ],
+    "defaults": [
+      "0.68",
+      "'median'"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.get_quantiles": {
+    "args": [
+      "dist",
+      "alpha",
+      "method"
+    ],
+    "defaults": [
+      "0.68",
+      "'median'"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.fit_spline": {
+    "args": [
+      "x",
+      "y",
+      "nknots",
+      "x_knots"
+    ],
+    "defaults": [
+      "None",
+      "None"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.get_mad_sigma": {
+    "args": [
+      "x",
+      "median"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.coords_to_deg": {
+    "args": [
+      "ra_coords",
+      "dec_coords"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.deg_to_coords": {
+    "args": [
+      "ra",
+      "dec"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.RA_to_deg": {
+    "args": [
+      "coords"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.DEC_to_deg": {
+    "args": [
+      "coords"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.mag_to_flux": {
+    "args": [
+      "m",
+      "merr",
+      "nsim"
+    ],
+    "defaults": [
+      "1000"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.getCalDay": {
+    "args": [
+      "JD"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.transit_predictor": {
+    "args": [
+      "year",
+      "month",
+      "P",
+      "t0",
+      "tduration",
+      "day"
+    ],
+    "defaults": [
+      "None"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.bin_at_resolution": {
+    "args": [
+      "wavelengths",
+      "depths",
+      "depths_errors",
+      "R",
+      "method"
+    ],
+    "defaults": [
+      "None",
+      "100",
+      "'mean'"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.vacuum_to_air": {
+    "args": [
+      "wavelength"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.air_to_vacuum": {
+    "args": [
+      "wavelength"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "utils.chi_square_test": {
+    "args": [
+      "data",
+      "errors",
+      "model",
+      "nparameters"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "timeseries.outlier_detector": {
+    "args": [
+      "x",
+      "nsigma",
+      "window",
+      "return_filter"
+    ],
+    "defaults": [
+      "10",
+      "200",
+      "False"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.download": {
+    "args": [
+      "pid",
+      "obs_num",
+      "mast_api_token",
+      "outputfolder",
+      "data_product"
+    ],
+    "defaults": [
+      "None",
+      "None",
+      "'uncal'"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.load.check_dataset": {
+    "args": [
+      "self",
+      "fnames",
+      "single_input"
+    ],
+    "defaults": [
+      "None",
+      "False"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.load.sort_filenames": {
+    "args": [
+      "self"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.load.check_status": {
+    "args": [
+      "self",
+      "data"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.load.fill_calibration_parameters": {
+    "args": [
+      "self",
+      "parameters",
+      "use_tso_jump",
+      "group_1f",
+      "save"
+    ],
+    "defaults": [
+      "{}",
+      "True",
+      "False",
+      "True"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.load.set_outputfolder": {
+    "args": [
+      "self",
+      "outputfolder"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.load.initialize_step": {
+    "args": [
+      "self",
+      "stepname",
+      "parameters",
+      "save",
+      "suffix",
+      "outputfolder"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.load.check_nans": {
+    "args": [
+      "self",
+      "array"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.load.interpolate_nans": {
+    "args": [
+      "self",
+      "frame",
+      "nan_location"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.load.trace_spectra": {
+    "args": [
+      "self",
+      "parameters",
+      "save",
+      "suffix",
+      "outputfolder"
+    ],
+    "defaults": [
+      "{}",
+      "True",
+      "None",
+      "None"
+    ],
+    "vararg": null,
+    "kwarg": "kwargs"
+  },
+  "jwst.load.fit_ramps": {
+    "args": [
+      "self",
+      "parameters",
+      "save",
+      "suffix",
+      "outputfolder"
+    ],
+    "defaults": [
+      "{}",
+      "True",
+      "None",
+      "None"
+    ],
+    "vararg": null,
+    "kwarg": "kwargs"
+  },
+  "jwst.load.detector_calibration": {
+    "args": [
+      "self",
+      "parameters",
+      "use_tso_jump",
+      "group_1f",
+      "save",
+      "suffix",
+      "outputfolder"
+    ],
+    "defaults": [
+      "{}",
+      "True",
+      "False",
+      "True",
+      "''",
+      "None"
+    ],
+    "vararg": null,
+    "kwarg": "kwargs"
+  },
+  "jwst.load.merge_ramps_segments": {
+    "args": [
+      "self"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.load.merge_rateints_segments": {
+    "args": [
+      "self"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.load.__init__": {
+    "args": [
+      "self",
+      "input_filenames",
+      "outputfolder"
+    ],
+    "defaults": [
+      "None"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.get_dataname": {
+    "args": [
+      "filename"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.side_refpix_correction": {
+    "args": [
+      "ramp",
+      "left_pixels",
+      "right_pixels"
+    ],
+    "defaults": [
+      "25",
+      "25"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.group_1f_correction": {
+    "args": [
+      "tso_list",
+      "npixel",
+      "nsigma",
+      "column_window",
+      "row_window",
+      "mask_radius"
+    ],
+    "defaults": [
+      "4",
+      "10",
+      "3",
+      "20",
+      "10"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.tso_jumpstep": {
+    "args": [
+      "tso_list",
+      "window",
+      "nsigma"
+    ],
+    "defaults": [
+      "10"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.cc_uniluminated_outliers": {
+    "args": [
+      "data",
+      "mask",
+      "nsigma"
+    ],
+    "defaults": [
+      "5"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.get_roeba": {
+    "args": [
+      "data",
+      "mask"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.get_loom": {
+    "args": [
+      "data",
+      "mask",
+      "background",
+      "return_parameters"
+    ],
+    "defaults": [
+      "None",
+      "False"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.download_reference_file": {
+    "args": [
+      "filename"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.get_last_minus_first": {
+    "args": [
+      "data",
+      "min_group",
+      "max_group",
+      "return_median"
+    ],
+    "defaults": [
+      "None",
+      "None",
+      "True"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.spill_filter": {
+    "args": [
+      "mask",
+      "spill_length",
+      "box_length",
+      "fraction"
+    ],
+    "defaults": [
+      "10",
+      "20",
+      "0.5"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.get_uniluminated_mask": {
+    "args": [
+      "data",
+      "pixeldq",
+      "nsigma",
+      "first_time",
+      "spill_length"
+    ],
+    "defaults": [
+      "None",
+      "3",
+      "True",
+      "10"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.get_cds": {
+    "args": [
+      "data"
+    ],
+    "defaults": [],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.correct_1f": {
+    "args": [
+      "input_frame",
+      "template_frame",
+      "x_trace",
+      "y_trace",
+      "scale_factor",
+      "inner_radius",
+      "outer_radius",
+      "return_detector"
+    ],
+    "defaults": [
+      "1.0",
+      "3",
+      "10",
+      "False"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.cds_stage1": {
+    "args": [
+      "datafiles",
+      "nintegrations",
+      "ngroups",
+      "trace_radius",
+      "ommited_trace_radius",
+      "instrument",
+      "background_model",
+      "background_mask"
+    ],
+    "defaults": [
+      "10",
+      "3",
+      "'nirspec/g395h'",
+      "None",
+      "None"
+    ],
+    "vararg": null,
+    "kwarg": null
+  },
+  "jwst.stage1": {
+    "args": [
+      "uncal_filenames",
+      "maximum_cores",
+      "background_model",
+      "outputfolder",
+      "use_tso_jump",
+      "suffix",
+      "ommit_pixeldq"
+    ],
+    "defaults": [
+      "'all'",
+      "None",
+      "''",
+      "True",
+      "''",
+      "False"
+    ],
+    "vararg": null,
+    "kwarg": "kwargs"
+  },
+  "jwst.stage2": {
+    "args": [
+      "input_dictionary",
+      "nthreads",
+      "zero_nans",
+      "scale_1f",
+      "single_trace_extraction",
+      "optimal_extraction",
+      "outputfolder",
+      "suffix",
+      "aperture_radius",
+      "mask_dq"
+    ],
+    "defaults": [
+      "None",
+      "True",
+      "True",
+      "True",
+      "False",
+      "''",
+      "''",
+      "None",
+      "False"
+    ],
+    "vararg": null,
+    "kwarg": "kwargs"
+  }
+}

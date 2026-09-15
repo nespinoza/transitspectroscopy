@@ -8,41 +8,42 @@ from scipy.sparse.linalg import lsmr
 from copy import copy, deepcopy
 from scipy.ndimage import median_filter
 
-import pandas as pd
-pd.options.display.max_colwidth = 100
+from ._optional import OptionalModule as _OptionalModule
+pd = _OptionalModule('pandas')
 from tqdm import tqdm
 from astropy.utils.data import download_file
 from astropy import units as u
 from astropy.time import Time
 from astropy.timeseries import TimeSeries
 
-from jwst.pipeline import calwebb_detector1, calwebb_spec2
-from jwst import assign_wcs, datamodels
-from jwst import __version__ as jwstversion
-from gwcs import wcstools
+calwebb_detector1 = _OptionalModule('jwst.pipeline.calwebb_detector1')
+calwebb_spec2 = _OptionalModule('jwst.pipeline.calwebb_spec2')
+assign_wcs = _OptionalModule('jwst.assign_wcs')
+datamodels = _OptionalModule('jwst.datamodels')
+wcstools = _OptionalModule('gwcs.wcstools')
+
+def __getattr__(name):
+    if name == 'jwstversion':
+        return _OptionalModule('jwst').__version__
+    raise AttributeError(name)
 
 from .utils import *
 from .spectroscopy import *
 from .timeseries import *
 
-ray_is_installed = True
+from importlib.util import find_spec as _find_spec
 try:
-
-    import ray 
- 
-except:
-
-    print('Warning: Could not import the "ray" library. If you want to parallelize tracing and spectral extraction, please install by doing "pip install ray".')
-
+    ray_is_installed = _find_spec('ray') is not None
+except (ImportError, ValueError):
     ray_is_installed = False
+ray = _OptionalModule('ray')
 
-try:
+# A class-like lazy alias preserves Observations.query_criteria, etc.
+class _ObservationsProxy:
+    def __getattr__(self, name):
+        return getattr(_OptionalModule('astroquery.mast').Observations, name)
 
-    from astroquery.mast import Observations
-
-except:
-
-    print('Warning: astroquery.mast.Observations not loaded. Will not be able to automatically download JWST data.')
+Observations = _ObservationsProxy()
 
 def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_product = 'uncal'):
     """
@@ -89,8 +90,10 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
         Observations.login(token=mast_api_token)
 
     data_product = data_product.upper()
+    if data_product == 'RAMPS':
+        data_product = 'RAMP'
 
-    if data_product not in ['UNCAL', 'RAMPS', 'RATEINTS', 'DARK']:
+    if data_product not in ['UNCAL', 'RAMP', 'RATEINTS', 'DARK']:
 
         raise Exception("Error: data product "+data_product+" not recognized. It has to be 'uncal', 'ramps' or 'rateints'")
 
@@ -211,6 +214,7 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
                        }
 
     # Convert to pandas for neater output to user:
+    pd.options.display.max_colwidth = 100
     downloaded_files = pd.DataFrame(downloaded_files)
     print(downloaded_files)
 
@@ -300,7 +304,7 @@ class load(object):
 
         # Extract instrument/mode:
         self.instrument = data.meta.instrument.name.lower()
-        self.filter = data.meta.instrument.filter.lower()
+        self.filter = str(data.meta.instrument.filter).lower()
 
         if data.meta.instrument.grating is not None:
         
@@ -329,7 +333,7 @@ class load(object):
             steplist = dir(data.meta.cal_step)
             if 'emicorr' not in steplist:
 
-                print('Warning! Using version ',jwstversion,' of the JWST Calibration pipeline, which does NOT have the emicorr step. Upgrade to run the step.')
+                print('Warning! Using version ', __getattr__('jwstversion'), ' of the JWST Calibration pipeline, which does NOT have the emicorr step. Upgrade to run the step.')
                 self.status['emicorr'] = None
 
             else:
@@ -357,7 +361,7 @@ class load(object):
             print('\t    - Instrument/Mode: NIRISS/SOSS\n')
             self.mode = 'niriss/soss'
 
-        elif self.instrument == 'miri' and self.dispersive_element is 'None':
+        elif self.instrument == 'miri' and self.dispersive_element == 'None':
 
             print('\t    - Instrument/Mode: MIRI/Photometry ({0:})\n'.format(self.filter.upper()))
             self.mode = 'miri/photometry'
@@ -528,7 +532,10 @@ class load(object):
         checks/sets output folder and checks/sets suffixes
         """
 
-        # First of all, double check if self.calibration_parameters exists (this function can be run without 
+        if suffix is None and not hasattr(self, 'suffix'):
+            suffix = ''
+
+        # First of all, double check if self.calibration_parameters exists (this function can be run without
         # running detector_calibration). If it hasn't, initialize the calibration_parameters:
         if not hasattr(self, 'calibration_parameters'):
 
@@ -568,6 +575,7 @@ class load(object):
         # Check suffix if new or if not already defined:
         if (suffix is not None) or (suffix is None and not hasattr(self, 'suffix')):
 
+            suffix = '' if suffix is None else suffix
             self.suffix = suffix
 
             if suffix != '':
@@ -602,16 +610,17 @@ class load(object):
     def interpolate_nans(self, frame, nan_location):
 
         # Copy input frame so we save corrected pixels in there:
-        corrected_frame = copy.deepcopy(frame)
+        corrected_frame = deepcopy(frame)
+        corrected_frame[nan_location] = 0.
 
         # Compute median filter:
-        mf = median_filter(median_rate, [self.calibration_parameters['tracing']['row_window'], 
+        mf = median_filter(corrected_frame, [self.calibration_parameters['tracing']['row_window'],
                                          self.calibration_parameters['tracing']['column_window']
                                         ]
                           )
 
         # Fill nans with median filters:
-        corrected_frame[nan_locations] = mf[nan_locations]
+        corrected_frame[nan_location] = mf[nan_location]
     
         # Return corrected frame:
         return corrected_frame
@@ -1664,6 +1673,9 @@ def spill_filter(mask, spill_length = 10, box_length = 20, fraction = 0.5):
 
             box = mask[row - int(box_length*0.5) : row + int(box_length*0.5), column - int(box_length*0.5) : column + int(box_length*0.5)]
 
+            if box.size == 0:
+                continue  # The legacy NaN comparison also skipped empty boxes.
+
             idx_box = np.where(box == 0.)[0]
             current_fraction = np.double( len(idx_box) ) / np.double(box.shape[0] * box.shape[1])
 
@@ -1709,6 +1721,7 @@ def get_uniluminated_mask(data, pixeldq = None, nsigma = 3, first_time = True, s
 
     # Create bad-pixel mask, if pixeldq is available:
     data_quality = np.ones(data.shape)
+    idx_bad_pixels = np.where(np.zeros(data.shape, dtype=bool))
 
     if pixeldq is not None:
 
@@ -2433,7 +2446,129 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
     return output_dictionary
 
-def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, optimal_extraction = False, outputfolder = '', suffix = '', aperture_radius = None, mask_dq = False, **kwargs):
+def _optimal_frame(data, errors):
+    """Prepare one integration without duplicating an entire visit's arrays."""
+    frame = data.copy()
+    variance = errors**2
+    invalid = ~np.isfinite(frame) | ~np.isfinite(variance) | (variance <= 0)
+    frame[invalid] = -9999
+    return frame, variance
+
+
+class _SharedVarianceSequence:
+    """Square one integration's error image at a time during profile training."""
+    def __init__(self, errors):
+        self.errors = errors
+
+    def __len__(self):
+        return len(self.errors)
+
+    def __getitem__(self, index):
+        return self.errors[index]**2
+
+
+class _Stage2SharedMask:
+    """Recover original invalid/DQ pixels after legacy Stage 2 image filling."""
+    def __init__(self, inputs, mask_dq, columns):
+        self.products = inputs['rampstep']
+        self.stops = np.cumsum(inputs['ints_per_segment'])
+        self.mask_dq, self.columns = mask_dq, columns
+
+    def __len__(self):
+        return int(self.stops[-1])
+
+    def __getitem__(self, index):
+        if index < 0 or index >= len(self):
+            raise IndexError(index)
+        segment = int(np.searchsorted(self.stops,index,side='right'))
+        local = index-(0 if segment == 0 else self.stops[segment-1])
+        product = self.products[segment]
+        image, error = product.data[local,:,self.columns], product.err[local,:,self.columns]
+        invalid = ~np.isfinite(image) | (image == -9999) | ~np.isfinite(error) | (error <= 0)
+        if self.mask_dq:
+            dq = product.dq[local] if product.dq.ndim == 3 else product.dq
+            invalid |= dq[:,self.columns] != 0
+        return invalid
+
+
+class _CombinedSharedMask:
+    def __init__(self, primary, secondary, count):
+        self.primary, self.secondary, self.count = primary, secondary, count
+
+    def __len__(self):
+        return self.count
+
+    def __getitem__(self,index):
+        if index < 0 or index >= self.count:
+            raise IndexError(index)
+        if self.primary is None:
+            return self.secondary[index]
+        if self.secondary is None:
+            return self.primary[index]
+        return np.asarray(self.primary[index],dtype=bool) | np.asarray(self.secondary[index],dtype=bool)
+
+
+def _shared_cache_json(value):
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        import hashlib
+        digest = hashlib.sha256()
+        for part in np.atleast_1d(value):
+            digest.update(np.ascontiguousarray(part).tobytes())
+        return dict(shape=list(value.shape), dtype=str(value.dtype), sha256=digest.hexdigest())
+    raise TypeError('shared profile cache settings must be JSON values or NumPy arrays')
+
+
+def _extract_shared_sequence(data, errors, traces, reference_trace, specification,
+                             options, radius, spacing, method, order, gp_options,
+                             nsigma, nthreads, coordinates, validity_mask=None):
+    from .shared_profile import SharedProfile, fit_shared_profile
+    options = dict(options or {})
+    store_profiles = options.pop('store_profiles', False)
+    supplied_mask, supplied_background = options.pop('mask',None), options.pop('background',None)
+    combined_mask = (None if validity_mask is None and supplied_mask is None else
+                     _CombinedSharedMask(validity_mask,supplied_mask,len(data)))
+    if isinstance(specification, str) and specification == 'train':
+        reserved = {'aperture_radius', 'spacing', 'profile_method', 'polynomial_order',
+                    'gp_options', 'dispersion_coordinates'}
+        if set(options) & reserved:
+            raise ValueError('shared_profile_options duplicates Stage 2 geometry/profile options')
+        options.setdefault('execution', 'serial' if nthreads is None else 'ray')
+        options.setdefault('n_workers', 1 if nthreads is None else nthreads)
+        model = fit_shared_profile(data, _SharedVarianceSequence(errors), traces,
+                                   aperture_radius=radius, spacing=spacing,
+                                   profile_method=method, polynomial_order=order,
+                                   gp_options=gp_options, dispersion_coordinates=coordinates,
+                                   mask=combined_mask, background=supplied_background,
+                                   **options)
+    else:
+        model = specification
+        if options:
+            raise ValueError('a supplied SharedProfile cannot have training options')
+        if not isinstance(model, SharedProfile):
+            raise ValueError('shared_profile must be "train" or a SharedProfile instance')
+        if model.aperture_radius != radius or model.spacing != spacing:
+            raise ValueError('supplied shared profile has different aperture/spacing')
+    spectra, errors_out = [], []
+    profiles = [] if store_profiles else None
+    # The expensive training is distributed when requested. Evaluation/extraction
+    # streams integrations and never builds a full P_t cube unless requested.
+    for index,(image, error, trace) in enumerate(zip(data, errors, traces)):
+        result = model.extract(image, trace, error**2, nsigma=nsigma,
+                               mask=None if combined_mask is None else combined_mask[index],
+                               background=None if supplied_background is None else supplied_background[index],
+                               dispersion_coordinates=coordinates)
+        spectra.append(result[1])
+        errors_out.append(np.sqrt(np.divide(1., result[2], out=np.full(len(trace), np.inf),
+                                            where=result[2] > 0)))
+        if store_profiles:
+            profiles.append(model.evaluate(trace))
+    return (np.asarray(spectra), np.asarray(errors_out), model.evaluate(reference_trace),
+            None if profiles is None else np.asarray(profiles), model)
+
+
+def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, optimal_extraction = False, outputfolder = '', suffix = '', aperture_radius = None, mask_dq = False, extraction_backend='auto', profile_method='polynomial', gp_options=None, extraction_options=None, shared_profile=None, shared_profile_options=None, **kwargs):
     """
     This function takes an `input_dictionary` having as keys the `rampstep` products on a (chronologically-ordered) list, `times` having the times at 
     each integration in BJD and the integrations per segment `ints_per_segment`. Using those, it performs wavelength calibration, spectral tracing and 
@@ -2467,6 +2602,25 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         (Optional) Suffix to add to each out the outputs.
     mask_dq : string
         (Optional) Mask pixels that don't have dq of 0.
+    extraction_backend : {'auto', 'c', 'python'}
+        Optimal-extraction backend. Auto preserves C when installed, otherwise Python.
+    profile_method : {'polynomial', 'gp'}
+        GP is experimental, opt-in joint spatial-profile fitting; errors remain
+        conditional on the fitted profile. Requires optimal_extraction=True.
+    gp_options : dict or None
+        Fixed GP kernel, length_scale (dispersion pixels), amplitude, n_inducing.
+    extraction_options : dict or None
+        Override polynomial_spacing, polynomial_order (number of terms), nsigma.
+        Explicit extraction settings get distinct spectrum cache filenames.
+    shared_profile : None, 'train', or SharedProfile
+        Opt-in native-pixel extraction with one intrinsic profile evaluated at
+        each supplied trace. Use single_trace_extraction=False for trace motion.
+        'train' fits on selected integrations; an existing model is never refit.
+    shared_profile_options : dict or None
+        Additional fit_shared_profile options, including training_indices and
+        optimize_hyperparameters. store_profiles=True additionally stores all
+        evaluated P_t arrays; otherwise Ps is None and P is a reference rendering.
+        The fitted model is stored in spectra['shared_profile'] and as an NPZ.
 
     Returns
     -------
@@ -2475,6 +2629,46 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         Dictionary containing the traces, FWHM, extracted spectra as well as lightcurves at the resolution-level of the instrument     
  
     """
+
+    extraction_options = dict(extraction_options or {})
+    if set(extraction_options) - {'polynomial_spacing', 'polynomial_order', 'nsigma'}:
+        raise ValueError('Unknown extraction_options key')
+    if extraction_backend not in ('auto', 'c', 'python') or profile_method not in ('polynomial', 'gp'):
+        raise ValueError('Invalid extraction_backend or profile_method')
+    if gp_options is not None and profile_method != 'gp':
+        raise ValueError('gp_options requires profile_method="gp"')
+    if profile_method == 'gp' and (not optimal_extraction or extraction_backend == 'c'):
+        raise ValueError('GP requires optimal extraction with the Python backend')
+    if shared_profile is not None:
+        from .shared_profile import SharedProfile
+        if not isinstance(shared_profile, SharedProfile) and not (
+                isinstance(shared_profile, str) and shared_profile == 'train'):
+            raise ValueError('shared_profile must be "train" or a SharedProfile instance')
+        if not optimal_extraction or extraction_backend == 'c':
+            raise ValueError('shared profiles require optimal extraction with Python')
+        if isinstance(shared_profile, SharedProfile):
+            if gp_options is not None:
+                raise ValueError('supplied SharedProfile already contains frozen GP options')
+            profile_method = shared_profile.profile_method
+            if aperture_radius is None:
+                aperture_radius = shared_profile.aperture_radius
+            extraction_options.setdefault('polynomial_spacing', shared_profile.spacing)
+            extraction_options.setdefault('polynomial_order', shared_profile.diagnostics.get('polynomial_order',3))
+    elif shared_profile_options is not None:
+        raise ValueError('shared_profile_options requires shared_profile')
+    custom_extraction = (extraction_backend != 'auto' or profile_method != 'polynomial'
+                         or bool(extraction_options) or shared_profile is not None)
+    extraction_settings = dict(backend=extraction_backend, profile_method=profile_method,
+                               gp_options=gp_options, options=extraction_options,
+                               aperture_radius=aperture_radius)
+    if shared_profile is not None:
+        from .shared_profile import _VERSION as shared_profile_version
+        extraction_settings['shared_profile_version'] = shared_profile_version
+        extraction_settings['shared_profile'] = (shared_profile if isinstance(shared_profile, str)
+                                                  else shared_profile.fingerprint())
+        extraction_settings['shared_profile_options'] = shared_profile_options
+        extraction_settings['single_trace_extraction'] = single_trace_extraction
+        extraction_settings['preprocessing'] = dict(zero_nans=zero_nans, scale_1f=scale_1f, mask_dq=mask_dq)
 
     # Add _ if suffix is given to the actual_suffix:
     if suffix != '':
@@ -2597,9 +2791,11 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
         # Same for errors:
         median_rate_err_nan = np.nanmedian(tso_err, axis = 0)
-        median_rate_err[idx] = 0.
+        median_rate_err = deepcopy(median_rate_err_nan)
+        idx_err = np.isnan(median_rate_err)
+        median_rate_err[idx_err] = 0.
         mf_median_err_rate = median_filter(median_rate_err, [row_window, column_window])
-        median_rate_err[idx] = mf_median_err_rate[idx]
+        median_rate_err[idx_err] = mf_median_err_rate[idx_err]
 
     # Same for the entire TSO:
     for i in range(tso.shape[0]):
@@ -2855,6 +3051,25 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
         suffix = 'optimal_' + suffix 
         actual_suffix = '_' + suffix
+        if custom_extraction:
+            import hashlib
+            import json
+            if shared_profile is not None:
+                # New-model cache identity includes actual input/trace content.
+                # Hash per integration, avoiding a second full-cube allocation.
+                content = hashlib.sha256()
+                shared_columns = output_dictionary['traces']['x']
+                shared_mask = _Stage2SharedMask(input_dictionary,mask_dq,
+                                                slice(shared_columns[0],shared_columns[-1]+1))
+                for array in (tso, tso_err, output_dictionary['traces']['ysmoothed']):
+                    for integration in array:
+                        content.update(np.ascontiguousarray(integration).tobytes())
+                for integration in shared_mask:
+                    content.update(np.ascontiguousarray(integration).tobytes())
+                extraction_settings['input_fingerprint'] = content.hexdigest()
+            identity = json.dumps(extraction_settings, sort_keys=True, allow_nan=False,
+                                  default=_shared_cache_json)
+            actual_suffix += '_' + profile_method + '_' + hashlib.sha256(identity.encode()).hexdigest()[:12]
 
     # Extract spectra:
     if os.path.exists( outputfolder+'pipeline_outputs/spectra'+actual_suffix+'.pkl' ):
@@ -2921,6 +3136,10 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             spectra_bkg_substraction = True
             spectra_bkg_inner_radius = 10
             spectra_bkg_outer_radius = None
+
+        spectra_oe_polynomial_spacing = extraction_options.get('polynomial_spacing', spectra_oe_polynomial_spacing)
+        spectra_oe_polynomial_order = extraction_options.get('polynomial_order', spectra_oe_polynomial_order)
+        spectra_oe_nsigma = extraction_options.get('nsigma', spectra_oe_nsigma)
 
         if spectra_bkg_substraction:
 
@@ -2991,7 +3210,19 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
                                           outer_radius = spectra_1f_outer_radius
                                           )
         
-        if optimal_extraction:
+        if optimal_extraction and shared_profile is not None:
+            print('\t    - Training/evaluating a shared intrinsic profile.')
+            x = output_dictionary['traces']['x']
+            shared_traces = (np.broadcast_to(y1, (len(tso), len(y1))) if single_trace_extraction
+                             else output_dictionary['traces']['ysmoothed'])
+            spectra, spectra_err, P, Ps, shared_model = _extract_shared_sequence(
+                tso[:, :, x[0]:x[-1]+1], tso_err[:, :, x[0]:x[-1]+1], shared_traces, y1,
+                shared_profile, shared_profile_options, spectra_aperture_radius,
+                spectra_oe_polynomial_spacing, profile_method, spectra_oe_polynomial_order,
+                gp_options, spectra_oe_nsigma, nthreads, x, validity_mask=shared_mask)
+            shared_model.save(outputfolder+'pipeline_outputs/shared_profile'+actual_suffix+'.npz')
+
+        elif optimal_extraction:
 
             print('\t    - Performing spectral extraction via Optimal Extraction.')
 
@@ -3013,9 +3244,12 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                         x, y = output_dictionary['traces']['x'], y1
 
-                    Ps[i, :, :] = getP(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
+                    optimal_data, optimal_variance = _optimal_frame(
+                        tso[i, :, x[0]:x[-1]+1], tso_err[i, :, x[0]:x[-1]+1])
+                    Ps[i, :, :] = getP(optimal_data, y, spectra_aperture_radius, 1., 1.,
                                        spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
-                                       data_variance = tso_err[i, :, x[0]:x[-1]+1]**2)
+                                       data_variance=optimal_variance,
+                                       backend=extraction_backend, profile_method=profile_method, gp_options=gp_options)
 
             else:
 
@@ -3039,9 +3273,12 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                         x, y = output_dictionary['traces']['x'], y1
 
-                    all_Ps.append( ray_getP.remote(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
+                    optimal_data, optimal_variance = _optimal_frame(
+                        tso[i, :, x[0]:x[-1]+1], tso_err[i, :, x[0]:x[-1]+1])
+                    all_Ps.append( ray_getP.remote(optimal_data, y, spectra_aperture_radius, 1., 1.,
                                                     spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
-                                                    data_variance = tso_err[i, :, x[0]:x[-1]+1]**2
+                                                    data_variance=optimal_variance,
+                                                    backend=extraction_backend, profile_method=profile_method, gp_options=gp_options
                                                   ) 
                                  )
 
@@ -3073,9 +3310,12 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                         x, y = output_dictionary['traces']['x'], y1
 
-                    opt_spec = getOptimalSpectrum(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
+                    optimal_data, optimal_variance = _optimal_frame(
+                        tso[i, :, x[0]:x[-1]+1], tso_err[i, :, x[0]:x[-1]+1])
+                    opt_spec = getOptimalSpectrum(optimal_data, y, spectra_aperture_radius, 1., 1.,
                                                   spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
-                                                  data_variance = tso_err[i, :, x[0]:x[-1]+1]**2, 
+                                                  data_variance=optimal_variance,
+                                                  backend=extraction_backend, profile_method=profile_method,
                                                   P = P
                                                  )
 
@@ -3104,9 +3344,12 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
                         x, y = output_dictionary['traces']['x'], y1
 
-                    all_spectra.append( ray_getOS.remote(tso[i, :, x[0]:x[-1]+1], y, spectra_aperture_radius, 1., 1.,
+                    optimal_data, optimal_variance = _optimal_frame(
+                        tso[i, :, x[0]:x[-1]+1], tso_err[i, :, x[0]:x[-1]+1])
+                    all_spectra.append( ray_getOS.remote(optimal_data, y, spectra_aperture_radius, 1., 1.,
                                                          spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
-                                                         data_variance = tso_err[i, :, x[0]:x[-1]+1]**2,
+                                                         data_variance=optimal_variance,
+                                                         backend=extraction_backend, profile_method=profile_method,
                                                          P = P
                                                         )
                                       )
@@ -3150,6 +3393,10 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
             output_dictionary['spectra']['Ps'] = Ps
             output_dictionary['spectra']['P'] = P
+            if shared_profile is not None:
+                output_dictionary['spectra']['shared_profile'] = shared_model
+            if custom_extraction:
+                output_dictionary['spectra']['extraction_settings'] = extraction_settings
 
         # Now correct for outliers not accounted for in previous steps:
         master_spectra = np.zeros(spectra.shape)

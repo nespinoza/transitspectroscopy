@@ -1,14 +1,9 @@
 import numpy as np
 
-import juliet
+from ._optional import OptionalModule as _OptionalModule, LazyRemote as _LazyRemote
 
-try:
-
-    import ray
-
-except:
-
-    print('Could not import the "ray" library. If you want to parallelize lightcurve fitting, please install by doing "pip install ray".')
+juliet = _OptionalModule('juliet')
+ray = _OptionalModule('ray')
 
 def fit_lightcurves(data_dictionaries, priors, sampler = 'multinest', starting_points = None, nthreads = None, **kwargs):
     """
@@ -108,7 +103,7 @@ def fit_lightcurves(data_dictionaries, priors, sampler = 'multinest', starting_p
 
     return results
 
-@ray.remote
+@_LazyRemote
 def fit_data(data_dictionary, priors, ld_laws = 'quadratic', output_folder = None, starting_point = {}, sampler = 'multinest', **kwargs):
 
     """
@@ -225,7 +220,7 @@ def fit_data(data_dictionary, priors, ld_laws = 'quadratic', output_folder = Non
                               ld_laws = ld_laws)
 
     # With the dataset set, run the fit:
-    dataset.fit(sampler = sampler, **kwargs)
+    return dataset.fit(sampler = sampler, **kwargs)
 
 def notremote_fit_data(data_dictionary, priors, ld_laws = 'quadratic', output_folder = None, starting_point = {}, sampler = 'multinest', **kwargs):
 

@@ -1,0 +1,96 @@
+{
+  "configuration": {
+    "integrations": 1,
+    "columns": 2048,
+    "rows": 256,
+    "aperture": 7,
+    "spacing": 1.0,
+    "method": "gp",
+    "inducing": 16,
+    "workers": 0,
+    "optimize": false,
+    "max_seconds": 300.0,
+    "output": "tests/shared_profile_comparison/benchmark_2048_1.json"
+  },
+  "platform": "macOS-26.4.1-arm64-arm-64bit",
+  "numpy": "1.26.4",
+  "scipy": "1.17.1",
+  "implementation_sha256": "2bb54ff34638d27ea7dcbc153609f7876aec2099a0c550064d40476ae477e55e",
+  "status": "converged",
+  "failure": null,
+  "fitting_seconds": 0.9831364589917939,
+  "elapsed_seconds": 0.9831364589917939,
+  "extraction_seconds_per_integration": 0.008473641701857559,
+  "driver_peak_rss_mb": 206.487552,
+  "memory_note": "Driver peak RSS; excludes Ray workers. Synthetic images generated lazily during preparation.",
+  "diagnostics": {
+    "version": 1,
+    "approximation": "Laplace conditional on optimized training fluxes",
+    "objective": 124548.55862335015,
+    "hyperparameters_optimized": false,
+    "hyperparameter_bounds": {
+      "amplitude": [
+        0.03,
+        10.0
+      ],
+      "length_scale": [
+        136.46666666666667,
+        20470.0
+      ]
+    },
+    "boundary_parameters": [],
+    "starts": [],
+    "outer_results": [],
+    "evaluations": [
+      {
+        "objective": 124548.55862335015,
+        "options": {
+          "amplitude": 1.0,
+          "length_scale": 409.39999999999986,
+          "kernel": "matern32",
+          "n_inducing": 16
+        },
+        "inner_iterations": 17,
+        "gradient_max": 7.600960540676827e-05,
+        "inner_message": "coefficient Newton decrement converged (tolerance=1e-08)",
+        "coefficient_objective_calls": 34
+      }
+    ],
+    "training_indices": [
+      0
+    ],
+    "integration_ids": [
+      "0"
+    ],
+    "training_fingerprint": "7dd01eda38863becb40392f965c028f77cc5fab86b2215b165dd686df1985169",
+    "training": [
+      {
+        "index": 0,
+        "chi2": 28338.6815563347,
+        "valid_pixels": 30720,
+        "flux_min": 8226.351439892826,
+        "flux_max": 12363.122378594884,
+        "flux_median": 10958.793181288142
+      }
+    ],
+    "execution": "serial",
+    "n_workers": 1,
+    "active_workers": 1,
+    "batch_size": 8,
+    "initial_width": 1.5,
+    "polynomial_order": 3,
+    "coefficient_dimension": 256,
+    "cropped_data_mb": 0.784384,
+    "curvature_mb": 0.524288,
+    "estimated_working_memory_mb": 72.108032,
+    "seconds": 0.9826457500166725,
+    "timing": {
+      "preparation_seconds": 0.022257667005760595,
+      "coefficient_objective_seconds": 0.895330253028078,
+      "curvature_seconds": 0.048720666993176565,
+      "coefficient_solver_seconds": 0.9028726659889799,
+      "executor_setup_seconds": 7.875001756474376e-06
+    },
+    "uncertainty": "coefficient covariance conditional on fluxes and hyperparameters; extracted inverse variance conditional on profile"
+  }
+}
