@@ -1,5 +1,115 @@
 # CODEX_CHANGELOG
 
+## 2026-09-15 — JWST 3 compatibility and complete Conda environments
+
+Updated this checkout for **JWST 3.0.0**, the latest stable release verified on
+2026-09-15 ([release metadata](https://pypi.org/project/jwst/3.0.0/)). The primary
+environment uses NumPy 2 and modern JWST data models; it does not pin an older
+pipeline to retain the removed ramp `ERR` field. Package version remains 0.4.1.
+
+### Code and compatibility
+
+- Import the lazy data-model alias from `stdatamodels.jwst.datamodels`, the
+  maintained namespace. Existing `transitspectroscopy.jwst.datamodels` access
+  and public function signatures/defaults remain available.
+- `load.merge_ramps_segments()` inspects each segment's optional errors,
+  preserving provided arrays even when other segments lack them. It retains
+  linked science/DQ/error views and rejects malformed error shapes instead of
+  masking failures with a broad exception. Absent, `None`, or empty error arrays
+  are treated as unavailable. Modern models are not assigned an artificial
+  `err` field.
+- Preserve the existing zero-filled `ramps_err` compatibility array for missing
+  errors. New `ramps_err_available` is a boolean vector indexed by integration;
+  it distinguishes supplied errors from placeholders. Zero placeholders are
+  **not uncertainties** and must not be used for weighting. No ramp/group noise
+  model or RON/gain estimator was introduced. Rate-product `err` arrays remain
+  independently populated and linked by `merge_rateints_segments()`.
+- Remove the unused full-size error cube and unconditional `dm.err` read from
+  `cds_stage1()`. Its CDS signal calculation and return convention are unchanged;
+  input FITS models now close after their data and timestamps are copied.
+- Update CCF's NumPy interface to use `PyArray_DATA` and `import_array()`.
+  Its numerical equations are unchanged, and live C/Python comparisons pass
+  under both NumPy 1 and NumPy 2. **Marsh.c is unchanged** and remains an optional
+  scientific reference built separately with NumPy 1. Archived simulation
+  results and their original source hashes were not rewritten.
+- Real environment validation exposed a separate juliet adapter failure:
+  the public default `starting_point={}` made juliet look up absent free
+  parameters while saving `priors.dat`, before nested sampling began. Both
+  serial and Ray adapters now translate an empty mapping to juliet's `None`.
+  Supplied nonempty starting points and public defaults are preserved. All four
+  combinations of GP/linear regressors are covered for both adapter paths.
+
+### Environments and operating instructions
+
+- Created/upgraded **`transitspectroscopy`** at
+  `/Users/newen/anaconda3/envs/transitspectroscopy` from `environment.yml`, and
+  installed this checkout with `pip install --no-build-isolation --no-deps .`.
+  Validated Python 3.12.14, NumPy 2.2.6, SciPy 1.17.1, Astropy 7.2.2, JWST 3.0.0,
+  stdatamodels 6.0.0, stcal 1.20.0, GWCS 1.0.3, and CRDS 14.0.0 on macOS arm64.
+  Python 3.12 is the recommended full-pipeline target: current JWST support,
+  working compiled fitting dependencies, and a longer support lifetime than
+  the previous Python 3.11 baseline.
+- The full environment supplies juliet 2.2.10, Ray 2.58.0, Astroquery,
+  JupyterLab/ipykernel, plotting, test/build tools, GSL, native MultiNest 3.10,
+  PyMultiNest 2.12, george 0.4.4, celerite 0.4.3, Dynesty 2.1.5 and emcee.
+  Native MultiNest is included because it is the repository's default sampler.
+  The installed Conda celerite build reports distribution metadata `0.0.0`, but
+  its module and Conda package report 0.4.3; actual covariance solves pass.
+- Created **`transitspectroscopy-c-reference`** from
+  `environment-c-reference.yml`, with Python 3.11 and NumPy 1.26.4, for the
+  unchanged Marsh reference. It is not a JWST runtime and contains no older
+  JWST pin. Reference binaries were built under
+  `/private/tmp/transitspectroscopy-jwst3-c-reference`; keep that directory off
+  the main environment's `PYTHONPATH`.
+- Persisted `CRDS_SERVER_URL=https://jwst-crds.stsci.edu` and the local
+  `CRDS_PATH=/Users/newen/.cache/crds` for the primary environment. The portable
+  YAML contains the server URL; README explains choosing/persisting a local
+  cache directory and recording `CRDS_CONTEXT` with science results.
+- Updated README installation, upgrade, activation, notebooks, validation and
+  legacy-reference instructions. YAMLs pin key compatibility dependencies but
+  are not full lockfiles; archive a resolved environment with an analysis.
+  MultiNest 3.10's native 100-character filename limit was encountered during
+  validation with macOS's long default temporary path. The smoke check now uses
+  a short `/tmp` path; users should keep MultiNest output paths short as well.
+
+### Validation
+
+- New `tests/test_jwst_compatibility.py`: missing/mixed/legacy ramp errors,
+  linked arrays and repeated merging, invalid error shapes, CDS ingestion
+  without accessing errors, real installed JWST entry points, real FITS
+  round-trip without adding an ERR field, and a real two-integration JWST ramp
+  fit using local gain/read-noise reference FITS. The input slope of 50 DN/s is
+  recovered to `rtol=1e-5`, and output rate uncertainties remain finite and
+  positive. These tests need no network; installed-JWST checks skip when absent.
+- On the upgraded stack, **76 distinct tests passed** across the standard suite,
+  targeted adapter tests and opt-in Ray checks. The standard run passed 70 tests;
+  both real Ray GP/polynomial comparisons passed separately, and the final
+  28-test compatibility module included four additional adapter cases. The 11
+  live Marsh-only cases run in the separate reference environment.
+- With the freshly built NumPy 1 C references, **82 distinct tests passed**
+  across the full suite (78 passed) and final expanded compatibility module
+  (28 passed, including four additional cases). Five tests were skipped: three
+  installed-JWST checks and two opt-in Ray cases. Numerical warnings were treated as errors
+  (`-W error::RuntimeWarning`). Existing shared-profile warnings about GP length
+  scale reaching a bound were retained rather than suppressed.
+- `tests/check_environment.py` validates the installed package and optional
+  dependencies, real george/celerite covariance solves, and noisy synthetic
+  transit inference through the actual adapter with MultiNest and Dynesty.
+  Injected radius ratio: 0.1; recovered medians in the validation run were
+  approximately **0.09979** and **0.09981**. This is an installation smoke check,
+  not a precision/bias study; sampler realizations can vary.
+- Separately exercised the installed `RampFitStep.call()` with real CRDS
+  configuration lookup and synthetic local gain/read-noise references.
+  JWST 3.0.0 selected `jwst_1584.pmap` and recovered the expected slope.
+  Only small CRDS configuration/mapping files were fetched for this check.
+  `pip check` reported no broken requirements.
+
+These checks establish the exercised interfaces and synthetic behavior; they
+do not certify every observing mode or replace a reduction of a real exposure
+with its instrument-specific WCS and calibration references. Existing extraction
+defaults, scientific fixtures, profile inference algorithms, CDS timing
+conventions, DQ policy and known unfinished features were not redesigned.
+
 ## 2026-09-13 — Unreleased: compatibility baseline and Python extraction
 
 Implemented priorities 1 and 2 from `CODEX_IMPLEMENTATION_RECS.md`, starting from

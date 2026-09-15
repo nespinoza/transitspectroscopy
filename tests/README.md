@@ -12,6 +12,23 @@ Astropy, jdcal, tqdm, and pytest. Matplotlib is needed to regenerate figures.
 The original interactive `spectral_extraction.py` and `ccf.py` demonstrations
 remain available and are not collected as pytest tests.
 
+For the full JWST 3 environment, follow [the installation instructions](../README.md#installation).
+`test_jwst_compatibility.py` adds real JWST FITS round-trip and ramp-fitting
+checks with small local reference files; these tests run offline and skip when
+JWST/stdatamodels is absent. They verify modern ramps without `ERR`, older/mixed
+segments with errors, and preservation of rate-product uncertainties.
+
+After installing the checkout in that environment, also run:
+
+```bash
+python tests/check_environment.py
+```
+
+This checks the installed dependencies, performs real george/celerite GP
+covariance solves, and recovers a noisy synthetic transit with native MultiNest
+and Dynesty through the library's fitting adapter. Sampler outputs go to a
+temporary directory. It needs no observation downloads or CRDS cache.
+
 ## Inspect the simulations
 
 Both cases contain Poisson photon noise plus Gaussian read noise (5 electrons,
@@ -43,7 +60,9 @@ remains the default.
 
 ## Regenerate with the actual C backend
 
-Use a separate environment with NumPy < 2 for the unchanged legacy C sources:
+Use a separate environment with NumPy < 2 for the unchanged Marsh C source.
+[environment-c-reference.yml](../environment-c-reference.yml) supplies GSL and
+the compiler through Conda (see the root README); alternatively:
 
 ```bash
 python -m venv /tmp/ts-validation
@@ -60,6 +79,11 @@ editing or installing them:
 PYTHONPATH=/tmp/ts-c-reference /tmp/ts-validation/bin/python -m pytest tests -q
 PYTHONPATH=/tmp/ts-c-reference /tmp/ts-validation/bin/python tests/compare_extraction.py
 ```
+
+The September 15 CCF update only changes NumPy API initialization and array
+access; its numerical equations are unchanged. The archived fixtures retain
+their original source hashes. Marsh itself has not changed. Keep NumPy 1 C
+reference binaries off the NumPy 2 pipeline environment's `PYTHONPATH`.
 
 `compare_extraction.py` requires C and fails clearly if it is unavailable. It
 never labels a Python result as C. Its default output is the checked-in

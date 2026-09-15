@@ -73,9 +73,10 @@ assert not any(x in sys.modules for x in ['jwst','juliet','ray','pandas','astroq
     assert result.returncode == 0, result.stderr
 
 
+@pytest.mark.parametrize('starting_point', [None, {'p_p1': .1}])
 @pytest.mark.parametrize('regressors', [(), ('GP_external_parameters',),
     ('linear_external_parameters',), ('GP_external_parameters','linear_external_parameters')])
-def test_serial_parallel_fits_return_results(monkeypatch, regressors):
+def test_serial_parallel_fits_return_results(monkeypatch, regressors, starting_point):
     calls = []
     def load(**kwargs):
         calls.append(kwargs)
@@ -88,10 +89,13 @@ def test_serial_parallel_fits_return_results(monkeypatch, regressors):
     monkeypatch.setattr(transitfitting.fit_data, '_remote', None)
     data = {'times':np.arange(5.), 'flux':np.ones(5), 'error':np.full(5,.1)}
     data.update({name: np.arange(5.) for name in regressors})
-    serial = transitfitting.fit_lightcurves({'a':data,'b':data}, {'a':{},'b':{}}, sampler='test')
-    parallel = transitfitting.fit_lightcurves({'a':data,'b':data}, {'a':{},'b':{}}, sampler='test', nthreads=2)
+    options = {} if starting_point is None else {
+        'starting_points': {'a': starting_point, 'b': starting_point}}
+    serial = transitfitting.fit_lightcurves({'a':data,'b':data}, {'a':{},'b':{}}, sampler='test', **options)
+    parallel = transitfitting.fit_lightcurves({'a':data,'b':data}, {'a':{},'b':{}}, sampler='test', nthreads=2, **options)
     assert serial == parallel == {'a':{'folder':'a','sampler':'test'}, 'b':{'folder':'b','sampler':'test'}}
     for call in calls:
+        assert call['starting_point'] == starting_point
         assert set(call['t_lc']) == {'SOSS'}
         assert ('GP_regressors_lc' in call) == ('GP_external_parameters' in regressors)
         assert ('linear_regressors_lc' in call) == ('linear_external_parameters' in regressors)

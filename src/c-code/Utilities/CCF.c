@@ -1,7 +1,7 @@
 #include <Python.h>
 #include <numpy/arrayobject.h>
 #include <math.h>
-#define ARRAYD(p) ((double *) (((PyArrayObject *)p)->data)) 
+#define ARRAYD(p) ((double *) PyArray_DATA((PyArrayObject *)p))
 
 /* 
  *                                [INITIALIZATION]
@@ -344,6 +344,7 @@ static struct PyModuleDef CCF =
 
 PyMODINIT_FUNC PyInit_CCF(void){
 
+    import_array();
     return PyModule_Create(&CCF);
 }
 

@@ -1,6 +1,6 @@
-"""Build unchanged C sources separately: python tests/build_c_reference.py --help.
+"""Build the Marsh C reference and CCF: python tests/build_c_reference.py --help.
 
-Requires NumPy < 2 (the original sources use its legacy struct layout), a C
+Requires NumPy < 2 (unchanged Marsh uses its legacy struct layout), a C
 compiler, setuptools and GSL. Does not install or alter either source file.
 """
 import argparse

@@ -1,0 +1,48 @@
+# Full pipeline environment for this checkout (Linux and macOS).
+# Create with: conda env create -f environment.yml
+# Then install the checkout as described in README.md.
+name: transitspectroscopy
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.12
+  - pip
+  - setuptools>=68
+  - wheel
+  # JWST 3 requires NumPy 2. Keep Conda and pip on the same ABI baseline.
+  - numpy=2.2.6
+  - scipy=1.17.1
+  - matplotlib>=3.9,<4
+  - pandas>=2.2,<3
+  - h5py>=3.11,<4
+  - tqdm
+  - jdcal
+  # Native dependencies and the repository's default transit sampler.
+  - c-compiler
+  - gsl=2.8
+  - multinest=3.10
+  - pymultinest=2.12
+  - celerite=0.4.3
+  - george=0.4.4
+  - dynesty=2.1.5
+  - emcee>=3.1,<4
+  - pytest>=8,<10
+  - jupyterlab>=4,<5
+  - ipykernel>=6,<8
+  # STScI recommends pip for the JWST stack. Resolve these together and
+  # repeat the numerical pins so pip cannot replace the Conda ABI baseline.
+  - pip:
+      - numpy==2.2.6
+      - scipy==1.17.1
+      - astropy==7.2.2
+      # Latest stable JWST release, verified 2026-09-15.
+      - jwst==3.0.0
+      - stdatamodels>=6.0,<6.1
+      - crds==14.0.0
+      - juliet==2.2.10
+      - dynesty==2.1.5
+      - ray[default]==2.58.0
+      - astroquery>=0.4.8,<0.5
+variables:
+  CRDS_SERVER_URL: https://jwst-crds.stsci.edu

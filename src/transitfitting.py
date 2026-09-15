@@ -158,6 +158,12 @@ def fit_data(data_dictionary, priors, ld_laws = 'quadratic', output_folder = Non
 
     """
 
+    # juliet treats an empty mapping as a supplied point and tries to look up
+    # every free parameter when writing priors.dat. Preserve our public default
+    # while forwarding its intended meaning: no starting point was supplied.
+    if starting_point is not None and len(starting_point) == 0:
+        starting_point = None
+
     all_keys = list(data_dictionary.keys())
 
     if output_folder is None:
@@ -272,6 +278,9 @@ def notremote_fit_data(data_dictionary, priors, ld_laws = 'quadratic', output_fo
         A juliet object containing all the information about the fit, including posterior distributions.
 
     """
+
+    if starting_point is not None and len(starting_point) == 0:
+        starting_point = None
 
     all_keys = list(data_dictionary.keys())
 

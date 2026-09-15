@@ -19,7 +19,7 @@ from astropy.timeseries import TimeSeries
 calwebb_detector1 = _OptionalModule('jwst.pipeline.calwebb_detector1')
 calwebb_spec2 = _OptionalModule('jwst.pipeline.calwebb_spec2')
 assign_wcs = _OptionalModule('jwst.assign_wcs')
-datamodels = _OptionalModule('jwst.datamodels')
+datamodels = _OptionalModule('stdatamodels.jwst.datamodels')
 wcstools = _OptionalModule('gwcs.wcstools')
 
 def __getattr__(name):
@@ -926,19 +926,28 @@ class load(object):
         print('\t [END] Detector-level Calibration\n\n')
 
     def merge_ramps_segments(self):
+        """Merge ramps and link segment views, accepting models without ERR.
+
+        Modern RampModel has no ERR field. For compatibility, ``ramps_err``
+        remains an array with zero placeholders where errors are absent;
+        ``ramps_err_available`` identifies integrations with supplied errors.
+        Placeholders are not measured uncertainties and must not be used as
+        noise estimates. Rate-product uncertainties are handled separately.
+        """
+        errors = []
+        for segment in self.ramps_per_segment:
+            error = getattr(segment, 'err', None)
+            if error is not None and error.size == 0:
+                error = None
+            if error is not None and error.shape != segment.data.shape:
+                raise ValueError('Ramp ERR shape must match the segment data shape')
+            errors.append(error)
 
         self.ramps = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols], dtype = self.ramps_per_segment[0].data.dtype)
-       
-        # In build 11.3, the error array on 4D ramp models was unused and was removed (see: https://jwst-docs.stsci.edu/jwst-science-calibration-pipeline/jwst-operations-pipeline-build-information/jwst-operations-pipeline-build-11-3-release-notes?utm_source=chatgpt.com#gsc.tab=0). This below allows to use any version of the products: 
-        try:
-
-            have_errors = True
-            self.ramps_err = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols], dtype = self.ramps_per_segment[0].err.dtype)
-
-        except:
-
-            have_errors = False
-            self.ramps_err = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols], dtype = self.ramps_per_segment[0].data.dtype)
+        error_dtypes = [error.dtype for error in errors if error is not None]
+        error_dtype = np.result_type(*error_dtypes) if error_dtypes else self.ramps.dtype
+        self.ramps_err = np.zeros(self.ramps.shape, dtype=error_dtype)
+        self.ramps_err_available = np.zeros(self.nints, dtype=bool)
 
         self.groupdq = np.zeros([self.nints, self.ngroups, self.nrows, self.ncols] , dtype = self.ramps_per_segment[0].groupdq.dtype)
         self.pixeldq = self.ramps_per_segment[0].pixeldq
@@ -950,9 +959,10 @@ class load(object):
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.ramps[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_segment[i].data
 
-            if have_errors:
+            if errors[i] is not None:
 
-                self.ramps_err[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_segment[i].err
+                self.ramps_err[current_nintegrations : end_nintegrations, :, :, :] = errors[i]
+                self.ramps_err_available[current_nintegrations : end_nintegrations] = True
 
             self.groupdq[current_nintegrations : end_nintegrations, :, :, :] = self.ramps_per_segment[i].groupdq 
 
@@ -965,7 +975,7 @@ class load(object):
             end_nintegrations = current_nintegrations + self.ints_per_segment[i]
             self.ramps_per_segment[i].data = self.ramps[current_nintegrations : end_nintegrations, :, :, :]
             
-            if have_errors:
+            if errors[i] is not None:
             
                 self.ramps_per_segment[i].err = self.ramps_err[current_nintegrations : end_nintegrations, :, :, :]
             
@@ -1936,19 +1946,18 @@ def cds_stage1(datafiles, nintegrations, ngroups, trace_radius = 10, ommited_tra
         sys.exit()
 
     # First, extract data and time-stamps from the datamodel:
-    data, err = np.zeros([nintegrations, ngroups, rows, columns]), np.zeros([nintegrations, ngroups, rows, columns])
+    # CDS uses only successive signal differences. Ramp ERR was unused here
+    # and is no longer present in modern JWST ramp models.
+    data = np.zeros([nintegrations, ngroups, rows, columns])
     times = np.zeros(nintegrations)
 
     past_nints = 0
     for i in range( len(datafiles) ):
 
-        dm = datamodels.RampModel(datafiles[i])
-
-        current_nints = dm.data.shape[0]
-
-        times[past_nints:past_nints+current_nints] = np.copy(dm.int_times['int_mid_BJD_TDB'])
-        data[past_nints:past_nints+current_nints, :, :, :] = np.copy(dm.data)
-        err[past_nints:past_nints+current_nints, :, :, :] = np.copy(dm.err)
+        with datamodels.RampModel(datafiles[i]) as dm:
+            current_nints = dm.data.shape[0]
+            times[past_nints:past_nints+current_nints] = dm.int_times['int_mid_BJD_TDB']
+            data[past_nints:past_nints+current_nints, :, :, :] = dm.data
 
         past_nints = past_nints + current_nints
  

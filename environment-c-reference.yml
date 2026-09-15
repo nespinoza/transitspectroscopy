@@ -1,0 +1,18 @@
+# Optional scientific comparison environment, not the JWST pipeline runtime.
+# The unchanged Marsh C reference needs NumPy 1's headers/ABI.
+name: transitspectroscopy-c-reference
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.11
+  - numpy=1.26.4
+  - scipy=1.17.1
+  - astropy>=6,<8
+  - setuptools>=68
+  - c-compiler
+  - gsl=2.8
+  - jdcal
+  - tqdm
+  - matplotlib>=3.9,<4
+  - pytest>=8,<10
