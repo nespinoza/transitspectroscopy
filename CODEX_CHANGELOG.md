@@ -1,5 +1,16 @@
 # CODEX_CHANGELOG
 
+## 2026-09-16 — CRDS cache setup during installation
+
+- Added CRDS setup directly to the README installation commands, plus a setup
+  snippet for existing installations. Preserve a nonempty `CRDS_PATH`; otherwise
+  default to `$HOME/crds_cache`. Check whether the directory exists before
+  creating it, and leave existing cache contents untouched.
+- Export the selected path for immediate use and persist it with
+  `conda env config vars set` for future activations. Document the setup beside
+  the environment YAML instead of embedding an unexpanded shell expression or
+  a machine-specific home path. The existing CRDS server URL is unchanged.
+
 ## 2026-09-15 — JWST 3 compatibility and complete Conda environments
 
 Updated this checkout for **JWST 3.0.0**, the latest stable release verified on

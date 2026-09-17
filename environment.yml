@@ -1,6 +1,8 @@
 # Full pipeline environment for this checkout (Linux and macOS).
 # Create with: conda env create -f environment.yml
 # Then install the checkout as described in README.md.
+# README setup preserves an existing CRDS_PATH or creates $HOME/crds_cache,
+# then persists the expanded path with conda env config vars set.
 name: transitspectroscopy
 channels:
   - conda-forge

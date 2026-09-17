@@ -17,6 +17,15 @@ Use [environment.yml](environment.yml) from this checkout on Linux or macOS:
 ```sh
 conda env create -f environment.yml
 conda activate transitspectroscopy
+
+# Keep an existing CRDS_PATH; otherwise use a cache in your home directory.
+export CRDS_PATH="${CRDS_PATH:-$HOME/crds_cache}"
+if [ ! -d "$CRDS_PATH" ]; then
+    mkdir -p "$CRDS_PATH"
+fi
+# Restore this path automatically on future environment activations.
+conda env config vars set -n transitspectroscopy CRDS_PATH="$CRDS_PATH"
+
 python -m pip install --no-build-isolation --no-deps .
 python -m pip check
 ```
@@ -87,18 +96,28 @@ validation. See [tests/README.md](tests/README.md) for additional checks.
 
 ### Calibration reference files and notebooks
 
-Before calibrating observations, configure a writable CRDS cache:
+The installation commands above configure the CRDS cache, preserving any
+nonempty `CRDS_PATH` already set in your shell or Conda environment. If it is
+unset or empty, they select `$HOME/crds_cache`. They create the selected folder
+only if it does not already exist, then save the path in Conda for subsequent
+activations. An existing cache and its contents are left untouched.
+
+For an environment installed previously, run this once:
 
 ```sh
 conda activate transitspectroscopy
-export CRDS_PATH="$HOME/.cache/crds"
-mkdir -p "$CRDS_PATH"
+export CRDS_PATH="${CRDS_PATH:-$HOME/crds_cache}"
+if [ ! -d "$CRDS_PATH" ]; then
+    mkdir -p "$CRDS_PATH"
+fi
+conda env config vars set -n transitspectroscopy CRDS_PATH="$CRDS_PATH"
 ```
 
-To retain that location across activations, run
-`conda env config vars set -n transitspectroscopy CRDS_PATH="$CRDS_PATH"`, then
-reactivate the environment. The YAML leaves this machine-specific storage path
-to the user; the environment created during validation uses `~/.cache/crds`.
+The export makes the path available immediately; Conda restores it on future
+activations. The conditional setup runs in the shell so `$HOME` is expanded for
+the installing user instead of storing a literal shell expression in the YAML.
+The environment created during earlier validation already uses `~/.cache/crds`;
+these commands preserve that setting as well.
 
 The YAML sets `CRDS_SERVER_URL=https://jwst-crds.stsci.edu` on activation.
 Reference files are downloaded as needed and are not bundled with the
