@@ -1,0 +1,27 @@
+{
+  "pixels_xy": [[500, 5], [1000, 20], [1750, 15]],
+  "plots": {
+    "cmap": "magma",
+    "last_minus_first_limits_dn": [-100, 20000],
+    "rate_limits_dn_per_second": [-10, 1500],
+    "ramp_limits_dn": [-1000, 40000],
+    "ramp_residual_limits_dn": [-150, 150],
+    "asinh_width_dn": 100,
+    "asinh_width_dn_per_second": 10,
+    "dpi": 150
+  },
+  "aperture_radius": 2.0,
+  "extraction_options": {"polynomial_spacing": 1.0, "polynomial_order": 3, "nsigma": 10.0},
+  "gp_options": {"kernel": "matern32", "length_scale": 100.0, "amplitude": 1.0, "n_inducing": 24},
+  "scale_1f": true,
+  "mask_dq": true,
+  "single_trace_extraction": true,
+  "nthreads": null,
+  "detector_parameters": {},
+  "ramp_fit_parameters": {"maximum_cores": "1"},
+  "fwhm_distance_from_trace": 7,
+  "trace_filter_points": 11,
+  "fwhm_filter_points": 21,
+  "white_light_filter_points": 100,
+  "spectrum_variant": "corrected"
+}
