@@ -1063,7 +1063,9 @@ class load(object):
         if self.datatype == 'ramps':
 
             self.check_status(self.ramps_per_segment[-1])
-            self.nints = self.ramps_per_segment[-1].meta.exposure.nints
+            # NINTS describes the full exposure, even when only a subset of
+            # its segments was supplied. Allocate only integrations loaded.
+            self.nints = sum(self.ints_per_segment)
             self.ngroups = self.ramps_per_segment[-1].meta.exposure.ngroups
             self.nrows = self.ramps_per_segment[-1].data.shape[2]
             self.ncols = self.ramps_per_segment[-1].data.shape[3]
@@ -1074,7 +1076,7 @@ class load(object):
         else:
 
             self.check_status(self.rateints_per_segment[-1])
-            self.nints = self.rateints_per_segment[-1].meta.exposure.nints
+            self.nints = sum(self.ints_per_segment)
             self.ngroups = self.rateints_per_segment[-1].meta.exposure.ngroups
             self.nrows = self.rateints_per_segment[-1].data.shape[1]
             self.ncols = self.rateints_per_segment[-1].data.shape[2]
