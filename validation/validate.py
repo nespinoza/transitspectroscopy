@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 import traceback
+from types import SimpleNamespace
 import warnings
 
 import numpy as np
@@ -111,7 +112,38 @@ def save_sample_table(samples, folder, pixels):
         for key, value in sample.items()})
 
 
-def reduce(records, config, folder, report, ts):
+def calibration_reuse(directory, records, config):
+    """Explicitly reuse completed calibration products, with their provenance."""
+    directory = Path(directory).resolve()
+    manifest = directory/'reduction.json'
+    previous = json.loads(manifest.read_text())
+    for key in ('detector_parameters', 'ramp_fit_parameters'):
+        if previous['config'][key] != config[key]:
+            raise ValueError(f'Cannot reuse calibration with changed {key}')
+    identity = lambda rows: [(Path(r['path']).name, r['sha256']) for r in rows]
+    if identity(previous['inputs']) != identity(records):
+        raise ValueError('Calibration reuse requires exactly the same input segments/hashes')
+    stages = {}
+    for name in ('detector_calibration', 'ramp_fitting'):
+        entries = previous['stages'].get(name, [])
+        if len(entries) != len(records):
+            raise ValueError(f'Incomplete source stage: {name}')
+        stages[name] = {}
+        for entry in entries:
+            path = (directory/entry['datamodel']).resolve()
+            if not path.is_file():
+                raise FileNotFoundError(path)
+            stages[name][entry['input']] = dict(entry, datamodel=str(path), reused=True,
+                original_elapsed_seconds=entry['elapsed_seconds'], elapsed_seconds=0.,
+                sha256=sha256(path), size_bytes=path.stat().st_size)
+        if set(stages[name]) != {Path(r['path']).name for r in records}:
+            raise ValueError(f'Segment mismatch in source stage: {name}')
+    return dict(manifest=str(manifest), manifest_sha256=sha256(manifest),
+                source_hashes=previous['source_hashes'], software=previous['software'],
+                stages=stages)
+
+
+def reduce(records, config, folder, report, ts, reuse=None):
     nints = sum(record['shape'][0] for record in records)
     selected = selected_integrations(nints)
     report['selection'] = dict(loaded_integrations=nints, selected_loaded_indices=selected,
@@ -123,14 +155,24 @@ def reduce(records, config, folder, report, ts):
     try:
         for record in records:
             path = Path(record['path'])
-            print('Calibrating', path.name, flush=True)
+            print('Reading calibrated products' if reuse else 'Calibrating', path.name, flush=True)
             tick = time.monotonic()
-            dataset = ts.jwst.load([str(path)], outputfolder=str(folder))
+            if reuse:
+                from stdatamodels.jwst import datamodels
+                ramp = datamodels.open(reuse['stages']['detector_calibration'][path.name]['datamodel'])
+                rate = datamodels.open(reuse['stages']['ramp_fitting'][path.name]['datamodel'])
+                rate_models.append(rate)
+                if ramp.data.shape != tuple(record['shape']) or rate.data.shape != (len(ramp.data), *ramp.data.shape[2:]):
+                    raise ValueError('Reused calibration arrays have incompatible shapes')
+                dataset = SimpleNamespace(nints=len(ramp.data), ramps_per_segment=[ramp],
+                    times=np.asarray(rate.int_times['int_mid_BJD_TDB'])+2400000.5)
+            else:
+                dataset = ts.jwst.load([str(path)], outputfolder=str(folder))
+                dataset.detector_calibration(parameters=config['detector_parameters'], save=False)
+                ramp = dataset.ramps_per_segment[0]
             if len(dataset.times) != dataset.nints:
                 raise ValueError('Timestamps do not match loaded integrations')
             all_times.extend(dataset.times)
-            dataset.detector_calibration(parameters=config['detector_parameters'], save=False)
-            ramp = dataset.ramps_per_segment[0]
             if len(getattr(ramp.meta.exposure, 'read_times', None) or []):
                 raise ValueError('Uneven group timing is not supported by this preset')
             group_times = (np.arange(ramp.data.shape[1])+1)*ramp.meta.exposure.group_time
@@ -149,20 +191,25 @@ def reduce(records, config, folder, report, ts):
                         difference_image=image.copy(), group_times_s=group_times.copy(),
                         groups=ramp.data[i][:, py, px].copy(), groupdq=ramp.groupdq[i][:, py, px].copy())
             # The custom TSO-jump step already saves this model even with save=False.
-            ramp_path = folder/'ts_outputs'/f'{dataset.datanames[0]}_tsojumpstep.fits'
-            if not ramp_path.exists():
-                ramp_path = folder/'ts_outputs'/f'{dataset.datanames[0]}_calibrated_ramp.fits'
-                ramp.save(ramp_path)
-            report['stages']['detector_calibration'].append(dict(
-                input=path.name, elapsed_seconds=time.monotonic()-tick,
-                datamodel=str(ramp_path.relative_to(folder)), status=dict(dataset.status),
-                parameters=dataset.calibration_parameters.copy(), metadata=ramp.meta.instance.copy()))
+            if reuse:
+                report['stages']['detector_calibration'].append(reuse['stages']['detector_calibration'][path.name])
+            else:
+                ramp_path = folder/'ts_outputs'/f'{dataset.datanames[0]}_tsojumpstep.fits'
+                if not ramp_path.exists():
+                    ramp_path = folder/'ts_outputs'/f'{dataset.datanames[0]}_calibrated_ramp.fits'
+                    ramp.save(ramp_path)
+                report['stages']['detector_calibration'].append(dict(
+                    input=path.name, elapsed_seconds=time.monotonic()-tick,
+                    datamodel=str(ramp_path.relative_to(folder)), status=dict(dataset.status),
+                    parameters=dataset.calibration_parameters.copy(), metadata=ramp.meta.instance.copy()))
             write_json(folder/'reduction.json', report)
             tick = time.monotonic()
-            dataset.fit_ramps(parameters={'ramp_fit': config['ramp_fit_parameters']}, save=False)
-            rate = dataset.rateints_per_segment[0]
-            rate_path = folder/'ts_outputs'/f'{dataset.datanames[0]}_rateints.fits'
-            rate.save(rate_path)
+            if not reuse:
+                dataset.fit_ramps(parameters={'ramp_fit': config['ramp_fit_parameters']}, save=False)
+                rate = dataset.rateints_per_segment[0]
+                rate_models.append(rate)
+                rate_path = folder/'ts_outputs'/f'{dataset.datanames[0]}_rateints.fits'
+                rate.save(rate_path)
             for i in range(dataset.nints):
                 residual, fitted, valid = ramp_residuals(ramp.data[i], rate.data[i], group_times,
                                                         ramp.groupdq[i], ramp.pixeldq)
@@ -174,10 +221,12 @@ def reduce(records, config, folder, report, ts):
                     sample = samples_by_index[start+i]
                     sample.update(rate_image=rate.data[i].copy(), slopes=rate.data[i, py, px].copy(),
                         fitted=fitted[:, py, px].copy(), residuals=residual[:, py, px].copy(), valid=valid[:, py, px].copy())
-            report['stages']['ramp_fitting'].append(dict(input=path.name,
-                elapsed_seconds=time.monotonic()-tick, datamodel=str(rate_path.relative_to(folder)),
-                metadata=rate.meta.instance.copy(), parameters=config['ramp_fit_parameters']))
-            rate_models.append(rate)
+            if reuse:
+                report['stages']['ramp_fitting'].append(reuse['stages']['ramp_fitting'][path.name])
+            else:
+                report['stages']['ramp_fitting'].append(dict(input=path.name,
+                    elapsed_seconds=time.monotonic()-tick, datamodel=str(rate_path.relative_to(folder)),
+                    metadata=rate.meta.instance.copy(), parameters=config['ramp_fit_parameters']))
             for model in dataset.ramps_per_segment:
                 model.close()
             start += dataset.nints
@@ -281,6 +330,8 @@ def main():
     parser.add_argument('--data-dir', type=Path, default=ROOT/'validation/data')
     parser.add_argument('--output', type=Path, help='New directory; existing directories are refused')
     parser.add_argument('--config', type=Path, default=ROOT/'validation/config.json')
+    parser.add_argument('--reuse-calibration', type=Path,
+                        help='Read completed ramp/rate products from a previous run; rerun all diagnostics and extraction')
     args = parser.parse_args()
     if any(i < 1 for i in args.segments):
         parser.error('Segment numbers must be positive')
@@ -325,10 +376,14 @@ def main():
         if not paths or any(not path.is_file() for path in paths):
             raise FileNotFoundError('No matching inputs. Use --download or --input-glob.')
         report['inputs'] = inspect_inputs(paths)
+        reuse = None if args.reuse_calibration is None else calibration_reuse(
+            args.reuse_calibration, report['inputs'], config)
+        if reuse is not None:
+            report['calibration_source'] = reuse
         write_json(folder/'reduction.json', report)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter('always')
-            reduce(report['inputs'], config, folder, report, ts)
+            reduce(report['inputs'], config, folder, report, ts, reuse=reuse)
         report['status'] = 'complete'
     except BaseException as error:
         report['status'] = 'failed'

@@ -7,6 +7,18 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.colors import AsinhNorm
+from matplotlib.ticker import StrMethodFormatter
+
+
+def image_colorbar(fig, artist, ax, label):
+    """Readable fixed asinh ticks without crowded sub-unit labels around zero."""
+    norm = artist.norm
+    maximum = max(abs(norm.vmin), abs(norm.vmax), norm.linear_width)
+    powers = norm.linear_width*10.**np.arange(int(np.ceil(np.log10(maximum/norm.linear_width)))+1)
+    ticks = sorted(t for t in [0., *powers, *(-powers)] if norm.vmin <= t <= norm.vmax)
+    bar = fig.colorbar(artist, ax=ax, label=label, ticks=ticks,
+                      format=StrMethodFormatter('{x:g}'))
+    bar.minorticks_off()
 
 
 def json_value(value):
@@ -106,7 +118,7 @@ def detector_plots(samples, config, folder, fitted=False):
                                        cmap=plot['cmap'], norm=norm)
         axes[0, column].set(title=f"Integration {sample['integration_number']} ({sample['selection']})",
                             xlabel='Detector column', ylabel='Detector row')
-        fig.colorbar(artist, ax=axes[0, column], label='DN/s' if fitted else 'DN')
+        image_colorbar(fig, artist, axes[0, column], 'DN/s' if fitted else 'DN')
         for p, (x, y) in enumerate(config['pixels_xy']):
             color = f'C{p}'
             axes[0, column].plot(x, y, '+', color=color, markersize=9)
@@ -184,7 +196,7 @@ def trace_diagnostics(result, times, config, folder):
     ax.plot(x, reference, color='cyan', lw=1, label='Median fitted trace')
     ax.set(xlabel='Detector column', ylabel='Detector row', title='Median rate per integration and fitted trace')
     ax.legend()
-    fig.colorbar(artist, ax=ax, label='DN/s')
+    image_colorbar(fig, artist, ax, 'DN/s')
     fig.savefig(folder/'03_trace.png', dpi=plot['dpi']); plt.close(fig)
     fig, axes = plt.subplots(2, 1, figsize=(11, 6), sharex=True, layout='constrained')
     for ax, series, filtered, label in zip(axes, [movement, width_change],

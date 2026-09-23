@@ -29,7 +29,9 @@ def _select_backend(module, backend):
 
 
 def _extraction_inputs(data, centroids, variance, aperture, spacing, ron, gain,
-                       nsigma, min_column, max_column):
+                       nsigma, min_column, max_column, mask_invalid=False):
+    if mask_invalid:
+        data = _optimal.mask_invalid_pixels(data, variance)
     data, centroids, variance = _optimal.validate(data, centroids, variance)
     if variance is None and (not np.isfinite(ron) or ron < 0 or not np.isfinite(gain) or gain <= 0):
         raise ValueError('ron must be nonnegative and gain positive and finite')
@@ -95,6 +97,10 @@ def getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing
     profile_method : {'polynomial', 'gp'}
         GP is an experimental joint inducing-point profile fit along dispersion.
         It requires Python and never becomes active without explicit selection.
+        Missing science/nonpositive or nonfinite variance is masked in the GP
+        path. Only complete aperture columns train its normalized profile;
+        rejection removes entire training columns, which are still predicted
+        and remain extractable using their valid pixels.
     gp_options : dict or None
         Fixed kernel ('matern32' or 'matern52'), length_scale in dispersion pixels,
         amplitude in unnormalized profile units, and n_inducing. Defaults are
@@ -112,7 +118,7 @@ def getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing
 
     data, centroids, data_variance = _extraction_inputs(
         data, centroids, data_variance, aperture_radius, polynomial_spacing,
-        ron, gain, nsigma, min_column, max_column)
+        ron, gain, nsigma, min_column, max_column, mask_invalid=profile_method == 'gp')
     if profile_method not in ('polynomial', 'gp'):
         raise ValueError('profile_method must be polynomial or gp')
     if int(polynomial_order) != polynomial_order or polynomial_order < 1 or nsigma == 0:
@@ -273,7 +279,7 @@ def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, poly
 
     data, centroids, data_variance = _extraction_inputs(
         data, centroids, data_variance, aperture_radius, polynomial_spacing,
-        ron, gain, nsigma, min_column, max_column)
+        ron, gain, nsigma, min_column, max_column, mask_invalid=profile_method == 'gp')
     if profile_method not in ('polynomial', 'gp'):
         raise ValueError('profile_method must be polynomial or gp')
     if profile_method == 'gp' and backend == 'c':
@@ -292,7 +298,8 @@ def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, poly
                  profile_method=profile_method, gp_options=gp_options)
     if Marsh is None:
         spectrum = _optimal.extract(data, centroids, aperture_radius, ron, gain,
-            nsigma, polynomial_spacing, P, min_column, max_column, data_variance)
+            nsigma, polynomial_spacing, P, min_column, max_column, data_variance,
+            allow_missing=profile_method == 'gp')
         return (spectrum, P) if return_P else spectrum
 
     flattened_P = P.flatten().astype('double')

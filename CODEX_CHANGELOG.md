@@ -1,5 +1,132 @@
 # CODEX_CHANGELOG
 
+## 2026-09-22 — NRS1 reduction validation workflow
+
+Expanded `validation/validate.py` into a repeatable reduction/diagnostics driver
+for the HAT-P-14 NRS1/G395H commissioning exposure. Preserved the current
+`validation/config.json` settings when resuming the work.
+
+- Downloads explicitly selected raw segments instead of all program products;
+  accepts existing files via `--input-glob`. Each run uses a new output directory
+  so old Stage 2 caches cannot silently contaminate another comparison.
+- Calibrates ramps one segment at a time and writes calibrated RampModel and
+  fitted CubeModel FITS products. The loader's subset allocation fix, now in
+  commit `8dc3223`, uses the number of supplied integrations while preserving
+  the exposure's original `NINTS` metadata. Regression tests cover both ramps
+  and rateints; segment 1 has 391 integrations although its header says 1139.
+  Multi-segment runs apply the custom temporal jump filter within each segment;
+  the README documents the resulting boundary-context difference from joint
+  detector calibration of all segments.
+- Plots the tenth, middle and tenth-from-last loaded integrations, retaining
+  their exposure integration numbers: last-minus-first images, rates, and
+  group signals at zero-based `(column,row)` coordinates `(500,5)`, `(1000,20)`
+  and `(1750,15)`. Images, group signals and residuals use configuration-defined
+  constant scales and colors across runs.
+- Displays the actual pipeline rates as slopes on the group plots. Diagnostic
+  intercepts are median offsets, and flagged groups/pixels are excluded from
+  residual metrics. These single-offset residuals are explicitly distinguished
+  from JWST's segmented ramp-fitting likelihood or chi-square.
+- Saves a trace overlay, trace displacement and spline half-maximum FWHM
+  changes, following the conventions described in the validation README and
+  the referenced commissioning paper. Saves the median trace to text and all
+  integration/column measurements to CSV/NPZ.
+- Runs simple extraction and the existing Python polynomial/GP optimal paths
+  with common preprocessing. Saves both original and outlier-corrected spectra,
+  median profiles, median-spectrum comparisons, white-light curves, filters,
+  residuals and signed simple-minus-optimal differences.
+- Uses a fixed common wavelength mask for all three white-light curves and an
+  exactly 100-point median filter with reflected padding. Explicit padding also
+  handles shorter/all-missing series safely. RMS conventions, units, conditional
+  uncertainty limitations, and spectral-replacement settings are documented.
+- Checkpoints strict `reduction.json` files containing inputs/hashes, full
+  configuration, software/source versions, calibration parameters/references,
+  metrics, warnings and product paths; failures retain their traceback/status.
+  Added offline regression tests for slope residuals/DQ, 100-point filtering,
+  common-band comparisons and difference signs, trace/FWHM recovery, and subset
+  loading, and calibration-reuse checks.
+
+### GP masked-pixel correction
+
+- Applied the diagnosed mask/training semantics without changing GP kernel or
+  hyperparameter defaults. `resample()` now checks lower and upper aperture
+  edges independently, preserving `-9999` at either edge. This general Python
+  bug fix also applies to polynomial extraction; the historical C reference
+  is unchanged at this buggy edge case.
+- GP profile construction masks nonfinite science and nonpositive/nonfinite
+  variance. Only complete positive-sum aperture columns train the normalized
+  profile. Rejection excludes the worst training column and refits before continuing,
+  limiting swamping of neighboring good columns. It never renormalizes
+  its remaining pixels; prediction and extraction still cover that wavelength.
+  Having no training data in one column is allowed. Having none anywhere still
+  raises an explicit error.
+- Stage 2 passes the original science/error/DQ mask to GP fitting and extraction
+  after its legacy filling/preprocessing, in serial and Ray dispatch paths.
+  A GP cache-policy tag prevents reuse of spectra from the old mask semantics.
+  Polynomial fitting/rejection and all public signatures remain unchanged.
+- Fully missing extraction columns return GP NaN flux and zero inverse variance.
+  Spectral replacement retains these missing values, and validation excludes
+  them from the common wavelength band. GP spectral normalization ignores NaNs
+  so one missing wavelength does not disable correction for its integration.
+- Added noisy regressions for independent edge sentinels, missing PSF cores,
+  zero/NaN errors, fully missing columns, invariance to the remaining values in
+  incomplete training columns, whole-column outlier rejection, and recovery of
+  original Stage 2 masks after image filling. Archived polynomial C-comparison
+  fixtures remain within their existing tolerances. Added a compact public JWST
+  frame fixture with input hash, calibration/software provenance and preprocessing
+  settings in `tests/fixtures/`. Its regression checks profile normalization and
+  guards against broad artificial absorption on complete, bright columns using
+  an independent aperture sum. This is not a ground-truth spectrum assertion.
+- Preserved `validation/config.json`. Added a display-only measured preset and
+  kept its extraction settings identical to the user config. A preliminary
+  0.5-pixel-spacing run completed but revealed broad GP spectral depressions
+  caused by simultaneous column rejection. Sequential worst-column rejection
+  removed those depressions in the full-segment comparison with the original 1-pixel
+  spacing and unchanged GP settings. Fully masked aperture columns also occur
+  in real integrations; these are unavailable measurements, not evidence for
+  sharp physical changes in the PSF.
+- Added explicit `--reuse-calibration` with input/settings checks and retained
+  source provenance to avoid copying/recomputing large completed calibration
+  products when validating extraction changes. Improved asinh colorbar labels
+  to avoid overlap around zero without changing configured image limits.
+
+### Validation results
+
+The final reference is `validation/runs/nrs1_segment001_20260922_final/`, with
+`status: complete` in `reduction.json`. It contains all six figures, CSV/NPZ/text
+products, a reopenable WCS model and extraction-input CubeModel. It explicitly
+references calibrated ramp/rate FITS products from the original same-day run.
+That calibration used JWST 3.0.0 and CRDS context `jwst_1584.pmap`; the final run
+pins the same context and records both original and current source provenance.
+Earlier exploratory/failed runs are retained separately.
+
+- Reduced **391 integrations** of segment 1 (2.1 hours), not the full 1139-
+  integration exposure. Original detector calibration took 340 s; ramp fitting
+  plus its diagnostics took 147 s. The final run reused those products and took
+  520 s to regenerate diagnostics, traces and extractions. Simple-stage timing
+  was 316 s including tracing/FWHM/WCS/saving; polynomial was 17 s and GP 142 s.
+- All final extraction settings match `validation/config.json`: aperture 2,
+  spatial spacing 1, three polynomial terms, rejection threshold 10 sigma,
+  Matérn-3/2 GP length scale 100, amplitude 1, and 24 inducing points. The optional
+  measured preset changes only the three documented display ranges.
+- Both optimal profiles are finite and column-normalized. Six missing GP flux
+  measurements remain NaN; comparisons use **1537 common wavelength columns**,
+  spanning 2.674–3.717 µm. White-light residual RMS after the 100-point filter:
+  **simple 264.1 ppm; polynomial 273.0 ppm; GP 265.6 ppm**.
+- Median signed simple-minus-optimal spectral differences are **0.8294 DN/s**
+  for polynomial and **0.3201 DN/s** for GP. Trace-motion RMS about its median is
+  **0.001906 pixel**, FWHM-change RMS **0.0004471 pixel**, and median FWHM
+  **1.8017 pixels**. These descriptive metrics are not a transit-depth bias test.
+- Verified strict JSON, source/config hashes, product sizes, FITS reopening and
+  WCS, integration/array dimensions, profile normalization, common masks,
+  CSV/NPZ consistency, exact median filters and independently recomputed RMS
+  and spectral-difference metrics. Inspected the plots, including the removal
+  of the broad GP depressions. Existing masked-data/resource warnings remain
+  recorded in the manifest/logs rather than being hidden.
+- Final standard suite: **88 passed, 13 skipped**, with two existing shared-GP
+  boundary warnings. Skips cover optional live C and Ray tests. The compact real
+  frame's 95th-percentile absolute GP/aperture-sum fractional difference on
+  complete, bright columns is 0.0028 (regression threshold 0.02).
+
 ## 2026-09-16 — CRDS cache setup during installation
 
 - Added CRDS setup directly to the README installation commands, plus a setup

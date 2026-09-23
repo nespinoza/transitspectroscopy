@@ -124,8 +124,21 @@ def resample(data, low, high, sentinel=True):
         lo, hi = int(lower), int(upper)
         if not sentinel or result[j, lo] != -9999:
             result[j, lo] *= 1. - (lower - lo)
+        if not sentinel or result[j, hi] != -9999:
             result[j, hi] *= upper - hi
     return result
+
+
+def mask_invalid_pixels(data, variance=None):
+    """Translate missing science/variance to the legacy sentinel without mutation."""
+    data = np.asarray(data, dtype=float)
+    invalid = ~np.isfinite(data)
+    if variance is not None:
+        variance = np.asarray(variance, dtype=float)
+        if variance.shape != data.shape:
+            raise ValueError('data_variance must match data.shape')
+        invalid |= ~np.isfinite(variance) | (variance <= 0)
+    return np.where(invalid, -9999., data)
 
 
 def overlaps(centers, rows, spacing, count, offset):
@@ -175,6 +188,8 @@ def _gp_basis(ncolumns, options):
 def fit_profile(data, centers, aperture, ron, gain, nsigma, spacing, order,
                 min_column=None, max_column=None, variance=None,
                 profile_method='polynomial', gp_options=None):
+    if profile_method == 'gp':
+        data = mask_invalid_pixels(data, variance)
     data, centers, variance = validate(data, centers, variance)
     if not np.isfinite(nsigma) or nsigma <= 0:
         raise ValueError('profile nsigma must be finite and positive')
@@ -186,7 +201,16 @@ def fit_profile(data, centers, aperture, ron, gain, nsigma, spacing, order,
     a = resample(data[:, columns].T, low, high)
     good = inside & (a != -9999)
     rs = np.where(good, a, 0.).sum(axis=1)
-    if np.any(rs == 0):
+    if profile_method == 'gp':
+        # An incomplete aperture cannot supply an unbiased normalized profile.
+        # This mask controls training only; extraction uses its own pixel mask.
+        complete = np.all(~inside | good, axis=1) & np.isfinite(rs) & (rs > 0)
+        good &= complete[:, None]
+        if not np.any(good):
+            raise ValueError('no complete valid columns for GP profile training')
+        rs = np.where(complete, rs, 1.)
+        a = np.where(good, a, 0.)
+    elif np.any(rs == 0):
         raise ValueError('cannot estimate a profile from a zero-sum aperture')
     e = np.where(good, a, 0.) / rs[:, None]
     q = overlaps(centers[columns], data.shape[0], spacing, count, offset)
@@ -201,6 +225,8 @@ def fit_profile(data, centers, aperture, ron, gain, nsigma, spacing, order,
     # Shared pixels couple spatial components in BOTH profile models.
     design = (q[..., None] * basis[:, None, None, :]).reshape(*a.shape, -1)
     v = np.ones_like(a) if variance is None else variance[:, columns].T.copy()
+    if regularized:
+        v = np.where(good, v, 1.)
     if np.any(v[good] <= 0) or not np.all(np.isfinite(v[good])):
         raise ValueError('data_variance must be finite and positive in the valid aperture')
     def empirical_variance():
@@ -236,9 +262,20 @@ def fit_profile(data, centers, aperture, ron, gain, nsigma, spacing, order,
         reject = good & ((a - rs[:, None] * p)**2 >= nsigma**2 * v)
         if not np.any(reject):
             break
-        good[reject] = False
-        if np.any(good.sum(axis=1) == 0):
-            raise ValueError('profile rejection removed an entire column')
+        if regularized:
+            # Never turn a rejected column into a renormalized partial profile.
+            # Predict it from the remaining columns, leaving extraction intact.
+            # Refit after the worst column: a pathological pixel can initially
+            # pull the GP across neighboring good wavelengths ("swamping").
+            score = np.where(reject, (a-rs[:, None]*p)**2/v, -np.inf)
+            worst_column = np.unravel_index(np.argmax(score), score.shape)[0]
+            good[worst_column] = False
+            if not np.any(good):
+                raise ValueError('GP rejection removed all profile-training columns')
+        else:
+            good[reject] = False
+            if np.any(good.sum(axis=1) == 0):
+                raise ValueError('profile rejection removed an entire column')
     output = np.zeros_like(data)
     output[:, columns] = p.T
     output[output > 1.] = 0.
@@ -246,7 +283,8 @@ def fit_profile(data, centers, aperture, ron, gain, nsigma, spacing, order,
 
 
 def extract(data, centers, aperture, ron, gain, nsigma, spacing, profile,
-            min_column=None, max_column=None, variance=None, background=None):
+            min_column=None, max_column=None, variance=None, background=None,
+            allow_missing=False):
     data, centers, variance = validate(data, centers, variance)
     columns, low, high, inside, radius, _, _ = geometry(
         centers, data.shape[0], aperture, spacing, min_column, max_column)
@@ -263,15 +301,21 @@ def extract(data, centers, aperture, ron, gain, nsigma, spacing, profile,
         inverse = np.zeros_like(a)
         inverse[good] = 1. / v[good]
         denominator = (p*p*inverse).sum(axis=1)
-        if np.any(denominator <= 0):
+        supported = denominator > 0
+        if not allow_missing and np.any(~supported):
             raise ValueError('no weighted profile support in an extracted column')
-        weights = p * inverse / denominator[:, None]
+        weights = np.divide(p * inverse, denominator[:, None],
+                            out=np.zeros_like(p), where=supported[:, None])
         flux = (weights * np.where(good, a, 0.)).sum(axis=1)
         varflux = (weights**2 * np.where(good, v, 0.)).sum(axis=1)
+        if allow_missing:
+            good[~supported] = False
+            flux[~supported], varflux[~supported] = np.nan, np.inf
         if nsigma == 0:
             break
-        score = np.abs(a - flux[:, None] * p) - nsigma * (
-            np.sqrt(np.maximum(v, 0.)) + np.sqrt(varflux)[:, None] * p)
+        with np.errstate(invalid='ignore'):
+            score = np.abs(a - flux[:, None] * p) - nsigma * (
+                np.sqrt(np.maximum(v, 0.)) + np.sqrt(varflux)[:, None] * p)
         score[~good] = -np.inf
         worst = np.argmax(score)  # column-major scan; first tie, as in C.
         if score.flat[worst] <= 0:

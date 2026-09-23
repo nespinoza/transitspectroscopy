@@ -2457,11 +2457,13 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
 
     return output_dictionary
 
-def _optimal_frame(data, errors):
+def _optimal_frame(data, errors, invalid_mask=None):
     """Prepare one integration without duplicating an entire visit's arrays."""
     frame = data.copy()
     variance = errors**2
     invalid = ~np.isfinite(frame) | ~np.isfinite(variance) | (variance <= 0)
+    if invalid_mask is not None:
+        invalid |= invalid_mask
     frame[invalid] = -9999
     return frame, variance
 
@@ -2672,6 +2674,8 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     extraction_settings = dict(backend=extraction_backend, profile_method=profile_method,
                                gp_options=gp_options, options=extraction_options,
                                aperture_radius=aperture_radius)
+    if profile_method == 'gp' and shared_profile is None:
+        extraction_settings['gp_mask_policy'] = 'complete-column-sequential-v2'
     if shared_profile is not None:
         from .shared_profile import _VERSION as shared_profile_version
         extraction_settings['shared_profile_version'] = shared_profile_version
@@ -3240,6 +3244,8 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             # First calculate light profiles for every integration:
             x = output_dictionary['traces']['x']
             extracted_columns = (x[-1]+1) - x[0]
+            gp_mask = (_Stage2SharedMask(input_dictionary, mask_dq, slice(x[0], x[-1]+1))
+                       if profile_method == 'gp' else None)
             Ps = np.zeros([tso.shape[0], tso.shape[1], extracted_columns])
 
             if nthreads is None:
@@ -3256,7 +3262,8 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
                         x, y = output_dictionary['traces']['x'], y1
 
                     optimal_data, optimal_variance = _optimal_frame(
-                        tso[i, :, x[0]:x[-1]+1], tso_err[i, :, x[0]:x[-1]+1])
+                        tso[i, :, x[0]:x[-1]+1], tso_err[i, :, x[0]:x[-1]+1],
+                        invalid_mask=None if gp_mask is None else gp_mask[i])
                     Ps[i, :, :] = getP(optimal_data, y, spectra_aperture_radius, 1., 1.,
                                        spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
                                        data_variance=optimal_variance,
@@ -3285,7 +3292,8 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
                         x, y = output_dictionary['traces']['x'], y1
 
                     optimal_data, optimal_variance = _optimal_frame(
-                        tso[i, :, x[0]:x[-1]+1], tso_err[i, :, x[0]:x[-1]+1])
+                        tso[i, :, x[0]:x[-1]+1], tso_err[i, :, x[0]:x[-1]+1],
+                        invalid_mask=None if gp_mask is None else gp_mask[i])
                     all_Ps.append( ray_getP.remote(optimal_data, y, spectra_aperture_radius, 1., 1.,
                                                     spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
                                                     data_variance=optimal_variance,
@@ -3322,7 +3330,8 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
                         x, y = output_dictionary['traces']['x'], y1
 
                     optimal_data, optimal_variance = _optimal_frame(
-                        tso[i, :, x[0]:x[-1]+1], tso_err[i, :, x[0]:x[-1]+1])
+                        tso[i, :, x[0]:x[-1]+1], tso_err[i, :, x[0]:x[-1]+1],
+                        invalid_mask=None if gp_mask is None else gp_mask[i])
                     opt_spec = getOptimalSpectrum(optimal_data, y, spectra_aperture_radius, 1., 1.,
                                                   spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
                                                   data_variance=optimal_variance,
@@ -3356,7 +3365,8 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
                         x, y = output_dictionary['traces']['x'], y1
 
                     optimal_data, optimal_variance = _optimal_frame(
-                        tso[i, :, x[0]:x[-1]+1], tso_err[i, :, x[0]:x[-1]+1])
+                        tso[i, :, x[0]:x[-1]+1], tso_err[i, :, x[0]:x[-1]+1],
+                        invalid_mask=None if gp_mask is None else gp_mask[i])
                     all_spectra.append( ray_getOS.remote(optimal_data, y, spectra_aperture_radius, 1., 1.,
                                                          spectra_oe_nsigma, spectra_oe_polynomial_spacing, spectra_oe_polynomial_order,
                                                          data_variance=optimal_variance,
@@ -3432,7 +3442,8 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         for i in range(spectra.shape[0]):
             
             # First, get median to scale:
-            median = np.median(spectra[i, :])
+            median = (np.nanmedian(spectra[i, :]) if profile_method == 'gp'
+                      else np.median(spectra[i, :]))
 
             # Scale master spectrum and sigma:
             model = master_spectrum * median

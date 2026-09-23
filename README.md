@@ -152,6 +152,12 @@ its existing JWST dependency declaration.
 
 ## Python optimal extraction
 
+For a real NRS1 reduction with saved detector/ramp-fit plots, trace/FWHM
+diagnostics, three extraction comparisons, FITS datamodels, numerical time
+series and a JSON report, see [validation/README.md](validation/README.md).
+The default validation downloads only the first segment of the HAT-P-14
+commissioning exposure; plot limits are fixed in `validation/config.json`.
+
 Existing calls retain polynomial profile fitting. To select a backend explicitly:
 
 ```python

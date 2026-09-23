@@ -214,6 +214,90 @@ def test_masked_pixels_and_unused_zero_variance():
     np.testing.assert_allclose(cp, p, atol=2e-8)
 
 
+@pytest.mark.parametrize('masked_edge', ['lower', 'upper', 'both'])
+def test_resample_preserves_each_masked_edge(masked_edge):
+    data = np.full((1, 6), 100.)
+    for name, index in [('lower', 1), ('upper', 4)]:
+        if masked_edge in (name, 'both'):
+            data[0, index] = -9999.
+    before = data.copy()
+    result = optimal.resample(data, [1.25], [4.75])
+    np.testing.assert_array_equal(data, before)
+    for index in (1, 4):
+        assert result[0, index] == (-9999. if data[0, index] == -9999. else 75.)
+
+
+def test_gp_ignores_incomplete_training_columns_but_extracts_valid_pixels():
+    v = simulate(seed=42, ncolumns=96, flux_scale=10000.)
+    data, variance = v['data'].copy(), v['variance'].copy()
+    for column in (20, 30, 40):
+        row = int(round(v['centers'][column]))
+        variance[row, column] = 0.
+    data[:, 50] = -9999.  # A fully missing column is still predictable.
+    variance[:, 60] = np.nan
+    before = data.copy()
+    args = (v['centers'], 7, 5., 1., 8., 1., 3)
+    kwargs = dict(data_variance=variance, backend='python', profile_method='gp')
+    profile = s.getP(data, *args, **kwargs)
+    np.testing.assert_array_equal(data, before)
+    np.testing.assert_allclose(profile.sum(axis=0), 1., atol=1e-14)
+    # Remaining pixels in an incomplete column must have no training leverage.
+    changed = data.copy()
+    changed[:, [20, 30, 40]] *= 1000.
+    np.testing.assert_array_equal(s.getP(changed, *args, **kwargs), profile)
+    missing = s.getOptimalSpectrum(data, *args, P=profile, **kwargs)
+    assert np.isnan(missing[1, [50, 60]]).all()
+    np.testing.assert_array_equal(missing[2, [50, 60]], 0.)
+    assert np.isfinite(missing[1, [20, 30, 40]]).all()
+    # Supply data at the two fully absent wavelengths for extraction only.
+    data[:, [50, 60]] = v['data'][:, [50, 60]]
+    variance[:, [50, 60]] = v['variance'][:, [50, 60]]
+    extracted = s.getOptimalSpectrum(data, *args, P=profile, **kwargs)
+    assert np.isfinite(extracted).all()
+    residual = (extracted[1]-v['truth'])*np.sqrt(extracted[2])
+    assert np.max(np.abs(residual[[20, 30, 40]])) < 4.
+
+
+def test_gp_rejection_drops_whole_column_without_renormalizing():
+    v = simulate(seed=7, ncolumns=96, flux_scale=3000.)
+    damaged = v['data'].copy()
+    damaged[16, 47] += 3000.
+    omitted = v['data'].copy()
+    omitted[:, 47] = -9999.
+    args = (v['centers'], 7, 5., 1., 8., 1., 3)
+    kwargs = dict(data_variance=v['variance'], backend='python', profile_method='gp')
+    rejected = s.getP(damaged, *args, **kwargs)
+    expected = s.getP(omitted, *args, **kwargs)
+    np.testing.assert_allclose(rejected, expected, rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(rejected.sum(axis=0), 1., atol=1e-14)
+    with pytest.raises(ValueError, match='no complete valid columns'):
+        s.getP(np.full_like(damaged, -9999.), *args, **kwargs)
+
+
+def test_gp_real_jwst_masked_frame():
+    """Real bad pixels must not generate broad absorption in otherwise good columns.
+
+    The aperture sum is an independent diagnostic on complete, bright columns,
+    not a ground-truth spectrum or a general photometric-accuracy assertion.
+    Fixture provenance and preprocessing settings are stored beside the NPZ.
+    """
+    path = Path(__file__).parent/'fixtures/jwst_gp_masked_frame.npz'
+    with np.load(path, allow_pickle=False) as saved:
+        data, variance, centers = saved['data'], saved['variance'], saved['centers']
+    spectrum, profile = s.getOptimalSpectrum(data, centers, 2., 1., 1., 10., 1., 3,
+        data_variance=variance, backend='python', profile_method='gp', return_P=True,
+        gp_options=dict(kernel='matern32', length_scale=100., amplitude=1., n_inducing=24))
+    assert np.isfinite(profile).all()
+    np.testing.assert_allclose(profile.sum(axis=0), 1., atol=1e-14)
+    _, low, high, inside, *_ = optimal.geometry(centers, data.shape[0], 2., 1.)
+    aperture_flux = np.where(inside, optimal.resample(data.T, low, high), 0.).sum(axis=1)
+    complete = np.all(~inside | (np.isfinite(variance.T) & (variance.T > 0)), axis=1)
+    bright = complete & (aperture_flux > 100.)
+    assert bright.sum() > 1000
+    assert np.isfinite(spectrum[:, bright]).all()
+    assert np.percentile(np.abs(spectrum[1, bright]/aperture_flux[bright]-1), 95) < .02
+
+
 def test_fine_spacing_used_by_stage2():
     pytest.importorskip('Marsh')
     v = simulate(ncolumns=441)

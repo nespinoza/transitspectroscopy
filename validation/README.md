@@ -12,7 +12,8 @@ From the repository root, with the full environment installed:
 
 ```sh
 conda activate transitspectroscopy
-python validation/validate.py --download --segments 1
+python validation/validate.py --download --segments 1 \
+  --config validation/config.segment001-measured.json
 ```
 
 This downloads only the first raw segment (1.03 GB; 391 integrations × 20 groups
@@ -25,7 +26,8 @@ to reproduce a specific calibration context.
 To reduce all three segments of this exposure:
 
 ```sh
-python validation/validate.py --download --segments 1 2 3
+python validation/validate.py --download --segments 1 2 3 \
+  --config validation/config.segment001-measured.json
 ```
 
 To use files downloaded by the previous script:
@@ -47,6 +49,31 @@ Detector calibration is performed one segment at a time to limit ramp memory;
 Stage 2 still operates on the combined rate cube in memory. Full-exposure runs
 need several GB of RAM and disk space. Saved calibrated ramps are larger than
 raw ramps. No raw files or old runs are deleted automatically.
+
+The custom TSO jump filter consequently uses integrations **within each segment**.
+For a multi-segment run, flags near segment boundaries can differ from a single
+`load(all_segments).detector_calibration()` call, whose temporal filter spans
+those boundaries. Keep segment selection fixed when comparing validation runs.
+The single-segment reference run is unaffected by this distinction.
+
+For another extraction/plot comparison using completed calibration products:
+
+```sh
+python validation/validate.py --segments 1 \
+  --reuse-calibration validation/runs/previous-run \
+  --config validation/config.segment001-measured.json
+```
+
+This explicitly reuses the calibrated ramp and rate FITS files; it recomputes
+diagnostics, tracing and all three extractions in a new directory. Input segment
+hashes and detector/ramp-fitting settings must match. Both source calibration
+stages must be complete, even if a later extraction failed. The new manifest
+records the original software/source hashes, source manifest hash, absolute FITS
+paths and current FITS hashes. Reused stages are marked `reused: true`, with
+their original runtimes retained separately. Keep the source run directory:
+these large products are referenced rather than copied. This mode validates
+new extraction code against existing calibration; it does not rerun detector
+calibration under the new source version.
 
 The driver loads this checkout explicitly. If you enable Ray through `nthreads`
 in the configuration, reinstall the checkout first so workers run matching code:
@@ -75,6 +102,15 @@ them as a permanent reference; saturation outside a plot's limits does not
 change the saved data. Background and illuminated pixel curves also have fixed
 limits so that different runs remain visually comparable.
 
+An optional [config.segment001-measured.json](config.segment001-measured.json)
+preset preserves the reduction settings and changes only three display ranges:
+last-minus-first to −100…32,000 DN, rates to −10…1,900 DN/s, and group signals
+to −150…3,000 DN. These ranges were chosen from real segment-1 measurements:
+the selected image 99.9th percentiles are about 30,200 DN, while the three
+requested pixel signals range from about −65 to 2,450 DN. The original config
+is unchanged. Use the same chosen preset for subsequent comparisons rather
+than rescaling each run.
+
 Pixels are **zero-based (column, row)**: `(500,5)`, `(1000,20)`, `(1750,15)`.
 The selected integrations have loaded-array indices `9`, `n//2`, and `n-10`.
 Figure titles give the original exposure integration numbers. For fewer than
@@ -89,6 +125,18 @@ paths: they fit integration profiles, form a median detector profile, and reuse
 it in extraction. This run does not train the newer shared-intrinsic-profile
 model or optimize hyperparameters. Settings are initial comparison choices,
 not a claim that either model is optimal for this target.
+
+The GP trains on **complete valid aperture columns**. A rejected training pixel
+removes its whole column from training. The worst column is removed first and
+the GP is refitted before rejecting another, limiting swamping of neighboring
+good wavelengths by a pathological pixel. Valid extraction pixels in that column
+remain available. The GP predicts profiles across omitted columns without
+renormalizing a partial observed PSF. Nonfinite science, nonpositive/nonfinite
+variance and the original Stage 2 DQ mask remain masked. If a wavelength has no
+weighted extraction support, its GP flux is NaN and inverse variance is zero;
+it is excluded from the common comparison band. Rejection that leaves no
+training columns anywhere still fails explicitly. This does not change the
+polynomial training/rejection rules or tune GP hyperparameters.
 
 All methods use the same aperture, trace cache, DQ masking, median background
 subtraction and scaled 1/f correction. A single median trace is used by default.
@@ -153,12 +201,21 @@ This is a diagnostic high-pass residual, not a transit fit or an unbiased noise
 estimate. Full time series and filters are saved so later comparisons can use
 the same time intervals or omit filter-affected boundaries.
 
+Individual-column FWHM excursions can reflect bad/missing detector pixels and
+undersampling; they are not automatically evidence for physical PSF changes.
+The column-median summaries reduce their influence, and the saved arrays allow
+subsequent checks against detector masks.
+
 Differences have sign **simple minus optimal**: the JSON reports the median
 over common columns of the difference of the two time-median spectra, in DN/s,
 and relative to the simple spectrum in ppm. They are not absolute differences
 or differences of separately normalized white-light curves. Extraction errors
 are conditional on fitted profiles and omit inter-column/profile/background
 covariance, as in the current library.
+
+Relative spectral differences can become very large where the simple spectrum
+is near zero, including masked-pixel losses and low-throughput columns. Inspect
+the DN/s differences and saved column masks before interpreting those ratios.
 
 The JSON is checkpointed after completed stages; exceptions produce
 `status: failed` with a traceback, rather than a misleading successful report.
@@ -170,3 +227,25 @@ Offline regression checks:
 ```sh
 python -m pytest tests/test_validation.py tests/test_jwst_compatibility.py -q
 ```
+
+## Executed reference
+
+The final local reference is
+[`runs/nrs1_segment001_20260922_final/reduction.json`](runs/nrs1_segment001_20260922_final/reduction.json).
+It covers all 391 integrations of segment 1 with JWST 3.0.0 and CRDS context
+`jwst_1584.pmap`, using the display-only measured preset and original extraction
+settings. Its calibrated FITS products are referenced in the earlier
+`runs/nrs1_segment001_20260922/` directory; keep that directory too.
+
+| Quantity | Simple | Polynomial | GP |
+|---|---:|---:|---:|
+| White-light residual RMS (ppm) | 264.1 | 273.0 | 265.6 |
+| Median simple minus method (DN/s) | — | 0.8294 | 0.3201 |
+
+All curves use the same 1537 columns. The final
+[median-spectrum comparison](runs/nrs1_segment001_20260922_final/05_median_spectra.png)
+and [white-light comparison](runs/nrs1_segment001_20260922_final/06_white_light.png)
+are available locally; large run products are git-ignored. The run took 520 s
+after reusing calibration. It tests execution and numerical products, not
+transit-depth bias or the entire three-segment observation. See
+[`../CODEX_CHANGELOG.md`](../CODEX_CHANGELOG.md) for changes and verification.
