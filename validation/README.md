@@ -1,4 +1,8 @@
-# NRS1 pipeline validation
+# Pipeline validation
+
+For **NIRISS/SOSS orders 1, 2 and 3**, use `validate.py --mode soss`; see the
+[SOSS guide](SOSS_README.md) and [executed HAT-P-14 b report](SOSS_VALIDATION_REPORT.md).
+The default mode and the configuration described below remain NRS1.
 
 `validate.py` reduces the HAT-P-14 commissioning exposure used by the original
 script, with the current checkout and installed JWST pipeline. It produces
@@ -227,6 +231,80 @@ Offline regression checks:
 ```sh
 python -m pytest tests/test_validation.py tests/test_jwst_compatibility.py -q
 ```
+
+## GP precision sweep from a completed run
+
+The executed experiment and its interpretation are documented in
+[`GP_SWEEP_REPORT.md`](GP_SWEEP_REPORT.md). Its 34-setting search gave a small
+full-segment RMS decrease (265.62 → 264.30 ppm), but no held-out improvement;
+the report recommends retaining the existing settings.
+
+```sh
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python validation/gp_sweep.py \
+  --run validation/runs/20260923T042304707564Z \
+  --output validation/runs/20260923_gp_sweep
+```
+
+This reads the saved extraction-input FITS cube, traces, errors, DQ, wavelengths
+and reference profiles. It does not repeat detector calibration or tracing,
+download data, modify the source run, or change library/configuration defaults.
+The extraction code must match the source run. Before searching, re-extraction
+with its saved profile must reproduce the original normalized light curve to
+within 0.1 ppm; the actual difference is saved. This checks that float32 FITS
+storage and mask reconstruction are adequate for the comparison.
+
+The default search tests Matérn-3/2 and Matérn-5/2 kernels, length scales
+30/100/300/1000 dispersion pixels and amplitudes 0.03/0.1/1/3, retaining the
+source inducing-point count. It also tests 12 and 48 inducing points at the
+best grid settings; these are model-resolution checks rather than additional
+kernel hyperparameters. Change the grid through `--length-scales`,
+`--amplitudes`, `--kernels` and `--resolution-check`.
+
+The protocol holds aperture, spatial spacing, rejection thresholds, errors,
+preprocessing, median-filter window, integrations and wavelength mask fixed.
+A candidate that loses measurements in that band is rejected; it cannot lower
+its RMS by discarding difficult wavelengths or exposures. Only GP settings vary.
+
+- The first half of the integrations is the development set; the second half
+  is held out. By default, 32 evenly distributed development integrations supply
+  per-integration profiles, which are combined by the existing Stage 2 median-
+  profile procedure. `--train-profiles` changes this screening sample size.
+- Selection minimizes development RMS after the existing spectral replacement
+  and median filtering. The replacement template/scatter is estimated only from
+  development integrations. Median filtering is performed separately in each
+  half so its windows cannot cross the split.
+- Raw, pre-replacement RMS must stay within 2% of the development baseline.
+  A spectrum guard also rejects large changes: the 95th percentile fractional
+  median-spectrum change must stay below 2% on bright columns with complete
+  apertures in at least 90% of development frames. These are explicit comparison
+  guards, not universal science acceptance criteria.
+- Settings are selected before inspecting holdout scores. Both selected and
+  baseline profiles are then fitted using **all** development integrations and
+  evaluated on the holdout. Paired 20-point moving-block bootstrap intervals
+  summarize the RMS difference; raw/corrected RMS, first-difference noise,
+  binned residual RMS and replacement fractions are retained.
+- Finally the selected profile is fitted on every integration, reproducing the
+  original full-run extraction procedure for a directly comparable figure and
+  RMS. This full-run score is descriptive; it is not another independent test.
+
+The holdout is conditional on the source run's fixed preprocessing: its trace
+and background/1f estimates already used the full exposure. It is not a wholly
+independent observation. A small RMS decrease alone does not establish preserved
+transit depth or justify replacing the default settings. No ramp-level injection
+or transit fit is performed by this sweep.
+
+`sweep.json` records input/code hashes, the exact protocol, every candidate,
+failed fits, locked selection, holdout intervals and full-refit metrics.
+`candidates.csv`, `sweep.png`, `white_light_comparison.png` and
+`spectrum_comparison.png` summarize results. Candidate and final NPZ files
+contain profiles, raw/corrected spectra, errors and replacement masks; CSVs
+contain light curves and residuals. `selected_config.json` is a separate proposed
+configuration, not an automatic update of the user's config.
+
+To continue an interrupted sweep, repeat the same command and add `--resume`.
+Completed candidates are reused only with matching input/code hashes and sweep
+settings. Regression checks for fixed bands, holdout isolation and bootstrap
+direction are in `tests/test_gp_sweep.py`.
 
 ## Executed reference
 

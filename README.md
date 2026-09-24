@@ -150,6 +150,22 @@ when used. For this checkout, install the corresponding extras with
 `pip install '.[fitting,parallel,download]'`. The base installation retains
 its existing JWST dependency declaration.
 
+## NIRISS/SOSS
+
+NIRISS `CLEAR/GR700XD` rateints now have a three-order reduction path through
+`ts.soss.reduce_soss(rateints_paths)` or `ts.jwst.stage2(...)`. It runs SOSS
+background subtraction **after ramp fitting**, starts traces/wavelengths from
+PASTASOSS at the measured pupil-wheel position, and saves separate box-extracted
+spectra and light curves for orders 1, 2 and 3. Missing apertures and order
+overlap are flagged explicitly; this path does not perform order decontamination.
+
+Run the full HAT-P-14 b PID 1541 observation 1 validation with
+`python validation/validate.py --mode soss --download`. See
+[the SOSS guide](validation/SOSS_README.md) for raw-data processing, reference
+overrides, seven validation plots, transmission fits and saved-product reuse.
+The [executed report](validation/SOSS_VALIDATION_REPORT.md) distinguishes
+successful reduction from the remaining scientific limitations of the spectrum.
+
 ## Python optimal extraction
 
 For a real NRS1 reduction with saved detector/ramp-fit plots, trace/FWHM

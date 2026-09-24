@@ -1,5 +1,79 @@
 # CODEX_CHANGELOG
 
+## 2026-09-24 — NIRISS/SOSS three-order reduction and validation
+
+- Added `src/soss.py` and SOSS dispatch from `jwst.stage2`, preserving the existing
+  NIRSpec path. Reads ramp-fitted segments without stacking the entire exposure,
+  selects PASTASOSS/background references using science metadata or explicit
+  overrides, and evaluates orders 1/2/3 at the measured pupil-wheel position.
+- Runs the official SOSS Stage 2 background algorithm after ramp fitting on a
+  representative median rate image, applies that static background to all frames,
+  and optionally removes residual column offsets outside all three traces.
+  Rejects inappropriate units/filter combinations and already-subtracted inputs.
+- Refines PASTASOSS seeds using the notebook's double-Gaussian profile and bounded
+  correlation, followed by a smooth offset spline. Saves reference/refined traces,
+  wavelengths, cross-dispersion motion and second-moment profile widths.
+- Extracts three fractional box apertures with propagated variances. Keeps masks,
+  incomplete apertures and order overlap explicit. White-light bands remain fixed
+  across integrations. This initial SOSS path does not claim order decontamination
+  or support single-order Marsh/GP extraction; requests for it fail explicitly.
+- Added `validate.py --mode soss`, a separate HAT-P-14 b config, raw/rateints input
+  modes, extraction reuse with hashes/settings checks, seven diagnostic plots,
+  three-order FITS/NPZ/CSV products, diagnostic JWST ImageModels, and a consolidated
+  JSON manifest. Existing user NRS1 configs were preserved.
+- Added conditional physical-transit and R=30 transmission fits, with free
+  quadratic limb darkening, fixed orbital geometry, covariance/rank/boundary
+  diagnostics and residual-noise inflation. Failed or unconstrained spectral bins
+  remain visible. Reference white-light depths are compared; an aggregate reference
+  line is explicitly distinguished from a complete reference transmission table.
+- Executed all 572 integrations of PID 1541 observation 1 from public rateints
+  (upstream JWST 2.0.1; new Stage 2 processing JWST 3.0.0). Recovered white-light
+  depths of approximately 6779/6598/7611 ppm for orders 1/2/3. Conservative masks
+  retain 81/100/120 fixed columns; weak order 3 bins and limb-darkening degeneracy
+  prevent certifying an unbiased full-band transmission spectrum. Full raw-ramp
+  recalibration of this SOSS visit was not executed.
+- Validation: **103 passed, 13 skipped**, including noisy three-order injection,
+  trace/motion recovery, masks, background ordering, physical transit fitting,
+  failed-bin retention and product round trips. Independently checked real-data
+  input/product/code hashes and numerical consistency. Results and remaining
+  limitations are in `validation/SOSS_VALIDATION_REPORT.md`; usage is in
+  `validation/SOSS_README.md`. Final artifacts are under
+  `validation/runs/soss_hatp14_20260924_complete/`.
+
+## 2026-09-23 — GP hyperparameter validation from saved products
+
+- Added `validation/gp_sweep.py` to reuse a completed validation run's saved
+  extraction cube, variance/DQ, traces, wavelength solution and common white-light
+  band. It checks extraction-code provenance and replays the source GP profile
+  before searching. Calibration, background/1/f preprocessing, aperture, mask
+  semantics and rejection thresholds remain fixed.
+- Searches Matérn-3/2 and Matérn-5/2 kernels, length scales and amplitudes, then
+  checks inducing-point counts at the best development-grid setting. Checkpointed
+  candidates can be resumed with matching input hashes, code and settings.
+- Selects settings using the first half of the integrations, with guards against
+  distorted spectra, missing comparison data and worse uncorrected precision.
+  Confirms on the second half after fitting profiles and the spectral-replacement
+  template on development data only. Paired block-bootstrap intervals quantify
+  the conditional precision difference. The shared upstream preprocessing still
+  uses the full source run, so this is not an independent-observation validation.
+- Saves candidate spectra/profiles, original and corrected light curves, metrics,
+  plots and a separate proposed configuration. Refits the selected settings on
+  the complete segment for a direct descriptive comparison with the source run.
+  Neither library defaults nor the user's validation configuration are changed.
+- Added regression tests for fixed-band scoring, missing-data preservation,
+  training-only spectral replacement, holdout filtering and bootstrap direction.
+  Validation: **92 passed, 13 skipped**, with two existing shared-profile
+  hyperparameter-boundary warnings.
+- Executed 34 settings from `validation/runs/20260923T042304707564Z`, saving
+  results in `validation/runs/20260923_gp_sweep` (14.0 minutes). The development
+  winner was Matérn-5/2, length scale 1000, amplitude 0.1, 24 inducing points.
+  Full-segment corrected RMS decreased from 265.623 to 264.298 ppm, but holdout
+  RMS worsened from 262.375 to 262.667 ppm; the paired improvement interval
+  includes zero. Large localized flux changes remain at two persistently
+  incomplete aperture columns. Recommend retaining the existing settings.
+  See `validation/GP_SWEEP_REPORT.md` for the protocol, uncertainty, spectrum
+  checks, saved products and limitations.
+
 ## 2026-09-22 — NRS1 reduction validation workflow
 
 Expanded `validation/validate.py` into a repeatable reduction/diagnostics driver

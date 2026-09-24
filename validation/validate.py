@@ -322,7 +322,15 @@ def reduce(records, config, folder, report, ts, reuse=None):
 
 
 def main():
+    mode_parser = argparse.ArgumentParser(add_help=False)
+    mode_parser.add_argument('--mode', choices=['nrs1', 'soss'], default='nrs1')
+    mode, arguments = mode_parser.parse_known_args()
+    if mode.mode == 'soss':
+        from soss_validate import main as soss_main
+        return soss_main(arguments)
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--mode', choices=['nrs1', 'soss'], default='nrs1',
+                        help='Validation preset; use --mode soss --help for SOSS options')
     parser.add_argument('--input-glob', help='Local raw NRS1 segment files; overrides download selection')
     parser.add_argument('--download', action='store_true', help='Download only requested public segments')
     parser.add_argument('--segments', type=int, nargs='+', default=[1])
@@ -332,7 +340,7 @@ def main():
     parser.add_argument('--config', type=Path, default=ROOT/'validation/config.json')
     parser.add_argument('--reuse-calibration', type=Path,
                         help='Read completed ramp/rate products from a previous run; rerun all diagnostics and extraction')
-    args = parser.parse_args()
+    args = parser.parse_args(arguments)
     if any(i < 1 for i in args.segments):
         parser.error('Segment numbers must be positive')
     if not re.fullmatch(r'jw\d{11}_\d{5}_\d{5}', args.exposure):

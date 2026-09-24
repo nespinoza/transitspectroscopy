@@ -1,5 +1,7 @@
 from ._version import __version__
-__all__ = ['spectroscopy', 'utils', 'transitfitting', 'jwst']
+__all__ = ['spectroscopy', 'utils', 'transitfitting', 'jwst', 'soss']
+
+from . import soss
 
 from .spectroscopy import *
 from .transitfitting import *

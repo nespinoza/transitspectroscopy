@@ -2581,7 +2581,7 @@ def _extract_shared_sequence(data, errors, traces, reference_trace, specificatio
             None if profiles is None else np.asarray(profiles), model)
 
 
-def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, optimal_extraction = False, outputfolder = '', suffix = '', aperture_radius = None, mask_dq = False, extraction_backend='auto', profile_method='polynomial', gp_options=None, extraction_options=None, shared_profile=None, shared_profile_options=None, **kwargs):
+def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, optimal_extraction = False, outputfolder = '', suffix = '', aperture_radius = None, mask_dq = False, extraction_backend='auto', profile_method='polynomial', gp_options=None, extraction_options=None, shared_profile=None, shared_profile_options=None, soss_options=None, **kwargs):
     """
     This function takes an `input_dictionary` having as keys the `rampstep` products on a (chronologically-ordered) list, `times` having the times at 
     each integration in BJD and the integrations per segment `ints_per_segment`. Using those, it performs wavelength calibration, spectral tracing and 
@@ -2643,6 +2643,23 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
  
     """
 
+    # NIRISS has several overlapping orders and its own post-ramp background
+    # reference. Dispatch before entering the historical single-trace path.
+    from .soss import _model, reduce_soss
+    with _model(input_dictionary['rampstep'][0]) as first_model:
+        is_soss = getattr(getattr(first_model.meta, 'exposure', None), 'type', None) == 'NIS_SOSS'
+    if is_soss:
+        if optimal_extraction or shared_profile is not None or gp_options is not None:
+            raise ValueError('SOSS currently supports fractional box extraction; '
+                             'single-order Marsh/GP fitting is not order decontamination')
+        options = dict(soss_options or {})
+        return reduce_soss(input_dictionary, aperture_radius=15. if aperture_radius is None else aperture_radius,
+                           mask_dq=mask_dq, scale_1f=scale_1f,
+                           single_trace_extraction=single_trace_extraction,
+                           outputfolder=os.path.join(outputfolder, 'pipeline_outputs', 'soss'+('_'+suffix if suffix else '')),
+                           **options)
+    if soss_options is not None:
+        raise ValueError('soss_options applies only to NIS_SOSS exposures')
     extraction_options = dict(extraction_options or {})
     if set(extraction_options) - {'polynomial_spacing', 'polynomial_order', 'nsigma'}:
         raise ValueError('Unknown extraction_options key')
