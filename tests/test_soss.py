@@ -3,6 +3,7 @@ from types import SimpleNamespace as NS
 import numpy as np
 import pytest
 from transitspectroscopy import soss
+from transitspectroscopy.jwst_models import integration_times
 
 
 def test_fractional_aperture_and_variance():
@@ -55,7 +56,7 @@ def test_segment_times_select_integration_numbers():
                      dtype=[('integration_number', int), ('int_mid_BJD_TDB', float)])
     m = NS(int_times=table, data=np.zeros((2,3,4)),
            meta=NS(exposure=NS(integration_start=3, integration_end=4)))
-    np.testing.assert_allclose(soss._times(m), [2459000.503,2459000.504])
+    np.testing.assert_allclose(integration_times(m), [2459000.503,2459000.504])
 
 
 def test_require_ramp_fitting_before_background():

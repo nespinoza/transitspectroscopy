@@ -10,7 +10,8 @@ import warnings
 import numpy as np
 from astropy.io import fits
 from . import photometry as ph
-from .soss import _model, _times, _hash
+from .core.provenance import file_sha256
+from .jwst_models import integration_times, open_model
 
 
 def calibrate(path, outputfolder, *, input_product='rateints', detector_options=None,
@@ -138,7 +139,7 @@ def prepare_segment(model, *, center=None, stamp_radius=10, annulus=(12.,20.),
         skies.append(b);skyvars.append(bv);skycounts.append(n);flags.append(int(failed))
     return dict(data=np.asarray(stamps),variance=np.asarray(variances),centers=np.asarray(centers),
         widths=np.asarray(widths),sky=np.asarray(skies),sky_variance=np.asarray(skyvars),
-        sky_pixels=np.asarray(skycounts),flags=np.asarray(flags),times=_times(model),
+        sky_pixels=np.asarray(skycounts),flags=np.asarray(flags),times=integration_times(model),
         origin=np.array([x0,y0]),median_image=median,unit=output_unit,
         exposure=str(model.meta.filename).split('-seg')[0],
         metadata=dict(filter=model.meta.instrument.filter,program=model.meta.observation.program_number,
@@ -255,7 +256,7 @@ def extract_visit(segments, *, aperture_radius=5., training_integrations=12,
             result['flags'][i] |= 4
         else:
             residual=np.where(good,d-f*p,0.)
-            chi2[i]=np.sum(residual*ph._precision(residual,v,good,sv))/max(1,good.sum()-1)
+            chi2[i]=np.sum(residual*ph.sky_precision(residual,v,good,sv))/max(1,good.sum()-1)
         if first_profile is None:
             first_profile,first_weights = p,w*fraction
             first_image,first_model = d,f*p

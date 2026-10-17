@@ -1,38 +1,30 @@
 # API reference
 
 The most common functions are also available at the top level (`ts.getOptimalSpectrum`,
-`ts.load`, `ts.fit_shared_profile`, ...).
+`ts.load`, `ts.fit_shared_profile`, ...). The instrument-independent algorithms are in
+`transitspectroscopy.core` (see [Core algorithms](#core-algorithms) below); the modules
+above it keep the historical interface and add the JWST-specific layers.
 
 ## JWST data access, calibration and stages
 
 ```{eval-rst}
 .. automodule:: transitspectroscopy.jwst
    :members: download, load, stage1, stage2, side_refpix_correction, group_1f_correction,
-             tso_jumpstep, get_loom, get_roeba, get_cds, get_last_minus_first,
-             get_uniluminated_mask, cc_uniluminated_outliers, spill_filter, correct_1f
+             tso_jumpstep, get_cds
 ```
 
 ## Spectral tracing and extraction
 
 ```{eval-rst}
 .. automodule:: transitspectroscopy.spectroscopy
-   :members: getP, getOptimalSpectrum, getFastSimpleSpectrum, getSimpleSpectrum,
-             trace_spectrum, trace_fwhm, get_fwhm, get_ccf, get_ccf_convolve, get_pm_ccf,
-             gaussian, double_gaussian, get_mad_sigma
-```
-
-## Shared intrinsic profiles
-
-```{eval-rst}
-.. automodule:: transitspectroscopy.shared_profile
-   :members: fit_shared_profile, SharedProfile
+   :members: getP, getOptimalSpectrum, getFastSimpleSpectrum, getSimpleSpectrum
 ```
 
 ## NIRISS/SOSS
 
 ```{eval-rst}
 .. automodule:: transitspectroscopy.soss
-   :members: reduce_soss, reference_traces, refine_trace, extract_box, save_products, load_products
+   :members: reduce_soss, reference_traces, extract_box, save_products, load_products
 ```
 
 ## MIRI imaging and photometry
@@ -41,15 +33,13 @@ The most common functions are also available at the top level (`ts.getOptimalSpe
 .. automodule:: transitspectroscopy.miri
    :members: reduce_miri, calibrate, prepare_segment, extract_visit
 
-.. automodule:: transitspectroscopy.photometry
-   :members: circular_weights, background, centroid, optimal_flux, GPPSF, fit_gp_psf
 ```
 
 ## Ramp fitting
 
 ```{eval-rst}
 .. automodule:: transitspectroscopy.ramp_fitting
-   :members: fit_ramps, fit_model
+   :members: fit_model, detector1_class
 ```
 
 ## Light-curve fitting
@@ -65,6 +55,49 @@ The most common functions are also available at the top level (`ts.getOptimalSpe
 .. automodule:: transitspectroscopy.utils
    :members:
 
-.. automodule:: transitspectroscopy.timeseries
+```
+
+## Core algorithms
+
+```{eval-rst}
+.. automodule:: transitspectroscopy.core
+
+.. automodule:: transitspectroscopy.core.extraction
+   :members:
+
+.. automodule:: transitspectroscopy.core.profiles
+   :members:
+
+.. automodule:: transitspectroscopy.core.shared_profile
+   :members: SharedProfile, fit_shared_profile, fit_coefficients, profile_basis, pixel_profile
+
+.. automodule:: transitspectroscopy.core.overlap
+   :members: train_joint, extract_blended, unmodeled_pixels, JointProfileFit
+
+.. automodule:: transitspectroscopy.core.tracing
+   :members:
+
+.. automodule:: transitspectroscopy.core.geometry
+   :members:
+
+.. automodule:: transitspectroscopy.core.kernels
+   :members:
+
+.. automodule:: transitspectroscopy.core.photometry
+   :members:
+
+.. automodule:: transitspectroscopy.core.ramps
+   :members: fit_ramps, difference_weights, validate_selection
+
+.. automodule:: transitspectroscopy.core.detector
+   :members:
+
+.. automodule:: transitspectroscopy.core.timeseries
+   :members:
+
+.. automodule:: transitspectroscopy.core.binning
+   :members:
+
+.. automodule:: transitspectroscopy.core.provenance
    :members:
 ```

@@ -17,24 +17,27 @@ from simulated_spectra import simulate
 
 
 def test_legacy_signatures_and_top_level_exports():
-    root = Path(__file__).resolve().parents[1]
+    # Signatures are checked on the imported objects, so functions may move (for
+    # example into transitspectroscopy.core) as long as the public contract holds.
     snapshot = json.loads((Path(__file__).parent / 'legacy_api.json').read_text())
-    trees = {m: ast.parse((root / 'src' / (m+'.py')).read_text())
-             for m in ['spectroscopy', 'transitfitting', 'utils', 'timeseries', 'jwst']}
     for name, previous in snapshot.items():
         module, *path = name.split('.')
-        nodes = trees[module].body
+        obj = getattr(ts, module)
         for part in path:
-            node = next(n for n in nodes if getattr(n, 'name', None) == part)
-            nodes = node.body
-        names = [a.arg for a in node.args.args]
+            obj = getattr(obj, part)
+        parameters = [p for p in inspect.signature(obj).parameters.values()
+                      if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]
+        if len(path) == 2:  # methods: inspect.signature on the class attribute keeps self
+            assert parameters[0].name == 'self', name
+        names = [p.name for p in parameters]
         assert names[:len(previous['args'])] == previous['args'], name
-        defaults = dict(zip(names[-len(node.args.defaults):], map(ast.unparse, node.args.defaults)))
+        defaults = {p.name: p.default for p in parameters if p.default is not p.empty}
         old_defaults = dict(zip(previous['args'][-len(previous['defaults']):], previous['defaults']))
         for argument, value in old_defaults.items():
-            assert defaults[argument] == value, (name, argument)
+            assert ast.literal_eval(value) == defaults[argument], (name, argument)
         if previous['kwarg']:
-            assert node.args.kwarg.arg == previous['kwarg']
+            kwarg = [p.name for p in inspect.signature(obj).parameters.values() if p.kind == p.VAR_KEYWORD]
+            assert kwarg == [previous['kwarg']], name
         if len(path) == 1:
             assert hasattr(getattr(ts, module), path[0])
             if module != 'timeseries':
@@ -160,7 +163,8 @@ def test_segment_arrays_remain_linked():
 def test_legacy_jump_dq_and_input_ownership(monkeypatch):
     # This records existing overwrite behavior; changing DQ policy is separate.
     segment = NS(data=np.zeros((3,2,1,1)), groupdq=np.full((3,2,1,1),2,dtype=np.uint32))
-    monkeypatch.setattr(jwst, 'outlier_detector', lambda *args, **kw: np.array([1]))
+    from transitspectroscopy.core import detector
+    monkeypatch.setattr(detector, 'outlier_detector', lambda *args, **kw: np.array([1]))
     output = jwst.tso_jumpstep([segment], window=3)
     assert output[0].groupdq[1,1,0,0] == 4
     assert segment.groupdq[1,1,0,0] == 2

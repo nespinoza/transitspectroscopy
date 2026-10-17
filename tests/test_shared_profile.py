@@ -6,7 +6,8 @@ from scipy.linalg import helmert
 from scipy.optimize._numdiff import approx_derivative
 
 from transitspectroscopy import fit_shared_profile, SharedProfile, getOptimalSpectrum
-from transitspectroscopy import shared_profile as sp
+from transitspectroscopy.core import geometry, kernels, profiles
+from transitspectroscopy.core import shared_profile as sp
 from simulated_spectra import simulate
 
 
@@ -28,7 +29,7 @@ def train(data, variance, trace, **kwargs):
 def test_linear_evidence_matches_direct_covariance():
     rng = np.random.default_rng(83)
     x, y, v = rng.normal(size=(50,8)), rng.normal(size=50), rng.uniform(.2,3,50)
-    nll, mean, covariance = sp._linear_gaussian_evidence(y,x,v)
+    nll, mean, covariance = sp.linear_gaussian_evidence(y,x,v)
     c = np.diag(v)+x@x.T
     direct = .5*(y@np.linalg.solve(c,y)+np.linalg.slogdet(c)[1]+50*np.log(2*np.pi))
     np.testing.assert_allclose(nll,direct,rtol=1e-13)
@@ -38,7 +39,7 @@ def test_linear_evidence_matches_direct_covariance():
 
 def test_profile_derivatives_and_conditional_curvature():
     data, var, trace, _ = sequence(1,8)
-    rows, inside, k = sp._geometry(trace[0],32,4,1.)
+    rows, inside, k = geometry.native_window(trace[0],32,4,1.)
     j = np.arange(8)[:,None]
     frame = dict(index=0, centers=trace[0],rows=rows,inside=inside,
                  data=data[0][rows,j],inverse=1/var[0][rows,j],log_normalization=0.)
@@ -50,11 +51,11 @@ def test_profile_derivatives_and_conditional_curvature():
     value, gradient, hessian, _ = worker.evaluate(coef,basis,True)
     numeric = approx_derivative(lambda a: worker.evaluate(a.reshape(coef.shape),basis)[0],coef.ravel())
     np.testing.assert_allclose(gradient.ravel(), numeric.ravel(),rtol=1e-5,atol=2e-5)
-    q = worker.geometry(0,frame)
-    p,_ = sp._pixel_profile(q,basis@coef.T@c.T+mean)
+    q = worker.overlaps(0,frame)
+    p,_ = sp.pixel_profile(q,basis@coef.T@c.T+mean)
     flux = np.sum(p*frame['data']*frame['inverse'],axis=1)/np.sum(p*p*frame['inverse'],axis=1)
     def conditional_gradient(a):
-        p,w = sp._pixel_profile(q,basis@a.reshape(coef.shape).T@c.T+mean)
+        p,w = sp.pixel_profile(q,basis@a.reshape(coef.shape).T@c.T+mean)
         gp = flux[:,None]*(flux[:,None]*p-frame['data'])*frame['inverse']
         gz = np.einsum('jrk,jr->jk',w,gp)-w.sum(axis=1)*np.sum(p*gp,axis=1)[:,None]
         return ((gz@c).T@basis).ravel()
@@ -66,7 +67,7 @@ def test_structured_helmert_transform_matches_dense():
     values = np.random.default_rng(134).normal(size=(13,41))
     c = helmert(41).T
     expected = np.stack([c.T@np.diag(row)@c for row in values])
-    np.testing.assert_allclose(sp._helmert_diagonal(values),expected,atol=1e-14)
+    np.testing.assert_allclose(sp.helmert_diagonal(values),expected,atol=1e-14)
 
 
 @pytest.mark.parametrize('method',['polynomial','gp'])
@@ -88,7 +89,7 @@ def test_joint_recovery_reuse_and_roundtrip(tmp_path, monkeypatch, method):
     restored = SharedProfile.load(tmp_path/'model.npz')
     assert restored.fingerprint() == model.fingerprint()
     monkeypatch.setattr(sp,'minimize',lambda *a,**kw: pytest.fail('reuse must not fit'))
-    monkeypatch.setattr(sp,'_fit_coefficients',lambda *a,**kw: pytest.fail('reuse must not fit coefficients'))
+    monkeypatch.setattr(sp,'fit_coefficients',lambda *a,**kw: pytest.fail('reuse must not fit coefficients'))
     residuals = []
     for i in range(len(data)):
         result = restored.extract(data[i],trace[i],variance[i])
@@ -211,7 +212,7 @@ def test_accumulation_is_one_shared_likelihood():
     d,v,t,_ = sequence(3,8)
     frames = []
     for index in range(3):
-        rows, inside, k = sp._geometry(t[index],32,4,1.)
+        rows, inside, k = geometry.native_window(t[index],32,4,1.)
         cols = np.arange(8)[:,None]
         frames.append(dict(index=index,centers=t[index],rows=rows,inside=inside,
                            data=d[index][rows,cols],inverse=1/v[index][rows,cols],
@@ -243,9 +244,9 @@ def test_polynomial_prior_optimization_and_background():
 def test_gp_coordinates_and_existing_kernel(kernel):
     options = dict(amplitude=.7,length_scale=9.,n_inducing=6,kernel=kernel)
     x = np.arange(24.)
-    b = sp._basis(x,'gp',3,options)
-    np.testing.assert_allclose(b,sp._legacy._gp_basis(24,options),atol=1e-12)
-    scaled = sp._basis(3*x+100,'gp',3,dict(options,length_scale=27.))
+    b = sp.profile_basis(x,'gp',3,options)
+    np.testing.assert_allclose(b,profiles.gp_basis(np.arange(24.), **profiles.marsh_gp_options(24, options)),atol=1e-12)
+    scaled = sp.profile_basis(3*x+100,'gp',3,dict(options,length_scale=27.))
     np.testing.assert_allclose(b,scaled,atol=1e-12)
 
 

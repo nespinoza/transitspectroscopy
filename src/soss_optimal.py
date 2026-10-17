@@ -7,7 +7,9 @@ flux remains a nuisance parameter during training.
 """
 import numpy as np
 
-from .shared_profile import fit_shared_profile
+from .core.extraction import frozen_profile
+from .core.geometry import aperture_weights
+from .core.shared_profile import fit_shared_profile
 
 
 def settings(methods, options, radius):
@@ -67,29 +69,9 @@ def extract(model, frame, variance, valid, columns, centers, radius, options):
     Reject inadequately observed profiles instead of extrapolating their flux
     from arbitrarily little remaining light. Coefficients are never refitted.
     """
-    from .soss import aperture_weights
     y, v = frame[:, columns], variance[:, columns]
     profile = model.evaluate(centers, dispersion_coordinates=columns)
-    good = (valid[:, columns] & np.isfinite(y) & (y != -9999) & np.isfinite(v)
-            & (v > 0) & (profile > 0))
-    y = np.where(good, y, 0.)
-    for _ in range(int(np.max(np.sum(profile > 0, axis=0)))+1):
-        inverse = np.divide(1., v, out=np.zeros_like(v), where=good)
-        denominator = np.sum(profile**2*inverse, axis=0)
-        flux = np.divide(np.sum(profile*y*inverse, axis=0), denominator,
-                         out=np.full(len(columns), np.nan), where=denominator > 0)
-        if options['nsigma'] == 0:
-            break
-        score = np.where(good, np.abs(y-profile*flux)*np.sqrt(inverse), -np.inf)
-        worst = np.argmax(score, axis=0)
-        reject = score[worst, np.arange(len(columns))] > options['nsigma']
-        if not np.any(reject):
-            break
-        good[worst[reject], np.flatnonzero(reject)] = False
-    fraction = np.sum(np.where(good, profile, 0.), axis=0)
     aperture_fraction = np.sum(profile*aperture_weights(len(frame), centers, radius), axis=0)
-    supported = (fraction >= options['minimum_profile_fraction']) & (denominator > 0)
-    flux = np.where(supported, flux*aperture_fraction, np.nan)
-    error = np.full(len(columns), np.nan)
-    np.divide(aperture_fraction, np.sqrt(denominator), out=error, where=supported)
-    return flux, error, fraction
+    return frozen_profile(profile, y, v, valid[:, columns], aperture_fraction,
+                          nsigma=options['nsigma'],
+                          minimum_profile_fraction=options['minimum_profile_fraction'])

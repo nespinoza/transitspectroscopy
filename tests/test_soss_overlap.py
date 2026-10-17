@@ -97,7 +97,9 @@ def test_joint_training_and_extraction_recover_distinct_transits(method):
 
 
 def test_joint_profile_gradient_matches_finite_differences():
-    from transitspectroscopy.shared_profile import SharedProfile,_basis,_component_count
+    from transitspectroscopy.shared_profile import SharedProfile
+    from transitspectroscopy.core.geometry import component_count as _component_count
+    from transitspectroscopy.core.shared_profile import profile_basis as _basis
     from scipy.linalg import helmert
     x=np.arange(10)
     models=[]
@@ -109,7 +111,7 @@ def test_joint_profile_gradient_matches_finite_differences():
     centers=[np.full((1,10),7.2),np.full((1,10),10.3)]
     data=[30*models[0].evaluate(centers[0][0])+10*models[1].evaluate(centers[1][0])]
     data[0]+=np.random.default_rng(99).normal(0,.1,data[0].shape)
-    worker=soss_overlap._JointFit(models,centers,[x,x],data,[np.ones_like(data[0])])
+    worker=soss_overlap.JointProfileFit(models,centers,[x,x],data,[np.ones_like(data[0])])
     coefficients=np.random.default_rng(3).normal(0,.01,worker.size)
     value,gradient,hessian,_=worker.evaluate(coefficients,curvature=True)
     numeric=[]
@@ -122,9 +124,9 @@ def test_joint_profile_gradient_matches_finite_differences():
     # Combining curvature before the dispersion-basis expansion must preserve
     # the likelihood of independent integrations, including unequal variances.
     repeated=[np.repeat(c,2,axis=0) for c in centers]
-    combined=soss_overlap._JointFit(models,repeated,[x,x],[data[0],.8*data[0]],
+    combined=soss_overlap.JointProfileFit(models,repeated,[x,x],[data[0],.8*data[0]],
                                     [np.ones_like(data[0]),np.ones_like(data[0])*2])
-    second=soss_overlap._JointFit(models,centers,[x,x],[.8*data[0]],[np.ones_like(data[0])*2])
+    second=soss_overlap.JointProfileFit(models,centers,[x,x],[.8*data[0]],[np.ones_like(data[0])*2])
     total=combined.evaluate(coefficients,curvature=True)
     extra=second.evaluate(coefficients,curvature=True)
     np.testing.assert_allclose(total[0],value+extra[0])

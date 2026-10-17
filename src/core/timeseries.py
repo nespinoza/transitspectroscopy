@@ -1,0 +1,62 @@
+"""Time-series helpers: robust scatter and outlier detection."""
+
+import numpy as np
+from scipy.ndimage import median_filter
+
+
+def mad_sigma(x, median):
+    """Standard deviation estimated from the median absolute deviation about ``median``."""
+    mad = np.nanmedian(np.abs(x - median))
+
+    return 1.4826 * mad
+
+
+def outlier_detector(x, nsigma=10, window=200, return_filter=False):
+    """
+    Given a uniformly sampled time-series `x`, this function substracts a median filter to it with a
+    window `window`,
+    estimates the standard deviation of the residuals via an outlier-robust metric (the
+    median-absolute-deviation-based
+    standard deviation) and identifies outliers in it, returning the indexes at which they are
+    located
+
+
+    Parameters
+    ----------
+
+    x : numpy.array
+        Numpy array of a uniformly-spaced time-series.
+
+    nsigma : float
+        Number of sigmas used to identify outliers.
+
+    window : int
+        Window for the median filter
+
+    return_filter : bool
+        (Optional) If True, function returns the median filtered data
+
+    Returns
+    -------
+
+    outlier_indexes : numpy.array
+        Indexes in `x` at which outliers are located.
+
+    """
+
+    # First, get a median filter to get rid of the transit (or any astrophysical) event:
+    mf = median_filter(x, window)
+    residuals = x - mf
+
+    # Now, with those zero-median residuals, estimate the median absolute deviation:
+    sigma = mad_sigma(residuals, np.nanmedian(residuals))
+
+    # Now, find any datapoint 10-sigma away:
+    idx = np.where(np.abs(residuals) > nsigma * sigma)[0]
+
+    # Return location of the outliers:
+    if not return_filter:
+        return idx
+
+    else:
+        return idx, mf

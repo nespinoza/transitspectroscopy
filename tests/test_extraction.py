@@ -6,7 +6,7 @@ import pytest
 
 from simulated_spectra import simulate
 from transitspectroscopy import spectroscopy as s
-from transitspectroscopy import _optimal_extraction as optimal
+from transitspectroscopy.core import extraction, geometry
 
 
 def run(v, backend='python', spacing=1., order=3, bounds=(None, None), method='polynomial'):
@@ -181,7 +181,7 @@ def test_gp_options_and_selection():
 def test_second_image_weights():
     v = simulate()
     spectrum, p = run(v)
-    a = optimal.extract(v['data'], v['centers'], 7, 5., 1., 0., 1., p,
+    a = extraction.marsh_optimal(v['data'], v['centers'], 7, 5., 1., 0., 1., p,
                         variance=v['variance'], background=v['data'])
     np.testing.assert_array_equal(a[1], a[3])
 
@@ -193,7 +193,7 @@ def test_second_image_c_equivalence():
     b = np.full_like(v['data'], 2.)
     raw, size = marsh.BObtainSpectrum(v['data'].ravel(), v['centers'], p.ravel(),
         b.ravel(), 32, 96, 96, 7., 5., 1., 1., 8., 0, 96)
-    result = optimal.extract(v['data'], v['centers'], 7, 5., 1., 8., 1., p, background=b)
+    result = extraction.marsh_optimal(v['data'], v['centers'], 7, 5., 1., 8., 1., p, background=b)
     np.testing.assert_allclose(result, np.asarray(raw).reshape(4,size), rtol=1e-12, atol=2e-9)
 
 
@@ -221,7 +221,7 @@ def test_resample_preserves_each_masked_edge(masked_edge):
         if masked_edge in (name, 'both'):
             data[0, index] = -9999.
     before = data.copy()
-    result = optimal.resample(data, [1.25], [4.75])
+    result = geometry.scale_edge_pixels(data, [1.25], [4.75])
     np.testing.assert_array_equal(data, before)
     for index in (1, 4):
         assert result[0, index] == (-9999. if data[0, index] == -9999. else 75.)
@@ -289,8 +289,8 @@ def test_gp_real_jwst_masked_frame():
         gp_options=dict(kernel='matern32', length_scale=100., amplitude=1., n_inducing=24))
     assert np.isfinite(profile).all()
     np.testing.assert_allclose(profile.sum(axis=0), 1., atol=1e-14)
-    _, low, high, inside, *_ = optimal.geometry(centers, data.shape[0], 2., 1.)
-    aperture_flux = np.where(inside, optimal.resample(data.T, low, high), 0.).sum(axis=1)
+    _, low, high, inside, *_ = geometry.marsh_geometry(centers, data.shape[0], 2., 1.)
+    aperture_flux = np.where(inside, geometry.scale_edge_pixels(data.T, low, high), 0.).sum(axis=1)
     complete = np.all(~inside | (np.isfinite(variance.T) & (variance.T > 0)), axis=1)
     bright = complete & (aperture_flux > 100.)
     assert bright.sum() > 1000

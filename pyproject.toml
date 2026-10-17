@@ -47,7 +47,7 @@ DOI = "https://doi.org/10.5281/zenodo.6960924"
 [tool.setuptools]
 # The package lives in src/ but is installed as `transitspectroscopy`.
 package-dir = { "transitspectroscopy" = "src" }
-packages = ["transitspectroscopy"]
+packages = ["transitspectroscopy", "transitspectroscopy.core"]
 zip-safe = false
 
 [tool.setuptools.dynamic]
@@ -59,3 +59,14 @@ markers = [
     "crds: needs CRDS reference files (network or a populated CRDS_PATH)",
     "network: needs internet access (e.g. MAST downloads)",
 ]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.format]
+# Keep the single-quote style used throughout the package.
+quote-style = "preserve"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E741"]

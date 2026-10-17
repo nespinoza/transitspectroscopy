@@ -19,7 +19,7 @@ def test_tridiagonal_matches_dense_covariance(signal, read_noise, holes):
     if holes:
         good[0, [0, 4, 5]] = False
         good[1, [2, 9, 10]] = False
-    weights = rf._weights(np.full(2, signal), np.full(2, read_noise**2), good)
+    weights = rf.difference_weights(np.full(2, signal), np.full(2, read_noise**2), good)
     c = np.eye(11)*(signal+2*read_noise**2)
     c += (np.eye(11, k=1)+np.eye(11, k=-1))*(-read_noise**2)
     for i in range(2):
@@ -34,12 +34,12 @@ def test_paper_analytic_weights_and_limits():
     ell = np.arccosh(1+signal/(2*read**2))
     j = np.arange(1, n+1)
     analytic = (1-np.cosh((j-(n+1)/2)*ell)/np.cosh((n+1)*ell/2))/signal
-    np.testing.assert_allclose(rf._weights(signal, read**2, np.ones(n, bool)), analytic, rtol=1.e-12)
+    np.testing.assert_allclose(rf.difference_weights(signal, read**2, np.ones(n, bool)), analytic, rtol=1.e-12)
     # Read noise only: parabolic weights give the ordinary least-squares slope.
-    np.testing.assert_allclose(rf._weights(0., read**2, np.ones(n, bool)),
+    np.testing.assert_allclose(rf.difference_weights(0., read**2, np.ones(n, bool)),
                                j*(n+1-j)/(2*read**2), rtol=1.e-12)
     # Photon noise only: uniform differences telescope to (last-first)/N.
-    np.testing.assert_allclose(rf._weights(signal, 0., np.ones(n, bool)), 1/signal)
+    np.testing.assert_allclose(rf.difference_weights(signal, 0., np.ones(n, bool)), 1/signal)
 
 
 def test_units_variances_and_nonmutation():
@@ -48,7 +48,7 @@ def test_units_variances_and_nonmutation():
     out = rf.fit_ramps(data, group_time=2., gain=3., read_noise=7., residual_correction=False)
     np.testing.assert_allclose(out['data'], 20.)
     np.testing.assert_allclose(out['err']**2, out['var_poisson']+out['var_rnoise'])
-    weights = rf._weights(120., 49., np.ones(11, bool))
+    weights = rf.difference_weights(120., 49., np.ones(11, bool))
     np.testing.assert_allclose(out['err']**2, 1/weights.sum()/6**2)
     np.testing.assert_array_equal(data, original)
     assert np.all(out['n_used'] == 11)

@@ -4,34 +4,17 @@ PASTASOSS supplies detector coordinates and wavelengths; bounded double-Gaussian
 correlation refines the trace. Box apertures retain geometric overlap flags;
 optimal extraction jointly models overlapping order contributions.
 """
-from contextlib import contextmanager
 from pathlib import Path
-import hashlib
 import json
 import warnings
 
 import numpy as np
-from scipy.interpolate import UnivariateSpline
-from scipy.ndimage import map_coordinates, median_filter
-from scipy.optimize import minimize_scalar
 
-
-@contextmanager
-def _model(value):
-    if isinstance(value, (str, Path)):
-        from stdatamodels.jwst import datamodels
-        with datamodels.open(str(value)) as model:
-            yield model
-    else:
-        yield value
-
-
-def _hash(path):
-    digest = hashlib.sha256()
-    with open(path, 'rb') as handle:
-        for block in iter(lambda: handle.read(8 * 1024**2), b''):
-            digest.update(block)
-    return digest.hexdigest()
+from .core.extraction import fractional_box
+from .core.geometry import aperture_weights  # noqa: F401  (public re-export)
+from .core.provenance import file_sha256
+from .core.tracing import refine_trace, trace_motion  # noqa: F401  (public re-exports)
+from .jwst_models import integration_times, open_model
 
 
 def _reference(model, kind, override):
@@ -79,118 +62,16 @@ def reference_traces(model, reference=None, orders=(1, 2, 3)):
                 raise ValueError(f'Order {order} has insufficient or invalid detector support')
             result[int(order)] = dict(columns=x.astype(int), reference_trace=y,
                                      wavelength=wave)
-    return result, dict(path=path, sha256=_hash(path), pupil_position=float(angle),
+    return result, dict(path=path, sha256=file_sha256(path), pupil_position=float(angle),
                        subarray=subarray)
 
 
-def refine_trace(image, columns, reference, *, valid=None, max_shift=4., step=8):
-    """Bounded, normalized double-Gaussian correlation and a smooth offset spline.
-
-    Uses the notebook's peaks at +/-7.5 pixels, sigma=3. Missing pixels do not
-    contribute to the correlation. The bounded search cannot jump to another
-    spectral order. Low-quality/boundary solutions retain the reference locally.
-    """
-    if max_shift <= 0 or step < 1:
-        raise ValueError('Trace search width and sampling step must be positive')
-    valid = np.isfinite(image) if valid is None else valid & np.isfinite(image)
-    offsets = np.linspace(-max_shift, max_shift, 81)
-    dx, dy = [], []
-    rows = np.arange(image.shape[0])
-    for j in range(0, len(columns), step):
-        x, center = columns[j], reference[j]
-        keep = valid[:, x] & (np.abs(rows-center) < 22 + max_shift)
-        if keep.sum() < 25:
-            continue
-        signal = image[keep, x].astype(float)
-        signal -= np.mean(signal)
-        norm = np.linalg.norm(signal)
-        if norm == 0:
-            continue
-        pos = rows[keep][None, :] - center - offsets[:, None]
-        template = np.exp(-.5*((pos-7.5)/3.)**2) + np.exp(-.5*((pos+7.5)/3.)**2)
-        template -= template.mean(axis=1)[:, None]
-        score = template @ signal / (np.linalg.norm(template, axis=1)*norm)
-        k = np.argmax(score)
-        if k in (0, len(offsets)-1) or score[k] < .5:
-            continue
-        curvature = score[k-1]-2*score[k]+score[k+1]
-        correction = .5*(score[k-1]-score[k+1])/curvature if curvature < 0 else 0.
-        dx.append(x)
-        dy.append(offsets[k] + np.clip(correction, -.5, .5)*(offsets[1]-offsets[0]))
-    if len(dx) < 5:
-        raise ValueError('Too few reliable double-Gaussian trace measurements')
-    dx, dy = np.asarray(dx), np.asarray(dy)
-    smooth = median_filter(dy, size=7, mode='nearest')
-    good = np.abs(dy-smooth) < max(.25, 5*1.4826*np.median(np.abs(dy-smooth)))
-    if good.sum() < 5:
-        raise ValueError('Trace refinement rejected too many measurements')
-    spline = UnivariateSpline(dx[good], smooth[good], s=.01*good.sum(), ext=3)
-    shift = np.clip(spline(columns), -max_shift, max_shift)
-    return reference+shift, dict(sample_columns=dx, sample_offsets=dy,
-                                accepted=good, fitted_offset=shift)
-
-
-def aperture_weights(nrows, centers, radius):
-    """Fractional overlap of detector pixels with a continuous box aperture."""
-    if not np.isfinite(radius) or radius <= 0:
-        raise ValueError('Aperture radius must be positive')
-    rows = np.arange(nrows)[:, None]
-    return np.maximum(0., np.minimum(rows+.5, centers+radius)
-                      - np.maximum(rows-.5, centers-radius))
-
-
 def extract_box(data, variance, valid, columns, centers, radius):
-    """Return flux/error; incomplete or masked apertures remain missing."""
-    weights = aperture_weights(data.shape[0], centers, radius)
-    active = weights > 0
-    good = valid[:, columns] & np.isfinite(data[:, columns]) & np.isfinite(variance[:, columns]) & (variance[:, columns] > 0)
-    complete = np.all(~active | good, axis=0) & np.isclose(weights.sum(axis=0), 2*radius)
-    flux = np.sum(weights*np.where(good, data[:, columns], 0.), axis=0)
-    error = np.sqrt(np.sum(weights**2*np.where(good, variance[:, columns], 0.), axis=0))
-    return np.where(complete, flux, np.nan), np.where(complete, error, np.nan)
+    """Return flux/error; incomplete or masked apertures remain missing.
 
-
-def trace_motion(image, valid, columns, centers, template=None):
-    """Measure cross-dispersion motion and profile second-moment width.
-
-    The width is a moment diagnostic, explicitly not Gaussian FWHM for the
-    double-peaked SOSS PSF. It is never used as a wavelength calibration.
+    See :func:`transitspectroscopy.core.extraction.fractional_box`.
     """
-    indices = np.linspace(0, len(columns)-1, min(64, len(columns))).astype(int)
-    offset = np.arange(-23., 24.)
-    yy = centers[indices][None, :] + offset[:, None]
-    xx = np.broadcast_to(columns[indices], yy.shape)
-    values = map_coordinates(np.where(valid, image, np.nan), [yy, xx], order=1, mode='constant', cval=np.nan)
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore', RuntimeWarning)
-        values /= np.nanmedian(values, axis=0)[None, :]
-        profile = np.nanmedian(values, axis=1)
-    if np.sum(np.isfinite(profile)) < 30:
-        return np.nan, np.nan, profile
-    profile = np.interp(offset, offset[np.isfinite(profile)], profile[np.isfinite(profile)])
-    profile -= np.median(np.r_[profile[:3], profile[-3:]])
-    profile /= max(np.linalg.norm(profile), 1e-20)
-    shift = 0.
-    if template is not None:
-        objective = lambda d: np.sum((profile-np.interp(offset-d, offset, template))**2)
-        fit = minimize_scalar(objective, bounds=(-3., 3.), method='bounded')
-        shift = fit.x if fit.success and abs(fit.x) < 2.95 else np.nan
-    positive = np.maximum(profile, 0.)
-    center = np.sum(offset*positive)/positive.sum()
-    width = np.sqrt(np.sum((offset-center)**2*positive)/positive.sum())
-    return float(shift), float(width), profile
-
-
-def _times(model):
-    table = model.int_times
-    start = model.meta.exposure.integration_start
-    end = model.meta.exposure.integration_end
-    selection = (table['integration_number'] >= start) & (table['integration_number'] <= end)
-    time = np.asarray(table['int_mid_BJD_TDB'][selection], float)
-    if len(time) != model.data.shape[0] or not np.isfinite(time).all():
-        raise ValueError('INT_TIMES does not match the loaded integrations')
-    # JWST INT_TIMES uses barycentric modified Julian dates despite its column name.
-    return time + 2400000.5
+    return fractional_box(data, variance, valid, columns, centers, radius)
 
 
 def reduce_soss(inputs, *, pastasoss_reference=None, background_reference=None,
@@ -221,8 +102,10 @@ def reduce_soss(inputs, *, pastasoss_reference=None, background_reference=None,
     from stdatamodels.jwst import datamodels
     from jwst.background import BackgroundStep
     from . import soss_optimal
-    source_hashes = {name: _hash(Path(__file__).with_name(name)) for name in
-        ('soss.py', 'soss_optimal.py', 'soss_overlap.py', 'shared_profile.py', '_optimal_extraction.py')}
+    source_hashes = {name: file_sha256(Path(__file__).parent/name) for name in
+        ('soss.py', 'soss_optimal.py', 'soss_overlap.py', 'core/shared_profile.py',
+         'core/overlap.py', 'core/extraction.py', 'core/geometry.py', 'core/profiles.py',
+         'core/kernels.py', 'core/tracing.py')}
     optimal_methods, optimal_settings = soss_optimal.settings(
         optimal_methods, optimal_options, aperture_radius)
     joint = optimal_settings['overlap_strategy']=='joint'
@@ -233,7 +116,7 @@ def reduce_soss(inputs, *, pastasoss_reference=None, background_reference=None,
     samples, sample_variances, sample_ids, times, records = [], [], [], [], []
     reference_identity = None
     for value in values:
-        with _model(value) as m:
+        with open_model(value) as m:
             if m.data.ndim != 3 or m.meta.exposure.type != 'NIS_SOSS':
                 raise ValueError('SOSS stage2 requires ramp-fitted NIS_SOSS CubeModels')
             if m.meta.cal_step.ramp_fit != 'COMPLETE':
@@ -261,7 +144,7 @@ def reduce_soss(inputs, *, pastasoss_reference=None, background_reference=None,
                 if optimal_methods:
                     sample_variances.append(np.where(valid, np.asarray(m.err[i], float)**2, np.nan))
                     sample_ids.append(int(m.meta.exposure.integration_start)+int(i))
-            times.extend(_times(m))
+            times.extend(integration_times(m))
             records.append(dict(filename=m.meta.filename, nints=len(m.data),
                 integration_start=m.meta.exposure.integration_start,
                 integration_end=m.meta.exposure.integration_end,
@@ -393,7 +276,7 @@ def reduce_soss(inputs, *, pastasoss_reference=None, background_reference=None,
     del samples, sample_variances
     first_image, last_image = None, None
     for value in values:
-        with _model(value) as m:
+        with open_model(value) as m:
             for i in range(len(m.data)):
                 frame = np.asarray(m.data[i], float)-background
                 variance = np.asarray(m.err[i], float)**2
@@ -462,7 +345,7 @@ def reduce_soss(inputs, *, pastasoss_reference=None, background_reference=None,
     result = dict(orders=traces, times=times, median_rate=median, background=background,
         median_background_subtracted=median_subtracted, first_extracted_image=first_image,
         last_extracted_image=last_image, metadata=dict(mode='niriss/soss', input_segments=records,
-        pastasoss=reference_info, background=dict(path=bkg_path, sha256=_hash(bkg_path),
+        pastasoss=reference_info, background=dict(path=bkg_path, sha256=file_sha256(bkg_path),
         status='COMPLETE', fit='static template fitted by BackgroundStep to sampled median rate',
         options=options), settings=dict(aperture_radius=aperture_radius, trace_max_shift=trace_max_shift,
         sample_integrations=sample_integrations, scale_1f=scale_1f, mask_dq=mask_dq,
@@ -569,10 +452,10 @@ def load_products(folder):
     """Read this module's saved products for additional validation diagnostics."""
     folder = Path(folder)
     result = dict(metadata=json.loads((folder/'soss_metadata.json').read_text()), orders={})
-    if result['metadata']['soss_source_sha256'] != _hash(__file__):
+    if result['metadata']['soss_source_sha256'] != file_sha256(__file__):
         raise ValueError('SOSS extraction code changed; regenerate products before reuse')
     for name, expected in result['metadata'].get('extraction_source_hashes', {}).items():
-        if _hash(Path(__file__).with_name(name)) != expected:
+        if file_sha256(Path(__file__).parent/name) != expected:
             raise ValueError(f'{name} changed; regenerate extraction before reuse')
     with np.load(folder/'soss_diagnostics.npz', allow_pickle=False) as saved:
         result.update({key: saved[key].copy() for key in saved.files})
