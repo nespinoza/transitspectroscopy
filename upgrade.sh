@@ -1,3 +1,4 @@
-rm -r dist
-python setup.py bdist_wheel
+# Build and upload a release to PyPI (maintainer use only).
+rm -rf dist
+python -m build
 twine upload dist/*

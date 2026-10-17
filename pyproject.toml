@@ -1,0 +1,61 @@
+[build-system]
+# NumPy is needed at build time only for the optional CCF C extension headers.
+requires = ["setuptools>=77", "wheel", "numpy>=2.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transitspectroscopy"
+dynamic = ["version"]
+description = "transitspectroscopy: a library for all your transit spectroscopy needs"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENCE"]
+authors = [{ name = "Nestor Espinoza", email = "nespinoza@stsci.edu" }]
+# jwst 3.0.0 declares >=3.11,<3.15. This project supports Python 3.13 and newer,
+# and keeps jwst's upper bound.
+requires-python = ">=3.13,<3.15"
+dependencies = [
+    "jwst>=3.0.0",
+    "stdatamodels>=6.0",
+    "crds",
+    "gwcs",
+    "numpy>=2.0",
+    "scipy",
+    "astropy",
+    "tqdm",
+    "jdcal",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+
+[project.optional-dependencies]
+fitting = ["juliet", "dynesty>=2,<3"]
+parallel = ["ray[default]"]
+download = ["astroquery", "pandas"]
+plots = ["matplotlib"]
+test = ["pytest>=8", "matplotlib"]
+all = ["transitspectroscopy[fitting,parallel,download,plots,test]"]
+
+[project.urls]
+Homepage = "https://github.com/nespinoza/transitspectroscopy"
+DOI = "https://doi.org/10.5281/zenodo.6960924"
+
+[tool.setuptools]
+# The package lives in src/ but is installed as `transitspectroscopy`.
+package-dir = { "transitspectroscopy" = "src" }
+packages = ["transitspectroscopy"]
+zip-safe = false
+
+[tool.setuptools.dynamic]
+version = { attr = "transitspectroscopy._version.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "crds: needs CRDS reference files (network or a populated CRDS_PATH)",
+    "network: needs internet access (e.g. MAST downloads)",
+]

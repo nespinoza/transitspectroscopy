@@ -1,0 +1,10 @@
+numpy==2.2.6
+scipy==1.17.1
+astropy==7.2.2
+jwst==3.0.0
+stdatamodels>=6.0,<6.1
+crds==14.0.0
+juliet==2.2.10
+dynesty==2.1.5
+ray[default]==2.58.0
+astroquery>=0.4.8,<0.5

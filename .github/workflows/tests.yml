@@ -1,0 +1,63 @@
+name: tests
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+
+jobs:
+  # Fast job: pip install of the package (jwst is a required dependency) and
+  # the unit tests. Tests marked `crds` or `network` are skipped.
+  unit:
+    name: unit (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.13"]
+        experimental: [false]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.14"
+            experimental: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: python -m pip install ".[test]"
+      - name: Run tests
+        env:
+          CRDS_SERVER_URL: https://jwst-crds.stsci.edu
+          CRDS_PATH: ${{ runner.temp }}/crds_cache
+        run: python -m pytest tests -q -m "not crds and not network"
+
+  # Full job: the conda environment users are told to create, with every
+  # optional dependency (juliet, MultiNest, Ray, ...).
+  full:
+    name: full conda env (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          environment-file: environment.yml
+          activate-environment: transitspectroscopy
+      - name: Install
+        run: python -m pip install --no-build-isolation --no-deps .
+      - name: Run tests
+        env:
+          CRDS_SERVER_URL: https://jwst-crds.stsci.edu
+          CRDS_PATH: ${{ runner.temp }}/crds_cache
+        run: python -m pytest tests -q -m "not crds and not network"

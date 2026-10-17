@@ -8,9 +8,9 @@ channels:
   - conda-forge
   - nodefaults
 dependencies:
-  - python=3.12
+  - python=3.13
   - pip
-  - setuptools>=68
+  - setuptools>=77
   - wheel
   # JWST 3 requires NumPy 2. Keep Conda and pip on the same ABI baseline.
   - numpy=2.2.6
