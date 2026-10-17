@@ -1,8 +1,21 @@
+# Python bytecode and caches
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.ipynb_checkpoints/
+
+# Build products
 *.egg-info/
 build/
 dist/
 *.so
+
+# Editor files
 *.swp
+.DS_Store
+
+# Default local output folder of ts.jwst.load
+ts_outputs/
+
+# Built documentation
+docs/_build/

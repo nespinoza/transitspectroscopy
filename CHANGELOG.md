@@ -4,6 +4,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [0.5.0] - Unreleased
+Detailed development notes for the work below are in `docs/dev-notes/`.
+
+### Added
+- Pure-Python Marsh optimal extraction (`backend='python'`), used automatically when the
+  `Marsh` C extension is not installed. Matches the archived C outputs within tested tolerances.
+- NumPy implementation of the CCF routines; the `CCF` C extension is optional.
+- Experimental Gaussian-process spatial profiles for optimal extraction
+  (`profile_method='gp'`, `gp_options=...`). Always opt-in.
+- `fit_shared_profile` / `SharedProfile`: train one intrinsic spatial profile on selected
+  integrations, save/load it, and evaluate it through every integration's trace.
+- NIRISS/SOSS three-order reduction (`ts.soss.reduce_soss`, or `ts.jwst.stage2` on
+  `NIS_SOSS` data): PASTASOSS traces, official background subtraction, box extraction, and
+  optional joint (deblended) polynomial/GP optimal extraction of overlapping orders.
+- MIRI imaging time-series photometry (`ts.miri.reduce_miri`): official Detector1/Image2
+  calibration, aperture photometry and a shared 2-D GP PSF.
+- Alternative correlated adjacent-read ramp fitter (`ramp_fit_method='sparta'`, see
+  `RAMP_FITTING.md`), selectable in `ts.jwst.load`, `stage1` and MIRI calibration.
+- `ramps_err_available` in `ts.jwst.load`, flagging which integrations carry ramp errors.
+- `stage2` options `extraction_backend`, `profile_method`, `gp_options`,
+  `extraction_options`, `shared_profile`, `shared_profile_options`, `soss_options`,
+  `miri_options`.
+- A pytest suite (`tests/`), including a snapshot of the 0.4 public API
+  (`tests/legacy_api.json`), and real-data validation scripts/reports in `validation/`.
+- Conda `environment.yml` for the full pipeline and dependency extras
+  (`fitting`, `parallel`, `download`, `test`).
+
+### Changed
+- Compatibility with JWST pipeline 3.0 (`stdatamodels` datamodels, ramp models without `ERR`).
+- Optional dependencies (juliet, Ray, astroquery, pandas) are imported only when used, so
+  `import transitspectroscopy` no longer fails when one of them is missing.
+- `ts.jwst.load` allocates only the integrations actually loaded when a subset of segments
+  is given (previously used the full-exposure `NINTS`).
+- The Python extraction checks the lower and upper aperture edges independently for
+  masked (`-9999`) pixels (the C reference keeps its historical behavior).
+- `ramp_fitting.fit_ramps` now defaults to `residual_correction=False`. The empirical
+  residual template is trained on all integrations, including in-transit ones, so it must be
+  enabled explicitly with suitable training integrations.
+
+### Fixed
+- Parallel `fit_lightcurves` (Ray) returned `None` for every fit.
+- `download(..., data_product='ramps')` could not select ramp products.
+- `trace_spectrum(xend=None)`, `get_pm_ccf`, `load.interpolate_nans`, `fit_spline` without
+  knots, and `get_uniluminated_mask` without DQ raised name/undefined-variable errors.
+- `stage2(zero_nans=False)` used an undefined median-error image.
+- MIRI mode detection compared strings by identity; a missing filter crashed `load`.
+- Running a `load` step without a prior calibration step failed on suffix initialization.
+- `spill_filter` divided by zero on empty boxes.
+
 # [0.4.1] - 2026-09-13
 ### Added
 - Import of `Marsh` and `CCF` is now optional.

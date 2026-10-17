@@ -222,7 +222,7 @@ unchanged. This is not general cache provenance validation.
 
 See [tests/README.md](tests/README.md) for the noisy comparison figures, archived
 C results, test instructions and optional GSL-based reference build. Implementation
-details and limitations are recorded in [CODEX_CHANGELOG.md](CODEX_CHANGELOG.md).
+details and limitations are recorded in [docs/dev-notes/CODEX_CHANGELOG.md](docs/dev-notes/CODEX_CHANGELOG.md).
 
 The unchanged Marsh C reference requires a separate NumPy 1 environment; it is
 not needed for normal pipeline operation. [environment-c-reference.yml](environment-c-reference.yml)

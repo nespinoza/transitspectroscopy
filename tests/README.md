@@ -200,7 +200,7 @@ In the final 100-integration default-grid run, serial took 130 seconds and four
 Ray workers took 147 seconds, with fitted likelihoods and flux summaries agreeing
 to numerical precision. One full-size integration with optimized GP
 hyperparameters took 20 seconds (one optimizer start). These are distinct from
-coefficient-only timings; see the measured table in [CODEX_CHANGELOG.md](../CODEX_CHANGELOG.md).
+coefficient-only timings; see the measured table in [CODEX_CHANGELOG.md](../docs/dev-notes/CODEX_CHANGELOG.md).
 Each report records the implementation SHA-256. Training has a 300-second
 wall-time limit by default (`--max-seconds`); a timeout is recorded explicitly
 and is not reported as a converged fit. Numerical fit failures also receive a

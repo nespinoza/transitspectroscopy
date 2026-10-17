@@ -96,10 +96,12 @@ def test_template_training_and_external_template_preserve_variable_slopes():
     curve = 25*np.sin(np.arange(12)*np.pi/11)[None, :, None, None]
     contaminated = data+curve
     out = rf.fit_ramps(contaminated, group_time=1, gain=2, read_noise=10,
-                       template_integrations=list(range(20)), sigma=None)
+                       residual_correction=True, template_integrations=list(range(20)),
+                       sigma=None)
     np.testing.assert_allclose(out['data'], np.broadcast_to(slopes[:, None, None], (40, 2, 3)), atol=1.e-12)
     # The inferred template can be reused without retraining on later segments.
     replay = rf.fit_ramps(contaminated, group_time=1, gain=2, read_noise=10,
+                          residual_correction=True,
                           residual_template=out['residual_template'], sigma=None)
     np.testing.assert_allclose(replay['data'], out['data'])
     np.testing.assert_allclose(out['residual_template'], np.broadcast_to((curve-np.median(curve)).squeeze()[..., None, None], (12, 2, 3)), atol=1.e-12)
@@ -249,3 +251,11 @@ def test_detector1_control_flow_saves_alternative_rateints(tmp_path):
     with datamodels.open(tmp_path/'synthetic_rateints.fits') as rateints:
         np.testing.assert_allclose(rateints.data, 50.)
         assert rateints.meta.cal_step.ramp_fit == 'COMPLETE'
+
+
+def test_residual_correction_is_off_by_default():
+    # The empirical template is trained on all integrations, including any
+    # in-transit ones, so it must be an explicit choice.
+    import inspect
+    default = inspect.signature(rf.fit_ramps).parameters['residual_correction'].default
+    assert default is False

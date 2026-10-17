@@ -98,7 +98,7 @@ def _fit_differences(differences, valid, read_variance, sigma, max_iterations):
 
 
 def fit_ramps(data, *, group_time, gain, read_noise, groupdq=None, pixeldq=None,
-              nframes=1, residual_correction=True, residual_template=None,
+              nframes=1, residual_correction=False, residual_template=None,
               template_integrations=None, sigma=5., max_iterations=50,
               firstgroup=None, lastgroup=None, chunk_pixels=256):
     """Fit calibrated (integration, group, row, column) DN ramps.
@@ -109,8 +109,9 @@ def fit_ramps(data, *, group_time, gain, read_noise, groupdq=None, pixeldq=None,
     are inclusive zero-based limits. DNU/SATURATION groups and the difference
     ending at a JUMP_DET group are excluded. No one-group slope is invented.
 
-    Residual correction estimates a median template per group/pixel from this
-    segment, or the specified integration indices. Use homogeneous flux blocks
+    Residual correction is off by default. When enabled, it estimates a median
+    template per group/pixel from this segment, or the specified integration
+    indices, which should exclude the transit/eclipse. Use homogeneous flux blocks
     or disable it for variable scenes. A supplied template is in DN. Errors
     condition on that template and estimated covariance; uncertainty shared
     between integrations through template training is not included.

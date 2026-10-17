@@ -334,7 +334,7 @@ and [white-light comparison](runs/nrs1_segment001_20260922_final/06_white_light.
 are available locally; large run products are git-ignored. The run took 520 s
 after reusing calibration. It tests execution and numerical products, not
 transit-depth bias or the entire three-segment observation. See
-[`../CODEX_CHANGELOG.md`](../CODEX_CHANGELOG.md) for changes and verification.
+[`CODEX_CHANGELOG.md`](../docs/dev-notes/CODEX_CHANGELOG.md) for changes and verification.
 
 ## Alternative ramp fitting
 

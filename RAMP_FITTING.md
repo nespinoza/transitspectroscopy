@@ -9,7 +9,7 @@ import transitspectroscopy as ts
 dataset = ts.jwst.load(
     filenames, outputfolder="reduction",
     ramp_fit_method="sparta",
-    ramp_fit_options={"residual_correction": True, "sigma": 5.0},
+    ramp_fit_options={"residual_correction": False, "sigma": 5.0},
 )
 dataset.detector_calibration(save=True)
 dataset.fit_ramps(save=True)
@@ -85,7 +85,7 @@ Implementation details specific to this library:
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `residual_correction` | `True` | Train/subtract the empirical residual template before the clipped fit. |
+| `residual_correction` | `False` | Train/subtract the empirical residual template before the clipped fit. Off by default because the template is trained on in-transit integrations too; enable it only with out-of-event `template_integrations` or a supplied `residual_template`. |
 | `template_integrations` | All integrations in this segment | Unique zero-based local indices to train the template; extraction still fits all integrations. |
 | `residual_template` | `None` | Supply a finite `(group,row,column)` array in DN instead of training. |
 | `sigma` | `5.0` | Difference rejection threshold; `None` disables clipping. |
@@ -125,7 +125,7 @@ or propagate detector-reference uncertainties.
 The empirical correction assumes a repeatable residual ramp shape within its
 training block. For transits/eclipses or changing illumination, use a suitable
 homogeneous training subset, split the data into appropriate blocks, supply an
-independently trained template, or set `residual_correction=False`. Selecting
+independently trained template, or leave `residual_correction=False` (the default). Selecting
 out-of-event training indices is a user decision; the fitter does not identify
 events. Small training samples can absorb noise into the template.
 
