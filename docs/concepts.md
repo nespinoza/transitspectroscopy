@@ -21,6 +21,16 @@ flowchart TD
     K --> L[juliet transit and systematics fits]
 ```
 
+## Package layout
+
+| Layer | Modules | Role |
+|---|---|---|
+| Algorithms | `transitspectroscopy.core` | Tracing, spatial profiles, box/optimal/blended extraction, shared profiles, photometry, ramp fitting, detector corrections, binning, products and provenance. Plain NumPy arrays; no JWST pipeline imports. |
+| Observing modes | `transitspectroscopy.instruments` | One `Mode` per instrument mode with all its defaults; Stage 2 dispatches on it. |
+| JWST | `transitspectroscopy.jwst`, `soss`, `miri`, `ramp_fitting` | Reading JWST datamodels, calwebb steps, the detector stage (`load`), Stage 2. |
+| Runs | `transitspectroscopy.runner`, `config` | `ts.run(config)`, `ExtractionConfig`. |
+| Historical interface | `spectroscopy`, `utils`, `timeseries`, `shared_profile`, `photometry` | The original function names, now thin layers over `core`. |
+
 ## Array conventions
 
 All detector arrays keep the JWST orientation: the last axis is the detector column,

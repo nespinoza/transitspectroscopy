@@ -150,4 +150,7 @@ Decisions (the report's decision lines were removed; I used its recommendations)
 - [x] Runner docs: `docs/guides/running.md`; quickstart/README mention `transitspectroscopy run`; API pages for runner/products.
 - [x] Validation ports (commit `5d24149`, docs `1fe6ac9`): `validation/configs/{nrs1-hatp14b,soss-hatp14b,miri-ltt1445a}.toml` (MAST via ts.jwst.download, CRDS context pinned for NRS1, pinned SOSS references, [validation] diagnostic settings). `validate.py --config X.toml` (or `--mode`) runs `ts.run` then the diagnostics; soss/miri drivers keep their plots/metrics; drivers use the installed package and refuse a stale install. Old JSONs → `validation/configs/legacy/`. Runner loads data only when needed; download takes exposure lists and treats `.fits.gz` as present. Old `--reuse-*` options replaced by the runner's step caching.
 - [~] Re-running the three ported validations (background batch, scratchpad `validations_p5.log`, outputs `validation/runs/{miri,soss,nrs1}_prompt5_runner`), to compare with the reviewed runs.
+  - [x] **MIRI (ported, from config alone): reproduces the report** — sum RMS 659.297653/646.667056 ppm, GP RMS 637.976149/632.427043 ppm (visits 1/2), all integrations and segments selected; sum fluxes, times and centroids bit-for-bit identical, GP fluxes ≤1.1e-15 relative (182 s).
+  - [ ] SOSS (running)
+  - [ ] NRS1 (queued)
 
