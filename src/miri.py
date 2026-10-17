@@ -273,13 +273,20 @@ def extract_visit(segments, *, aperture_radius=5., training_integrations=12,
             fixed_excluded_detector_pixels=[[int(x),int(y)] for x,y in sorted(never_observed)],
             evaluator_max_absolute_error=float(approximation),minimum_profile_fraction=minimum_fraction,
             error_scope='Conditional on PSF/centroid; includes correlated annular sky variance; no absolute aperture correction'))
+    result['products'] = to_products(result)
     if outputfolder is not None:
         save_products(result,outputfolder)
     return result
 
 
 def save_products(result, folder):
-    folder=Path(folder);folder.mkdir(parents=True,exist_ok=True)
+    folder=Path(folder)
+    folder.mkdir(parents=True,exist_ok=True)
+    if 'products' in result:
+        from .core import products as standard, provenance
+        manifest=provenance.build_manifest(config=dict(metadata=result['metadata']),step='miri stage2',
+                                           mode='miri/photometry')
+        standard.write_products(result['products'],folder/'products',manifest)
     arrays={k:result[k] for k in ('times','flux','error','centers','detector_centers','widths','sky',
         'sky_variance','sky_pixels','flags','segment','profile_fraction','profile_chi2','profile','weights',
         'first_image','first_model','first_residual')}
@@ -358,3 +365,19 @@ def reduce_miri(inputs, **options):
     warnings.warn('miri.reduce_miri is deprecated; use ts.jwst.stage2 (or miri.extract_photometry)',
                   DeprecationWarning, stacklevel=2)
     return extract_photometry(inputs, **options)
+
+
+def to_products(result):
+    """Standard products of a MIRI imaging visit: ``sum`` and ``gp`` photometric time series."""
+    from .core.products import DQ_FLAGGED, DQ_MISSING, PhotometricTimeSeries
+    products = {}
+    for j, method in enumerate(('sum', 'gp')):
+        flux, error = result['flux'][:, j], result['error'][:, j]
+        dq = np.where(np.isfinite(flux) & np.isfinite(error), 0, DQ_MISSING)
+        dq |= np.where(np.asarray(result['flags']) != 0, DQ_FLAGGED, 0)
+        products[method] = PhotometricTimeSeries(
+            times=result['times'], flux=flux, flux_err=error, dq=dq.astype(np.uint32),
+            centroid=result['detector_centers'], background=result['sky'], name=method,
+            flux_unit=result['unit'], metadata=dict(result['metadata'], mode='miri/photometry',
+                                                    method=method))
+    return products

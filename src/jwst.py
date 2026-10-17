@@ -50,7 +50,7 @@ class _ObservationsProxy:
 
 Observations = _ObservationsProxy()
 
-def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_product = 'uncal'):
+def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_product = 'uncal', exposure = None, segments = None, detectors = None, skip_existing = True):
     """
     Given a program ID and an observation number, this function downloads all the data associated with that PID and program.
 
@@ -80,6 +80,19 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
     data_product : str
         (Optional) String representing the kind of data products the user wants; `uncal` will download the uncalibrated products, 
         `ramp` will download the calibrated ramps, `rateints` will download the rates per integration. Default is to download `uncal` products.
+    exposure : str
+        (Optional) Only download files of this exposure, e.g. `'jw01118005001_04101_00001'`.
+    segments : list of int
+        (Optional) Only download these segments (1 is `-seg001`).
+    detectors : list of str
+        (Optional) Only download these detectors, e.g. `['nrs1']`.
+    skip_existing : bool
+        (Optional) Do not download again files already in `outputfolder`. Default is True.
+
+    Returns
+    -------
+    filenames : list
+        Paths of the selected files in `outputfolder` (downloaded now or already present).
 
     """
 
@@ -148,6 +161,40 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
     # Apply mask:
     data_products = data_products[indexes]
 
+    # Optional selection of exposure, segments and detectors from the file names
+    # (e.g., jw01118005001_04101_00001-seg001_nrs1_uncal.fits):
+    def selected(filename):
+        name = filename.lower()
+        if exposure is not None and not name.startswith(exposure.lower()):
+            return False
+        if segments is not None and not any('-seg{0:03d}'.format(int(segment)) in name for segment in segments):
+            return False
+        if detectors is not None and not any('_'+detector.lower()+'_' in name for detector in detectors):
+            return False
+        return True
+
+    if 'productFilename' in data_products.colnames:
+
+        data_products = data_products[[selected(str(name)) for name in data_products['productFilename']]]
+        wanted = sorted(str(name) for name in data_products['productFilename'])
+
+        if skip_existing:
+
+            data_products = data_products[[not os.path.exists(outputfolder+'/'+str(name)) for name in data_products['productFilename']]]
+
+    elif exposure is not None or segments is not None or detectors is not None:
+
+        raise ValueError('MAST product list has no productFilename column; cannot select files')
+
+    else:
+
+        wanted = None
+
+    if len(data_products) == 0 and wanted is not None:
+
+        print('\n\t >> All {0:} selected files are already in {1:}.'.format(len(wanted), outputfolder))
+        return [outputfolder+'/'+name for name in wanted]
+
     # Report final size of the package with the user:
     print( '\n\t >> {0:.2f} GB of data will be downloaded in total considering the following files:\n'.format( data_products['size'].sum()/1e9 ) )
     print(data_products)
@@ -180,7 +227,7 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
 
     filenames = []
     description = []
-    detectors = []
+    detector_names = []
     subarrays = []
     filters = []
     exptypes = []
@@ -192,7 +239,7 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
 
         filenames.append(fname)
         description.append(dm.meta.observation.observation_label)
-        detectors.append(dm.meta.instrument.detector)
+        detector_names.append(dm.meta.instrument.detector)
         subarrays.append(dm.meta.subarray.name)
         filters.append(dm.meta.instrument.filter)
         exptypes.append(dm.meta.exposure.type)
@@ -211,7 +258,7 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
 
     downloaded_files = { 'Filename': filenames,
                          'Description': description,
-                         'Detector': detectors,
+                         'Detector': detector_names,
                          'Grating/Pupil' : gratings,
                          'Subarray': subarrays,
                          'Filter': filters,
@@ -222,6 +269,8 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
     pd.options.display.max_colwidth = 100
     downloaded_files = pd.DataFrame(downloaded_files)
     print(downloaded_files)
+
+    return [outputfolder+'/'+name for name in (wanted if wanted is not None else fnames)]
 
     print('\n\t >> Data gathered on: ', dm.meta.observation.date,' | PI: ', dm.meta.program.pi_name)
 
@@ -284,12 +333,15 @@ class load(object):
 
     def sort_filenames(self):
 
-        segment_index = []
+        # Sort by exposure (the file name before '-seg'), then by segment number. Within
+        # one exposure this is the segment order:
+        keys = []
         for i in range( len(self.filenames) ):
 
-            segment_index.append( int( self.filenames[i].split('-seg')[1][:3] ) )
+            name = os.path.basename(self.filenames[i])
+            keys.append( (name.split('-seg')[0], int( name.split('-seg')[1][:3] )) )
 
-        idx = np.argsort( np.array( segment_index ) )
+        idx = sorted(range(len(keys)), key = lambda i: keys[i])
         self.filenames = np.array(self.filenames)[idx]
 
     def check_status(self, data):
@@ -1956,7 +2008,7 @@ def _stage2_soss(input_dictionary, config, mode, outputfolder, suffix):
                         **options)
 
 
-def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, optimal_extraction = False, outputfolder = '', suffix = '', aperture_radius = None, mask_dq = False, extraction_backend='auto', profile_method='polynomial', gp_options=None, extraction_options=None, shared_profile=None, shared_profile_options=None, soss_options=None, miri_options=None, *, config=None, **kwargs):
+def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, optimal_extraction = False, outputfolder = '', suffix = '', aperture_radius = None, mask_dq = False, extraction_backend='auto', profile_method='polynomial', gp_options=None, extraction_options=None, shared_profile=None, shared_profile_options=None, soss_options=None, miri_options=None, *, config=None, mode=None, write_products=True, **kwargs):
     """
     This function takes an `input_dictionary` having as keys the `rampstep` products on a (chronologically-ordered) list, `times` having the times at 
     each integration in BJD and the integrations per segment `ints_per_segment`. Using those, it performs wavelength calibration, spectral tracing and 
@@ -2021,6 +2073,13 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         deprecated in favour of it. If given, the other extraction keywords must keep
         their defaults. How Stage 2 runs is decided by the observing mode of the data
         (see transitspectroscopy.instruments).
+    mode : str, Mode or None
+        Observing mode to use instead of identifying it from the data's metadata.
+    write_products : bool
+        Write the standard products (``output['products']``: spectroscopic time series and
+        white-light curves, see transitspectroscopy.core.products) with a provenance
+        manifest to ``pipeline_outputs/products<suffix>``. NIRISS/SOSS and MIRI write theirs
+        with their own products.
 
     Returns
     -------
@@ -2056,8 +2115,15 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     # several overlapping orders and its own post-ramp background step, MIRI imaging is photometry,
     # and plug-in modes can provide their own Stage 2:
     from .jwst_models import open_model
-    with open_model(input_dictionary['rampstep'][0]) as first_model:
-        stage2_mode = instruments.identify_model(first_model)
+    if mode is None:
+
+        with open_model(input_dictionary['rampstep'][0]) as first_model:
+            stage2_mode = instruments.identify_model(first_model)
+
+    else:
+
+        stage2_mode = instruments.get_mode(mode) if isinstance(mode, str) else mode
+
     config = config.validate(stage2_mode)
     handler = stage2_mode.stage2
     if callable(handler):
@@ -2143,8 +2209,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     output_dictionary['metadata']['instrument_subarray'] = instrument_subarray
 
     # Mode-dependent parameters come from the mode registry (see transitspectroscopy.instruments):
-    mode_definition = instruments.identify_model(input_dictionary['rampstep'][0])
-    mode = mode_definition.name
+    mode_definition = stage2_mode
     print('\t    - Instrument/Mode: {0:}\n'.format(mode_definition.describe(instrument_filter)))
     tracing = mode_definition.tracing_for(instrument_detector)
     defaults = mode_definition.extraction_defaults
@@ -2803,6 +2868,16 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     # Same, errors:
     output_dictionary['whitelight_err'] = np.sqrt( np.nansum(output_dictionary['spectra']['corrected_err']**2, axis = 1) ) / norm_factor
 
+    # Standard products (see transitspectroscopy.core.products):
+    output_dictionary['products'] = _spectral_products(output_dictionary, mode_definition, config,
+                                                       instrument_detector)
+    if write_products:
+
+        from .core import products as standard_products, provenance
+        manifest = provenance.build_manifest(config = config.as_dict(), step = 'stage2', mode = mode_definition.name,
+                                             input_models = [str(getattr(model.meta, 'filename', '')) for model in input_dictionary['rampstep']])
+        standard_products.write_products(output_dictionary['products'], outputfolder+'pipeline_outputs/products'+actual_suffix, manifest)
+
     if nthreads is not None:
 
         if ray.is_initialized():
@@ -2810,3 +2885,26 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             ray.shutdown()
 
     return output_dictionary
+
+
+def _spectral_products(output_dictionary, mode, config, detector):
+    """Standard products of the spectral Stage 2: corrected and original spectra, white light."""
+    from .core.products import LightCurveSet, SpectroscopicTimeSeries
+    spectra, traces = output_dictionary['spectra'], output_dictionary['traces']
+    base = str(detector).lower() if detector else 'spectra'
+    metadata = dict(output_dictionary['metadata'], mode = mode.name, extraction = config.as_dict())
+    products = {}
+    for variant in ('corrected', 'original'):
+
+        name = base+'_'+variant
+        products[name] = SpectroscopicTimeSeries(times = spectra['times'], wavelength = spectra['wavelengths'],
+                                                 flux = spectra[variant], flux_err = spectra[variant+'_err'],
+                                                 columns = traces['x'], trace = traces['ysmoothed'], name = name,
+                                                 flux_unit = 'DN/s', metadata = dict(metadata, variant = variant))
+
+    products[base+'_whitelight'] = LightCurveSet(times = spectra['times'], flux = output_dictionary['whitelight'][None],
+                                                 flux_err = output_dictionary['whitelight_err'][None],
+                                                 labels = ['white'], name = base+'_whitelight',
+                                                 metadata = dict(metadata, variant = 'corrected',
+                                                                 band = 'sum over all extracted columns'))
+    return products

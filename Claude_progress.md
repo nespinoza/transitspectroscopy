@@ -127,6 +127,25 @@ Decisions (the report's decision lines were removed; I used its recommendations)
   stage2 for PRISM, G395H NRS1/NRS2, G395M NRS1/NRS2, SOSS & MIRI dispatch equivalence
   (config vs keywords), plug-in mode with no jwst.py edits, config validation.
 - Suite: **172 passed, 13 skipped**. Commit `18df404`.
-- [~] NRS1 real-data smoke run on Prompt 4 code (scratchpad `smoke_p4/`).
-- [ ] Docs: "Adding an observing mode" page; API for instruments/config.
-- [ ] Re-run SOSS and MIRI validations and compare with the reviewed runs.
+- [x] NRS1 real-data smoke run on Prompt 4 code: white-light curve **bit-for-bit identical** to the pre-refactor run (mode identified through the registry).
+- [x] `load.sort_filenames` sorts by (exposure, segment) instead of segment only (same order within one exposure; correct for multi-exposure visits).
+- [x] Docs: `docs/guides/adding-a-mode.md`; API pages for config/instruments; SOSS/MIRI guides now lead with load → detector_calibration → fit_ramps → stage2 (commit `c807d31`).
+- [x] **SOSS validation re-run** (`validation/runs/soss_prompt4_check`, same command/pinned references as `soss_overlap_20260925_final`): status complete; every non-timing number in reduction.json identical (orders 96, optimal 216, extraction_comparison 207, order_overlap 16, background 9); **all 9 saved spectra files (box/polynomial/GP × orders 1–3) bit-for-bit identical**; order-1 white-light depth 6779.4 ppm as reported.
+- [~] MIRI validation re-run (`validation/runs/miri_prompt4_check`, full rateints → Image2 → photometry, both visits), running in background (scratchpad `miri_p4.log`). Uses the current code (incl. Prompt 5 products additions).
+- Not testable here: the uncal → load → stage2 path for SOSS/MIRI on real data (only rateints are on disk for PIDs 1541/9234); covered by synthetic tests only.
+
+**Prompt 4 DONE** (pending the MIRI comparison).
+
+---
+
+## Prompt 5 — Products, provenance, runner, validation ports
+
+- [x] `core/products.py`: SpectroscopicTimeSeries, PhotometricTimeSeries, LightCurveSet; FITS (multi-extension, METADATA JSON extension, provenance summary in header) + ECSV I/O; `write_products/read_products`; white-light and wavelength binning; `resolution_edges`.
+- [x] `core/provenance.py`: `build_manifest` (package/git commit+dirty/Python/numpy/jwst/crds versions, CRDS context, input names+sizes+SHA-256, resolved config + its SHA-256, seeds, timestamps), `check_manifest` (warn; `strict=True` raises), manifest sidecars `<file>.provenance.json`.
+- [x] Every reduction path returns `result['products']` and writes them: spectral stage2 (`pipeline_outputs/products<suffix>/`: `<det>_corrected`, `<det>_original`, `<det>_whitelight`), SOSS (`products/`: `order<N>_<box|polynomial|gp>` + fixed-band `_whitelight`), MIRI (`products/`: `sum`, `gp`). `stage2(mode=..., write_products=...)` added.
+- [x] `soss.load_products(strict=False)` warns instead of refusing when source files changed.
+- [x] `ts.jwst.download(..., exposure=, segments=, detectors=, skip_existing=True)` returns the selected paths (+ test).
+- [x] `src/runner.py` (`ts.run`, `load_config`, step folders `<step>-<hash>`, force/from_step, per-exposure loading, CRDS context pinning, keep_stage2) and `src/cli.py` (`transitspectroscopy run config.toml`, `transitspectroscopy modes`); console script in pyproject.
+- [ ] Runner tests (synthetic), docs page.
+- [ ] Port validation scripts (configs → `validation/configs/*.toml`) and re-run.
+

@@ -10,6 +10,9 @@ from .transitfitting import *
 from .utils import *
 from .jwst import *
 from .shared_profile import SharedProfile, fit_shared_profile
+from .config import ExtractionConfig
+from .runner import run, load_config
+from . import instruments
 
 
 def __getattr__(name):

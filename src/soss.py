@@ -388,6 +388,7 @@ def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
             products['metadata']['profile_training'][str(order)] = trace['profile_model'].diagnostics
     corrected.close()
     template_model.close()
+    result['products'] = to_products(result)
     if outputfolder is not None:
         save_products(result, outputfolder)
     return result
@@ -460,17 +461,34 @@ def save_products(result, folder):
                 model_columns=trace['model_columns'], profile_fraction=trace['profile_fraction'])
     for method, products in result.get('optimal', {}).items():
         save_products(products, folder/'optimal'/method)
+    if 'products' in result:
+        from .core import products as standard, provenance
+        manifest = provenance.build_manifest(config=dict(metadata=result['metadata']), step='soss stage2',
+                                             mode='niriss/soss')
+        standard.write_products(result['products'], folder/'products', manifest)
 
 
-def load_products(folder):
-    """Read this module's saved products for additional validation diagnostics."""
+def load_products(folder, strict=False):
+    """Read this module's saved products for additional validation diagnostics.
+
+    If the extraction code changed since the products were written, a warning is
+    issued (``strict=True`` raises instead): a changed file, e.g. a docstring edit or a
+    refactor, does not necessarily change the results.
+    """
     folder = Path(folder)
     result = dict(metadata=json.loads((folder/'soss_metadata.json').read_text()), orders={})
+    changed = []
     if result['metadata']['soss_source_sha256'] != file_sha256(__file__):
-        raise ValueError('SOSS extraction code changed; regenerate products before reuse')
+        changed.append('soss.py')
     for name, expected in result['metadata'].get('extraction_source_hashes', {}).items():
-        if file_sha256(Path(__file__).parent/name) != expected:
-            raise ValueError(f'{name} changed; regenerate extraction before reuse')
+        current = Path(__file__).parent/name
+        if not current.exists() or file_sha256(current) != expected:
+            changed.append(name)
+    if changed:
+        message = 'SOSS extraction code changed since these products were written: ' + ', '.join(sorted(set(changed)))
+        if strict:
+            raise ValueError(message + '; regenerate products before reuse')
+        warnings.warn(message)
     with np.load(folder/'soss_diagnostics.npz', allow_pickle=False) as saved:
         result.update({key: saved[key].copy() for key in saved.files})
     if (folder/'order_flux_covariance.npz').exists():
@@ -489,6 +507,46 @@ def load_products(folder):
             result['orders'][order]['profile_model'] = SharedProfile.load(folder/f'order{order}_profile.npz')
             with np.load(folder/f'order{order}_profile_support.npz', allow_pickle=False) as saved:
                 result['orders'][order].update({key: saved[key].copy() for key in saved.files})
-    result['optimal'] = {method: load_products(folder/'optimal'/method)
+    result['optimal'] = {method: load_products(folder/'optimal'/method, strict=strict)
                          for method in result['metadata'].get('optimal_methods', [])}
+    if 'method' not in result['metadata']:  # The top-level (box) result.
+        result['products'] = to_products(result)
     return result
+
+
+def to_products(result):
+    """Standard products of a SOSS result: one spectroscopic time series per order and method.
+
+    Names are ``order<N>_<method>`` (``box``, ``polynomial``, ``gp``), plus the SOSS
+    fixed-band white-light curves ``order<N>_<method>_whitelight``.
+    """
+    from .core.products import DQ_BLENDED, DQ_MISSING, LightCurveSet, SpectroscopicTimeSeries
+    products = {}
+
+    def add(result, method):
+        for order, trace in result['orders'].items():
+            flux, error = np.asarray(trace['flux']), np.asarray(trace['error'])
+            dq = np.where(np.isfinite(flux) & np.isfinite(error), 0, DQ_MISSING).astype(np.uint32)
+            dq |= (np.broadcast_to(~np.asarray(trace['isolated'], bool), dq.shape)*DQ_BLENDED).astype(np.uint32)
+            name = f'order{order}_{method}'
+            metadata = dict(mode='niriss/soss', method=method, order=int(order),
+                            extraction=result['metadata'].get('extraction', method),
+                            aperture_radius=result['metadata'].get('aperture_radius'),
+                            calibration=result['metadata'].get('inputs', result['metadata'].get('segments')))
+            products[name] = SpectroscopicTimeSeries(
+                times=result['times'], wavelength=trace['wavelength'], flux=flux, flux_err=error, dq=dq,
+                columns=trace['columns'], trace=trace['trace'], trace_width=trace.get('width'),
+                order=int(order), name=name, flux_unit='DN/s', metadata=metadata)
+            band = np.asarray(trace['white_light_columns'], bool)
+            wavelength = np.asarray(trace['wavelength'])[band]
+            products[name+'_whitelight'] = LightCurveSet(
+                times=result['times'], flux=np.asarray(trace['white_light'])[None],
+                flux_err=np.asarray(trace['white_light_error'])[None],
+                wavelength_low=[wavelength.min()], wavelength_high=[wavelength.max()],
+                labels=['white'], name=name+'_whitelight',
+                metadata=dict(metadata, band='fixed SOSS white-light columns', n_columns=int(band.sum())))
+
+    add(result, 'box')
+    for method, optimal in result.get('optimal', {}).items():
+        add(optimal, method)
+    return products

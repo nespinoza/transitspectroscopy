@@ -207,6 +207,28 @@ def test_mast_product_aliases(monkeypatch, product, expected):
     assert selected == [expected]
 
 
+def test_download_selects_exposure_segments_detectors(monkeypatch, tmp_path):
+    from astropy.table import Table
+    names = ['jw01118005001_04101_00001-seg001_nrs1_uncal.fits', 'jw01118005001_04101_00001-seg002_nrs1_uncal.fits',
+             'jw01118005001_04101_00001-seg001_nrs2_uncal.fits', 'jw01118005001_04102_00001-seg001_nrs1_uncal.fits']
+    products = Table({'obs_id':['jw01118005']*4, 'description':['detector']*4,
+        'productSubGroupDescription':['UNCAL']*4, 'productType':['SCIENCE']*4, 'size':[1]*4,
+        'productFilename':names})
+    selected = []
+    def download(rows, **kwargs):
+        selected.extend(rows['productFilename'])
+        raise RuntimeError('stop')
+    monkeypatch.setattr(jwst, 'Observations', NS(query_criteria=lambda **kw:None,
+        get_product_list=lambda _:products, download_products=download))
+    with pytest.raises(RuntimeError):
+        jwst.download(1118, 5, outputfolder=str(tmp_path), exposure='jw01118005001_04101_00001',
+                      segments=[1], detectors=['NRS1'])
+    assert selected == [names[0]]
+    (tmp_path/names[0]).write_text('already here')
+    assert jwst.download(1118, 5, outputfolder=str(tmp_path), exposure='jw01118005001_04101_00001',
+                         segments=[1], detectors=['nrs1']) == [str(tmp_path)+'/'+names[0]]
+
+
 @pytest.mark.parametrize('instrument,grating,mode', [('MIRI',None,'miri/photometry'),
                                                     ('NIRSPEC','PRISM','nirspec/prism')])
 def test_missing_filter_mode_status(instrument,grating,mode):
@@ -251,7 +273,9 @@ def test_stage2_schema_filenames_and_cache(tmp_path, monkeypatch, zero_nans, pro
         options['nthreads'] = 2
     result = jwst.stage2(inputs, zero_nans=zero_nans,scale_1f=False,
                         outputfolder=str(tmp_path),suffix='test',aperture_radius=7, **options)
-    assert set(result) == {'metadata','tso','tso_err','traces','spectra','whitelight','whitelight_err'}
+    assert set(result) == {'metadata','tso','tso_err','traces','spectra','whitelight','whitelight_err','products'}
+    assert set(result['products']) == {'nrs1_corrected','nrs1_original','nrs1_whitelight'}
+    np.testing.assert_array_equal(result['products']['nrs1_corrected'].flux, result['spectra']['corrected'])
     assert set(result['traces']) == {'times','x','y','ycorrected','ysmoothed'}
     keys = {'times','original','original_err','corrected','corrected_err','wavelength_map','wavelengths'}
     if profile_method is not None:

@@ -40,6 +40,9 @@ plots = ["matplotlib"]
 test = ["pytest>=8", "matplotlib"]
 all = ["transitspectroscopy[fitting,parallel,download,plots,test]"]
 
+[project.scripts]
+transitspectroscopy = "transitspectroscopy.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/nespinoza/transitspectroscopy"
 DOI = "https://doi.org/10.5281/zenodo.6960924"
