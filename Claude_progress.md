@@ -199,3 +199,21 @@ RMS about a 100-point median filter.
   (same extraction settings as soss-hatp14b.toml; `validate.py` now also resolves `data.glob` against the repo root).
 - Reference (archive rateints, soss_prompt5_runner), order-1 white light, 100-pt median-filter RMS:
   box 192.0, polynomial 120.0, GP 122.6 ppm; order 2: 244.7 / 143.8 ppm.
+
+### Why the TSO jump step misses integration 60 (investigation, no code changed)
+
+- The event: in integration 60 (seg001), columns 1024–2047 of the active pixels shift by an additive,
+  illumination-independent amount between groups 0 and 1 (group 0 about 200 DN low, groups 1–5 about 115 DN high).
+  Only the first group difference changes, by 280–390 DN (smooth along columns, constant along rows).
+  The reference rows and columns don't show it, so refpix can't remove it. It is the only such event in the 572 integrations
+  (332 DN against a 3 DN scatter in the half-detector difference statistic).
+- `tso_jump_flags` tests each pixel separately: |r| > nsigma·σ_pixel, with σ_pixel from the MAD of that pixel's
+  group-difference time series. Faint pixels have σ≈11–13 DN (z≈22, 97 % flagged). On the trace σ≈49 DN (photon noise), so z≈6.3:
+  only 9 % are flagged at nsigma=10. The unflagged 95 % of the trace flux keeps +309 DN in one of 5 differences,
+  which adds 309/(5·5.494 s) = 11.2 DN/s to the rate (11.4 measured), i.e. +1.1 %.
+- Lowering nsigma doesn't fix it: at nsigma 7/5/4/3 the flagged fraction of trace pixels is 0.39/0.72/0.86/0.95, but the unflagged
+  ones stay biased (274/233/200/157 DN, because of selection).
+- Subtracting a per-column offset estimated from low-signal pixels (for that integration and group) removes it:
+  on the trace, the median z goes from 6.3 to −0.40 and no pixel exceeds 10σ.
+- Proposed change: a common-mode stage in the TSO jump step (detect and correct, or flag, coherent per-column
+  offsets per integration and group before the per-pixel test). See the chat answer, 2026-10-17.
