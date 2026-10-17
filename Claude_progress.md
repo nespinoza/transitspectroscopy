@@ -233,13 +233,16 @@ RMS about a 100-point median filter.
 ### clean_flicker_noise in Stage 1; TSO jump vs STScI jump (2026-10-17, in progress)
 
 Plan:
-- [ ] Mode registry: SOSS `detector_steps['post_jump_steps'] = ('clean_flicker_noise',)` (other modes: none, so no change).
+- [x] Mode registry: SOSS `detector_steps['post_jump_steps'] = ('clean_flicker_noise',)` (other modes: none, so no change).
   `detector_calibration` runs these after the jump step and before ramp fitting, with `Step.call` (CRDS step pars apply).
-- [ ] TSO jump intermediate ramps saved only when `save=True` (currently always).
-- [ ] Bug: `use_tso_jump=False` passes `jump_threshold` (not a JumpStep parameter), so the STScI default rejection_threshold=4 is used;
+- [x] TSO jump intermediate ramps saved only when `save=True` (currently always).
+- [x] Bug: `use_tso_jump=False` passes `jump_threshold` (not a JumpStep parameter), so the STScI default rejection_threshold=4 is used;
   map it to `rejection_threshold` like `stage1()` does (explicit `rejection_threshold` wins).
-- [ ] `validation/soss_uncal_calibrate.py --jump {tso,jwst}`, save=False and write only the rateints.
-- [ ] Variant A: TSO jump + CFN → stage1-tsojump → Stage 2 (configs/soss-hatp14b-uncal.toml).
+- [x] `validation/soss_uncal_calibrate.py --jump {tso,jwst}`, save=False and write only the rateints.
+- Code commit `1201ea1` (tests 179 passed). Old no-CFN stage1 rateints deleted.
+- Note: the first variant A run used a STALE install (non-editable; no CFN). Discarded. The calibration script now
+  refuses a stale install (validate.installed_package). Reinstalled with `pip install --no-build-isolation --no-deps .`.
+- [~] Variant A (Stage 1 rerunning, output validation/runs/soss-hatp14b-uncal-tsojump/): TSO jump + CFN → stage1-tsojump → Stage 2 (configs/soss-hatp14b-uncal.toml).
 - [ ] Variant B: STScI jump (rejection_threshold=6, the CRDS pipeline value for SOSS) + CFN → stage1-jwstjump → Stage 2
   (configs/soss-hatp14b-uncal-jwstjump.toml).
 - Disk: about 10 GB free; each variant's rateints are 6 GB. I'm deleting the old no-CFN stage1 rateints (its Stage 2

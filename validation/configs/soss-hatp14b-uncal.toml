@@ -1,20 +1,21 @@
 # NIRISS/SOSS validation from uncal: HAT-P-14 b (PID 1541, observation 1, the 6.1-hour TSO
-# jw01541001001_04101_00001). Stage 1 is run per segment first (memory), then this config
-# extracts the resulting rateints with the same settings as soss-hatp14b.toml:
+# jw01541001001_04101_00001). Stage 1 (TSO jump step, then clean_flicker_noise) is run per
+# segment first (memory), then this config extracts the resulting rateints with the same
+# settings as soss-hatp14b.toml:
 #   python validation/soss_uncal_calibrate.py validation/data/soss_uncal/*_uncal.fits \
-#       --output validation/runs/soss-hatp14b-uncal/stage1
+#       --output validation/runs/soss-hatp14b-uncal-tsojump/stage1
 #   python validation/validate.py --config validation/configs/soss-hatp14b-uncal.toml
 # The uncal files are downloaded with
 #   ts.jwst.download(1541, 1, outputfolder='validation/data/soss_uncal', data_product='uncal',
 #                    exposure='jw01541001001_04101_00001')
 
 [run]
-name = "soss-hatp14b-uncal"
-output = "validation/runs/soss-hatp14b-uncal"
+name = "soss-hatp14b-uncal-tsojump"
+output = "validation/runs/soss-hatp14b-uncal-tsojump"
 
 [data]
 source = "local"
-glob = "validation/runs/soss-hatp14b-uncal/stage1/*_rateints.fits"
+glob = "validation/runs/soss-hatp14b-uncal-tsojump/stage1/*_rateints.fits"
 product = "rateints"
 
 [extraction.soss]

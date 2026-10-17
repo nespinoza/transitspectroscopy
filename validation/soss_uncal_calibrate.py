@@ -73,8 +73,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     os.environ.setdefault('CRDS_PATH', str(Path.home()/'crds_cache'))
     os.environ.setdefault('CRDS_SERVER_URL', 'https://jwst-crds.stsci.edu')
-    import transitspectroscopy as ts
+    from validate import installed_package
 
+    ts = installed_package()
     for filename in sorted(args.uncal):
         calibrate_segment(ts, filename, args.output, args.jump, args.rejection_threshold)
 
