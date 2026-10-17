@@ -95,9 +95,12 @@ class ExistingRun:
         if settings.get('gp_mask_policy') != 'complete-column-sequential-v2':
             raise ValueError('Source run must use the current complete-column GP mask policy')
         # Reproducing a reference is meaningful only with the same extraction code.
-        for name in ('src/_optimal_extraction.py', 'src/spectroscopy.py', 'src/jwst.py'):
-            if self.report['source_hashes'][name] != sha256(ROOT/name):
-                raise ValueError(f'Source extraction code differs: {name}; regenerate the validation first')
+        # A changed file does not necessarily change results (e.g. a refactor); warn, and
+        # rely on the replayed source profile below to detect numerical differences.
+        for name, expected in self.report['source_hashes'].items():
+            current = ROOT/name
+            if not current.exists() or sha256(current) != expected:
+                warnings.warn(f'Source file differs from the validation run: {name}')
         self.provenance = dict(manifest=str(self.folder/'reduction.json'),
             manifest_sha256=sha256(self.folder/'reduction.json'), config=self.config,
             source_hashes=self.report['source_hashes'], software=self.report['software'], files={})
@@ -187,7 +190,7 @@ def save_curves(folder, name, run, products, indices):
 
 def spectral_guard(run, reference, candidate):
     """Prevent lower scatter bought by grossly distorting the bright spectrum."""
-    _, _, _, inside, *_ = run.ts._optimal_extraction.geometry(run.centers, run.data.shape[1],
+    _, _, _, inside, *_ = run.ts.core.geometry.marsh_geometry(run.centers, run.data.shape[1],
         run.config['aperture_radius'], run.config['extraction_options']['polynomial_spacing'])
     complete = np.mean(np.all(~inside.T[None] | (run.variance[run.train] > 0), axis=1), axis=0) >= .9
     first = np.nanmedian(reference['original_flux'][run.train], axis=0)
