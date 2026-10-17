@@ -217,3 +217,15 @@ RMS about a 100-point median filter.
   on the trace, the median z goes from 6.3 to −0.40 and no pixel exceeds 10σ.
 - Proposed change: a common-mode stage in the TSO jump step (detect and correct, or flag, coherent per-column
   offsets per integration and group before the per-pixel test). See the chat answer, 2026-10-17.
+
+### Culprit in our Stage 1: `clean_flicker_noise` is never run (2026-10-17)
+
+- Archive seg001 header: `S_CLNFNS = COMPLETE` (jwst 2.0.1, jwst_1535.pmap); every reference file is the same as ours.
+- CRDS `pars-detector1pipeline` for this exposure: `clean_flicker_noise` skip=False, background_method='median_image',
+  mask_science_regions=True, n_sigma=0 (and jump rejection_threshold=6). Our `detector_calibration` calls the steps
+  one by one with `Step.call`, so pipeline-level CRDS parameters never apply, and `clean_flicker_noise` isn't in the
+  mode's step list.
+- Test (integrations 40–80 of seg001; our Stage 1, then RampFitStep, sum over trace pixels):
+  without it, int 60 = +12,220 ppm and the others' scatter is 182 ppm; with `CleanFlickerNoiseStep` (CRDS parameters)
+  before ramp fitting, int 60 = +138 ppm and the others' scatter is 145 ppm.
+- Scratch test: `<scratchpad>/cfn_test.log`. No library code changed yet.
