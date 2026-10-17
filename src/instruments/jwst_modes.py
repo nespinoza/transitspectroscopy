@@ -157,6 +157,10 @@ NIRISS_SOSS = register(
             refpix_parameters={},
             steps=_NIR_STEPS,
             post_linearity_steps=_NIR_POST_LINEARITY,
+            # Run after the jump step and before ramp fitting, as in calwebb_detector1, where
+            # CRDS enables clean_flicker_noise for SOSS. It removes 1/f noise and group-level
+            # column offsets (e.g., PID 1541 observation 1, integration 60):
+            post_jump_steps=('clean_flicker_noise',),
             tso_jump=dict(window=10, nsigma=10),
             nan_fill_window=None,
         ),

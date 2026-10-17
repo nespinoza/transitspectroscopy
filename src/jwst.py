@@ -364,6 +364,7 @@ class load(object):
         self.status['linearity'] = data.meta.cal_step.linearity
         self.status['dark_sub'] = data.meta.cal_step.dark_sub
         self.status['jump'] = data.meta.cal_step.jump
+        self.status['clean_flicker_noise'] = getattr(data.meta.cal_step, 'clean_flicker_noise', None)
         self.status['ramp_fit'] = data.meta.cal_step.ramp_fit
         self.status['tracing'] = False
         self.status['centroiding'] = False
@@ -507,9 +508,10 @@ class load(object):
 
         else:
 
-            if 'jump_threshold' not in self.calibration_parameters['jump'].keys():
-
-                self.calibration_parameters['jump']['jump_threshold'] = 15
+            # `jump_threshold` is this package's name for the JumpStep `rejection_threshold`
+            # (as in `stage1`); an explicit `rejection_threshold` takes precedence:
+            jump_threshold = self.calibration_parameters['jump'].pop('jump_threshold', 15)
+            self.calibration_parameters['jump'].setdefault('rejection_threshold', jump_threshold)
 
     def set_outputfolder(self, outputfolder):
 
@@ -817,6 +819,7 @@ class load(object):
 
         self.step_calls['group_1f'] = group_1f_correction
         self.step_calls['linearity'] = calwebb_detector1.linearity_step.LinearityStep.call
+        self.step_calls['clean_flicker_noise'] = calwebb_detector1.clean_flicker_noise_step.CleanFlickerNoiseStep.call
 
         # Now go step-by-step checking which steps were done. If linearity was done and saved, read it:
         if not os.path.exists(self.outputfolder+'ts_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'linearitystep.fits'):
@@ -880,12 +883,14 @@ class load(object):
 
                     print('\t >> Performing TSO-jump...\n')
                     self.ramps_per_segment = tso_jumpstep(self.ramps_per_segment, **self.calibration_parameters['jump'])
-                    print('\t >> ...done! Saving...\n')
+                    print('\t >> ...done!\n')
 
                     # Save results:
-                    for i in range( len(self.ramps_per_segment) ):
+                    if save:
 
-                        self.ramps_per_segment[i].save( self.datanames[i]+'_'+self.actual_suffix+'tsojumpstep.fits', dir_path = self.outputfolder+'ts_outputs' )
+                        for i in range( len(self.ramps_per_segment) ):
+
+                            self.ramps_per_segment[i].save( self.datanames[i]+'_'+self.actual_suffix+'tsojumpstep.fits', dir_path = self.outputfolder+'ts_outputs' )
 
                     self.status['jump'] = 'COMPLETE'
 
@@ -932,6 +937,18 @@ class load(object):
 
                     # Check status of the loaded files:
                     self.check_status(self.ramps_per_segment[-1])
+
+        # Steps between the jump step and ramp fitting (e.g., clean_flicker_noise for NIRISS/SOSS):
+        for step in mode_steps.get('post_jump_steps', ()):
+
+            if self.status[step] is None:
+
+                print('\t >> Running '+step+'...\n')
+                for i in range( len(self.ramps_per_segment) ):
+
+                    self.ramps_per_segment[i] = self.step_calls[step]( self.ramps_per_segment[i], **self.calibration_parameters[step] )
+
+                self.status[step] = 'COMPLETE'
 
         # Save current version of the pipeline and CRDS context being used for the dataproducts generated/read above:
         self.calibration_parameters['STScI Pipeline Version'] = self.ramps_per_segment[-1].meta.calibration_software_version

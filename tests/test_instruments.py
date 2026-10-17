@@ -136,3 +136,23 @@ def test_extraction_config_from_keywords_and_shared_profile_defaults():
         ExtractionConfig(profile_method='gp').validate(spectral)
     with pytest.raises(ValueError, match='shared_profile_options requires shared_profile'):
         ExtractionConfig(shared_profile_options={}).validate(spectral)
+
+
+def test_post_jump_steps_and_stsci_jump_threshold():
+    # clean_flicker_noise runs after the jump step only for SOSS:
+    for name in instruments.list_modes():
+        steps = instruments.get_mode(name).detector_steps.get('post_jump_steps', ())
+        assert steps == (('clean_flicker_noise',) if name == 'niriss/soss' else ())
+
+    def parameters(**jump):
+        dataset = jwst.load.__new__(jwst.load)
+        dataset.mode_definition = instruments.get_mode('niriss/soss')
+        dataset.outputfolder, dataset.actual_suffix, dataset.calibration_parameters = '', '', {}
+        dataset.status = dict.fromkeys(['dq_init', 'jump', 'clean_flicker_noise', 'ramp_fit', 'tracing'])
+        dataset.fill_calibration_parameters({'jump': jump}, use_tso_jump=False, save=False)
+        return dataset.calibration_parameters['jump']
+
+    # jump_threshold is the JumpStep rejection_threshold; an explicit rejection_threshold wins:
+    assert parameters() == dict(rejection_threshold=15)
+    assert parameters(jump_threshold=8) == dict(rejection_threshold=8)
+    assert parameters(rejection_threshold=6.) == dict(rejection_threshold=6.)
