@@ -1,0 +1,49 @@
+# MIRI F1500W imaging validation: LTT 1445 A (PID 9234), two visits, archive rateints,
+# aperture and 2-D GP PSF photometry. Each visit is one run (run.output/visit<N>).
+# Run from the repository root:
+#   python validation/validate.py --config validation/configs/miri-ltt1445a.toml
+
+[run]
+name = "miri-ltt1445a"
+output = "validation/runs/miri-ltt1445a"
+
+[data]
+source = "mast"
+program = 9234
+product = "rateints"
+folder = "validation/data/miri"
+
+[extraction.photometry]
+aperture_radius = 5.0
+gp_options = { n_inducing = 21, extent = 10.0, length_scale = 1.0, amplitude = 2.0, width = 2.0, quadrature = 2, maxiter = 600 }
+
+[extraction.photometry.miri]
+training_integrations = 12
+minimum_fraction = 0.8
+moving_aperture = false
+image_options = {}
+preparation_options = { stamp_radius = 10, annulus = [12.0, 20.0], aperture_radius = 5.0, exclude_sources = [] }
+
+[validation]
+kind = "miri"
+target = "LTT 1445 A"
+filter = "F1500W"
+bin_seconds = 120.0
+white_light_filter_points = 100
+
+# One run per visit; `observation` and the exposures/segments replace those in [data].
+[validation.visits.1]
+observation = 1
+exposures = ["jw09234001001_03101_00001"]
+segments = [1, 2]
+description = "Transit and eclipse visit; event identities/times require supplied ephemerides"
+
+[validation.visits.2]
+observation = 2
+exposures = ["jw09234002001_03101_00001", "jw09234002001_03101_00002", "jw09234002001_03101_00003"]
+segments = [1, 2]
+description = "Planet b and planet c eclipse visit"
+
+[validation.events]
+1 = []
+2 = []

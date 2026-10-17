@@ -1,14 +1,10 @@
-"""Three-order NIRISS/SOSS validation, including the PID 1541/1 transit."""
-import argparse
-from datetime import datetime, timezone
-import glob
-import importlib.metadata
-import json
-import os
+"""Three-order NIRISS/SOSS validation, including the PID 1541/1 transit.
+
+The reduction is the run configuration ``validation/configs/soss-hatp14b.toml``
+(``ts.run``); this module adds the diagnostics. Run it through ``validation/validate.py``.
+"""
 from pathlib import Path
 import sys
-import time
-import traceback
 
 import numpy as np
 from astropy.io import fits
@@ -16,33 +12,8 @@ import matplotlib.pyplot as plt
 from astropy.visualization import ImageNormalize, AsinhStretch
 
 from diagnostics import smooth_series, write_json
-from validate import ROOT, checkout_package, sha256
+from validate import sha256
 from soss_transit import fit_transit, transmission_spectrum
-
-
-def download(exposure, segments, product, folder):
-    import requests
-    folder.mkdir(parents=True, exist_ok=True)
-    paths = []
-    for segment in segments:
-        name = f'{exposure}-seg{segment:03d}_nis_{product}.fits'
-        path = folder/name
-        if not path.exists():
-            temporary = path.with_suffix('.fits.part')
-            print('Downloading', name, flush=True)
-            with requests.get('https://mast.stsci.edu/api/v0.1/Download/file',
-                    params={'uri':'mast:JWST/product/'+name}, stream=True, timeout=120) as response:
-                response.raise_for_status()
-                with temporary.open('wb') as handle:
-                    for chunk in response.iter_content(4*1024**2):
-                        handle.write(chunk)
-                if response.headers.get('Content-Length') and temporary.stat().st_size != int(response.headers['Content-Length']):
-                    raise IOError('Incomplete SOSS download')
-            with fits.open(temporary) as hdus:
-                hdus.verify('exception')
-            temporary.replace(path)
-        paths.append(path.resolve())
-    return paths
 
 
 def input_records(paths):
@@ -367,142 +338,56 @@ def compare_extractions(result, config, folder, report, *, transit=True):
             fig.savefig(folder/'12_soss_throughput_consistency.png',dpi=150);plt.close(fig)
 
 
-def main(argv=None):
-    parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--input-glob')
-    parser.add_argument('--input-product',choices=['rateints','uncal'],default='rateints')
-    parser.add_argument('--download',action='store_true')
-    parser.add_argument('--segments',type=int,nargs='+')
-    parser.add_argument('--data-dir',type=Path,default=ROOT/'validation/data/soss')
-    parser.add_argument('--output',type=Path)
-    parser.add_argument('--config',type=Path,default=ROOT/'validation/config.soss-hatp14-optimal.json')
-    parser.add_argument('--pastasoss-reference',type=Path)
-    parser.add_argument('--background-reference',type=Path)
-    parser.add_argument('--reference-spectrum',type=Path)
-    parser.add_argument('--reuse-extraction',type=Path)
-    parser.add_argument('--skip-transit',action='store_true')
-    args=parser.parse_args(argv)
-    config=json.loads(args.config.read_text())
-    if config.get('ramp_fit_method', 'jwst') != 'jwst' and args.input_product != 'uncal' and not args.reuse_extraction:
-        raise ValueError('An alternative ramp fitter requires --input-product uncal')
-    stamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
-    folder=(args.output or ROOT/'validation/runs'/f'{stamp}_soss').resolve()
-    folder.mkdir(parents=True,exist_ok=False)
-    os.environ.setdefault('CRDS_PATH',str(Path.home()/'crds_cache'))
-    os.environ.setdefault('CRDS_SERVER_URL','https://jwst-crds.stsci.edu')
-    report=dict(schema_version=1,status='running',mode='niriss/soss',started_utc=stamp,
-        command=sys.argv,config=config,source_hashes={str(p.relative_to(ROOT)):sha256(p) for p in
-            [*sorted((ROOT/'src').glob('*.py')),Path(__file__),ROOT/'validation/soss_transit.py',
-             ROOT/'validation/validate.py',ROOT/'validation/diagnostics.py']},
-        software={name:importlib.metadata.version(name) for name in
-            ['jwst','stdatamodels','crds','numpy','scipy','astropy','matplotlib','batman-package']})
-    start=time.monotonic()
-    write_json(folder/'reduction.json',report)
-    try:
-        ts=checkout_package()
-        if args.reuse_extraction:
-            source=args.reuse_extraction.resolve()
-            previous=json.loads((source/'reduction.json').read_text())
-            if previous.get('mode') != 'niriss/soss':
-                raise ValueError('Reuse requires SOSS validation products')
-            for key in ('extraction','background_options'):
-                if previous['config'][key] != config[key]:
-                    raise ValueError(f'Cannot reuse with changed {key}')
-            for key, default in (('ramp_fit_method', 'jwst'), ('ramp_fit_options', {})):
-                if previous['config'].get(key, default) != config.get(key, default):
-                    raise ValueError(f'Cannot reuse with changed {key}')
-            for product in previous['products']:
-                if product['path'].endswith(('_spectra.npz','soss_metadata.json','soss_diagnostics.npz',
-                                               '_profile.npz','_profile_support.npz','order_flux_covariance.npz')):
-                    if sha256(source/product['path']) != product['sha256']:
-                        raise ValueError('Saved extraction product changed: '+product['path'])
-            result=ts.soss.load_products(source)
-            ts.soss.save_products(result,folder)
-            report['inputs']=previous['inputs']
-            report['calibration']=previous['calibration']
-            report['reuse']=dict(path=str(source),manifest_sha256=sha256(source/'reduction.json'))
-        else:
-            segments=args.segments or config['segments']
-            if any(i<1 for i in segments):
-                raise ValueError('Segment numbers must be positive')
-            if args.input_glob:
-                paths=[Path(p).resolve() for p in glob.glob(args.input_glob)]
-            elif args.download:
-                paths=download(config['exposure'],segments,args.input_product,args.data_dir)
-            else:
-                paths=[args.data_dir/f'{config["exposure"]}-seg{i:03d}_nis_{args.input_product}.fits' for i in segments]
-            if not paths or any(not p.is_file() for p in paths):
-                raise FileNotFoundError('Missing SOSS inputs: use --download or --input-glob')
-            records=input_records(paths)
-            report['inputs']=records
-            rate_paths=[]
-            report['calibration']=dict(input_product=args.input_product,segments=[])
-            for record in records:
-                path=Path(record['path'])
-                if args.input_product == 'uncal':
-                    if len(record['shape']) != 4:
-                        raise ValueError('Expected 4-D uncal ramps')
-                    print('Calibrating and fitting ramps:',path.name,flush=True)
-                    dataset=ts.jwst.load([str(path)],outputfolder=str(folder),
-                        ramp_fit_method=config.get('ramp_fit_method', 'jwst'),
-                        ramp_fit_options=config.get('ramp_fit_options'))
-                    dataset.detector_calibration(parameters=config['detector_parameters'],save=False)
-                    dataset.fit_ramps(parameters=config['ramp_fit_parameters'],save=False)
-                    rate=dataset.rateints_per_segment[0]
-                    out=folder/path.name.replace('_uncal.fits','_rateints.fits')
-                    rate.save(out)
-                    rate_paths.append(out)
-                    report['calibration']['segments'].append(dict(input=path.name,output=out.name,
-                        ramp_fit=rate.meta.cal_step.ramp_fit,parameters=dataset.calibration_parameters))
-                    del dataset
-                else:
-                    if len(record['shape']) != 3:
-                        raise ValueError('Expected 3-D rateints')
-                    rate_paths.append(path)
-            report['calibration']['interpretation']=('Local detector calibration and ramp fitting' if args.input_product=='uncal'
-                else 'Reused public/local Stage 1 rateints; no fresh detector calibration or group-level validation')
-            write_json(folder/'reduction.json',report)
-            print('Running SOSS background, tracing and three-order extraction',flush=True)
-            result=ts.soss.extract_soss(rate_paths,pastasoss_reference=args.pastasoss_reference,
-                background_reference=args.background_reference,background_options=config['background_options'],
-                outputfolder=folder,**config['extraction'])
-        report['stages']=result['metadata']
-        report['loaded_integrations']=len(result['times'])
-        from stdatamodels.jwst.datamodels import ImageModel
-        for key in ('median_rate','background','median_background_subtracted'):
-            with ImageModel(data=result[key].astype('float32')) as image:
-                image.meta.instrument.name='NIRISS'
-                image.meta.instrument.detector='NIS'
-                image.meta.instrument.filter='CLEAR'
-                image.meta.instrument.pupil='GR700XD'
-                image.meta.exposure.type='NIS_SOSS'
-                image.meta.bunit_data='DN/s'
-                if key=='median_background_subtracted':
-                    image.meta.cal_step.bkg_subtract='COMPLETE'
-                image.save(folder/f'{key}.fits')
-        if not args.skip_transit:
-            if any(str(r['program']).lstrip('0')!='1541' or str(r['observation']).lstrip('0')!='1' for r in report['inputs']):
-                raise ValueError('The transit preset is only for PID 1541 observation 1; use --skip-transit for other targets')
-        plots(result,config,folder,report,transit=not args.skip_transit,reference_spectrum=args.reference_spectrum)
-        report['optimal']={}
-        for method, product in result.get('optimal', {}).items():
-            method_folder=folder/'optimal'/method
-            report['optimal'][method]={}
-            plots(product,config,method_folder,report['optimal'][method],transit=not args.skip_transit,
-                  reference_spectrum=args.reference_spectrum)
-        compare_extractions(result,config,folder,report,transit=not args.skip_transit)
-        report['status']='complete'
-    except BaseException as error:
-        report['status']='failed'
-        report['error']=dict(type=type(error).__name__,message=str(error),traceback=traceback.format_exc())
-        raise
-    finally:
-        report['elapsed_seconds']=time.monotonic()-start
-        report['products']=[dict(path=str(p.relative_to(folder)),size_bytes=p.stat().st_size,sha256=sha256(p))
-            for p in sorted(folder.rglob('*')) if p.is_file() and p.name!='reduction.json']
-        write_json(folder/'reduction.json',report)
-        print('SOSS validation report:',folder/'reduction.json',flush=True)
+def soss_settings(config):
+    """Settings of the plotting/comparison functions (formerly config.soss-hatp14-optimal.json)."""
+    extraction = config['extraction']['soss']
+    return dict(config['validation'], extraction=dict(aperture_radius=extraction['aperture_radius']))
 
 
-if __name__=='__main__':
-    main()
+def validate_soss(config, folder, report, ts, force=False, from_step=None, *, transit=True,
+                  reference_spectrum=None):
+    """Reduce with ts.run, then add the SOSS validation diagnostics to ``report``."""
+    settings = soss_settings(config)
+    report['settings'] = settings
+    run = ts.run(config, force=force, from_step=from_step)
+    report['run'] = run_summary = dict(output=str(run.output), steps={k: str(v) for k, v in run.steps.items()},
+                                       reused=run.reused, inputs=run.files)
+    report['inputs'] = input_records([Path(path) for path in run.files])
+    report['calibration'] = dict(input_product=config['data']['product'], interpretation=(
+        'Reused public/local Stage 1 rateints; no fresh detector calibration or group-level validation'
+        if config['data']['product'] == 'rateints' else 'Local detector calibration and ramp fitting'))
+    write_json(folder/'reduction.json', report)
+    # The SOSS Stage 2 saved its complete result; read it back (also when the step was reused).
+    result = ts.soss.load_products(run.steps['extract']/'soss'/'pipeline_outputs'/'soss')
+    ts.soss.save_products(result, folder)
+    report['stages'] = result['metadata']
+    report['loaded_integrations'] = len(result['times'])
+    from stdatamodels.jwst.datamodels import ImageModel
+    for key in ('median_rate', 'background', 'median_background_subtracted'):
+        with ImageModel(data=result[key].astype('float32')) as image:
+            image.meta.instrument.name = 'NIRISS'
+            image.meta.instrument.detector = 'NIS'
+            image.meta.instrument.filter = 'CLEAR'
+            image.meta.instrument.pupil = 'GR700XD'
+            image.meta.exposure.type = 'NIS_SOSS'
+            image.meta.bunit_data = 'DN/s'
+            if key == 'median_background_subtracted':
+                image.meta.cal_step.bkg_subtract = 'COMPLETE'
+            image.save(folder/f'{key}.fits')
+    if transit:
+        if any(str(r['program']).lstrip('0') != '1541' or str(r['observation']).lstrip('0') != '1'
+               for r in report['inputs']):
+            raise ValueError('The transit preset is only for PID 1541 observation 1; use --skip-transit')
+    plots(result, settings, folder, report, transit=transit, reference_spectrum=reference_spectrum)
+    report['optimal'] = {}
+    for method, product in result.get('optimal', {}).items():
+        report['optimal'][method] = {}
+        plots(product, settings, folder/'optimal'/method, report['optimal'][method], transit=transit,
+              reference_spectrum=reference_spectrum)
+    compare_extractions(result, settings, folder, report, transit=transit)
+    return run_summary
+
+
+if __name__ == '__main__':
+    from validate import main
+    main(['--mode', 'soss', *sys.argv[1:]])

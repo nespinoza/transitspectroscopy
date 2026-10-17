@@ -1,23 +1,23 @@
-"""MIRI imaging validation with JWST calibration and local sum/2-D GP photometry."""
-import argparse
-from datetime import datetime, timezone
-import glob
+"""MIRI imaging validation with JWST calibration and local sum/2-D GP photometry.
+
+The reduction of each visit is the run configuration
+``validation/configs/miri-ltt1445a.toml`` (``ts.run``); this module adds the diagnostics.
+Run it through ``validation/validate.py``.
+"""
+from copy import deepcopy
 import gzip
-import importlib.metadata
-import json
-import os
 from pathlib import Path
 import sys
-import time
-import traceback
+
 import numpy as np
 from astropy.io import fits
 import matplotlib.pyplot as plt
 from diagnostics import smooth_series, write_json
-from validate import ROOT, checkout_package, sha256
+from validate import sha256
 
 
 def download(name, folder, compress=False):
+    """Direct MAST download of one file (used by miri_ramp_compare.py; ts.run uses ts.jwst.download)."""
     import requests
     folder.mkdir(parents=True,exist_ok=True)
     path=folder/name
@@ -145,114 +145,51 @@ def plots(result, config, folder, visit):
     return report
 
 
-def main(argv=None):
-    parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--config',type=Path,default=ROOT/'validation/config.miri-ltt1445.json')
-    parser.add_argument('--visits',nargs='+',default=['1','2'])
-    parser.add_argument('--input-product',choices=['uncal','rateints','calints'],default='rateints')
-    parser.add_argument('--input-glob')
-    parser.add_argument('--download',action='store_true')
-    parser.add_argument('--compress-downloads',action='store_true',help='Retain losslessly compressed FITS inputs to reduce disk use')
-    parser.add_argument('--data-dir',type=Path,default=ROOT/'validation/data/miri')
-    parser.add_argument('--output',type=Path)
-    parser.add_argument('--reuse-prepared',type=Path,help='Directory with calibrated *_prepared.npz and provenance JSON')
-    parser.add_argument('--prepare-only',action='store_true')
-    parser.add_argument('--temporary-downloads',action='store_true',help='Remove only newly downloaded files after verified cutouts are saved')
-    parser.add_argument('--save-calints',action='store_true',help='Retain full calibrated cubes in addition to cutouts')
-    args=parser.parse_args(argv)
-    config=json.loads(args.config.read_text())
-    if config.get('ramp_fit_method', 'jwst') != 'jwst' and args.input_product != 'uncal' and not args.reuse_prepared:
-        raise ValueError('An alternative ramp fitter requires --input-product uncal')
-    stamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
-    folder=(args.output or ROOT/'validation/runs'/f'{stamp}_miri').resolve();folder.mkdir(parents=True,exist_ok=False)
-    os.environ.setdefault('CRDS_PATH',str(Path.home()/'crds_cache'))
-    os.environ.setdefault('CRDS_SERVER_URL','https://jwst-crds.stsci.edu')
-    ts=checkout_package();start=time.monotonic()
-    report=dict(status='running',mode='miri/imaging',config=config,command=sys.argv,
-        started_utc=stamp,inputs=[],visits={},source_hashes={str(p.relative_to(ROOT)):sha256(p)
-            for p in [ROOT/'src/miri.py',ROOT/'src/photometry.py',Path(__file__),ROOT/'validation/diagnostics.py']},
-        software={k:importlib.metadata.version(k) for k in ('jwst','stdatamodels','numpy','scipy','astropy')})
-    write_json(folder/'reduction.json',report)
-    cache=folder/'prepared';cache.mkdir()
-    try:
-        for visit in args.visits:
-            vconfig=config['visits'][visit]
-            stems=[f'{e}-seg{s:03d}_mirimage' for e in vconfig['exposures'] for s in vconfig['segments']]
-            if args.input_glob:
-                paths=[Path(p) for p in sorted(glob.glob(args.input_glob)) if int(fits.getheader(p)['OBSERVTN'])==int(visit)]
-                stems=[p.name.rsplit('_',1)[0] for p in paths]
-            prepared=[]
-            for stem in stems:
-                cached=args.reuse_prepared/(stem+'_prepared.npz') if args.reuse_prepared else None
-                if cached is not None:
-                    meta=json.loads(cached.with_suffix('.json').read_text())
-                    if sha256(cached)!=meta['prepared_sha256'] or meta['preparation']!=config['preparation']:
-                        raise ValueError('Prepared data hash/settings mismatch')
-                    if meta['image_options']!=config['image_options'] or meta['detector_options']!=config['detector_options']:
-                        raise ValueError('Prepared calibration settings mismatch')
-                    for key, default in (('ramp_fit_method', 'jwst'), ('ramp_fit_options', {})):
-                        if meta.get(key, default) != config.get(key, default):
-                            raise ValueError(f'Prepared calibration {key} mismatch')
-                    record=meta['input'];s=ts.miri.load_prepared(cached)
-                    record=dict(record,prepared_path=str(cached.resolve()),prepared_sha256=meta['prepared_sha256'],
-                        preparation_manifest_path=str(cached.with_suffix('.json').resolve()),
-                        preparation_manifest_sha256=sha256(cached.with_suffix('.json')),
-                        preparation_source_hashes=meta['source_hashes'],preparation_software=meta['software'])
-                else:
-                    name=stem+'_'+args.input_product+'.fits'
-                    path=next((p for p in paths if p.name in (name,name+'.gz')),None) if args.input_glob else args.data_dir/name
-                    if path is None:
-                        raise FileNotFoundError(name)
-                    downloaded=False
-                    if not path.exists() and path.with_suffix('.fits.gz').exists():
-                        path=path.with_suffix('.fits.gz')
-                    if not path.exists() and args.download:
-                        path,downloaded=download(name,args.data_dir,args.compress_downloads)
-                    record=inspect_input(path)
-                    if record['program']!=config['program'] or record['observation']!=int(visit) or record['filter']!=config['filter']:
-                        raise ValueError('Input does not match validation target/filter/visit')
-                    print('Calibrating/preparing',name,flush=True)
-                    model=ts.miri.calibrate(path,folder/'calibration',input_product=args.input_product,
-                        detector_options=config['detector_options'],image_options=config['image_options'],save_calints=args.save_calints,
-                        ramp_fit_method=config.get('ramp_fit_method', 'jwst'),ramp_fit_options=config.get('ramp_fit_options'))
-                    try:
-                        s=ts.miri.prepare_segment(model,**config['preparation'])
-                    finally:
-                        model.close()
-                    saved=cache/(stem+'_prepared.npz');ts.miri.save_prepared(s,saved)
-                    checksum=sha256(saved)
-                    write_json(saved.with_suffix('.json'),dict(input=record,preparation=config['preparation'],
-                        image_options=config['image_options'],detector_options=config['detector_options'],
-                        ramp_fit_method=config.get('ramp_fit_method', 'jwst'),ramp_fit_options=config.get('ramp_fit_options', {}),
-                        prepared_sha256=checksum,source_hashes=report['source_hashes'],software=report['software']))
-                    if args.temporary_downloads and downloaded:
-                        # Only files created by this invocation; never user-provided inputs.
-                        ts.miri.load_prepared(saved)  # verify readable before discarding temporary input
-                        path.unlink();record['temporary_download_removed']=True
-                prepared.append(s);report['inputs'].append(record)
-                write_json(folder/'reduction.json',report)
-            if not args.prepare_only:
-                out=folder/f'visit{visit}'
-                result=ts.miri.extract_visit(prepared,outputfolder=out,**config['extraction'])
-                report['visits'][visit]=plots(result,config,out,visit)
-                expected={f'{e}-seg{s:03d}_mirimage' for e in vconfig['exposures'] for s in vconfig['segments']}
-                report['visits'][visit]['all_configured_segments_selected']=set(stems)==expected
-                report['visits'][visit]['selected_segments']=stems
-                del result
-            del prepared
-        report['status']='complete'
-        report['calibration_scope']='JWST Detector1 only for uncal input; Image2 for rateints; local extraction from calibrated native integrations'
-        report['science_validation']='diagnostics_complete_not_certified; no inferred event identities or eclipse depths without ephemerides/systematics model'
-    except BaseException as error:
-        report['status']='failed';report['error']=dict(type=type(error).__name__,message=str(error),traceback=traceback.format_exc())
-        raise
-    finally:
-        report['elapsed_seconds']=time.monotonic()-start
-        report['products']=[dict(path=str(p.relative_to(folder)),bytes=p.stat().st_size,sha256=sha256(p))
-                            for p in sorted(folder.rglob('*')) if p.is_file() and p.name!='reduction.json']
-        write_json(folder/'reduction.json',report)
-    print('MIRI validation report:',folder/'reduction.json',flush=True)
+def miri_settings(config):
+    """Settings of the plotting functions (formerly config.miri-ltt1445.json)."""
+    settings = deepcopy(config['validation'])
+    settings['visits'] = {str(k): v for k, v in settings['visits'].items()}
+    settings['events'] = {str(k): v for k, v in settings.get('events', {}).items()}
+    return settings
 
 
-if __name__=='__main__':
-    main()
+def validate_miri(config, folder, report, ts, force=False, from_step=None, *, visits=None):
+    """One ts.run per visit (its exposures and segments), then the MIRI diagnostics."""
+    settings = miri_settings(config)
+    report['settings'] = settings
+    report.update(inputs=[], visits={}, runs={})
+    for visit in visits or sorted(settings['visits']):
+        description = settings['visits'][visit]
+        visit_config = deepcopy(config)
+        visit_config['data'].update(observation=description['observation'],
+                                    exposure=description['exposures'], segments=description['segments'])
+        visit_config['run']['output'] = str(Path(config['run']['output'])/f'visit{visit}')
+        run = ts.run(visit_config, force=force, from_step=from_step, keep_stage2=True)
+        report['runs'][visit] = dict(output=str(run.output), steps={k: str(v) for k, v in run.steps.items()},
+                                     reused=run.reused, inputs=run.files)
+        records = [inspect_input(Path(path)) for path in run.files]
+        for record in records:
+            if (record['program'] != config['data']['program'] or record['observation'] != int(visit)
+                    or record['filter'] != settings['filter']):
+                raise ValueError('Input does not match validation target/filter/visit')
+        report['inputs'] += records
+        result = run.stage2['photometry']
+        out = folder/f'visit{visit}'
+        out.mkdir(parents=True, exist_ok=True)
+        ts.miri.save_products(result, out)
+        report['visits'][visit] = plots(result, settings, out, visit)
+        stems = sorted(Path(path).name.rsplit('_', 1)[0] for path in run.files)
+        expected = {f'{e}-seg{s:03d}_mirimage' for e in description['exposures'] for s in description['segments']}
+        report['visits'][visit]['all_configured_segments_selected'] = set(stems) == expected
+        report['visits'][visit]['selected_segments'] = stems
+        write_json(folder/'reduction.json', report)
+        del result, run
+    report['calibration_scope'] = ('Detector1 by ts.jwst.load for uncal input; Image2 for rateints; local '
+                                   'extraction from calibrated native integrations')
+    report['science_validation'] = ('diagnostics_complete_not_certified; no inferred event identities or '
+                                    'eclipse depths without ephemerides/systematics model')
+
+
+if __name__ == '__main__':
+    from validate import main
+    main(['--mode', 'miri', *sys.argv[1:]])

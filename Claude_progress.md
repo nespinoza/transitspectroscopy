@@ -131,10 +131,10 @@ Decisions (the report's decision lines were removed; I used its recommendations)
 - [x] `load.sort_filenames` sorts by (exposure, segment) instead of segment only (same order within one exposure; correct for multi-exposure visits).
 - [x] Docs: `docs/guides/adding-a-mode.md`; API pages for config/instruments; SOSS/MIRI guides now lead with load → detector_calibration → fit_ramps → stage2 (commit `c807d31`).
 - [x] **SOSS validation re-run** (`validation/runs/soss_prompt4_check`, same command/pinned references as `soss_overlap_20260925_final`): status complete; every non-timing number in reduction.json identical (orders 96, optimal 216, extraction_comparison 207, order_overlap 16, background 9); **all 9 saved spectra files (box/polynomial/GP × orders 1–3) bit-for-bit identical**; order-1 white-light depth 6779.4 ppm as reported.
-- [~] MIRI validation re-run (`validation/runs/miri_prompt4_check`, full rateints → Image2 → photometry, both visits), running in background (scratchpad `miri_p4.log`). Uses the current code (incl. Prompt 5 products additions).
+- [x] **MIRI validation re-run** (`validation/runs/miri_prompt4_check`, full rateints → calwebb_image2 → cutouts → photometry, both visits, 164 s): status complete; cutouts/centroids/sky/flags/times bit-for-bit identical; aperture-sum fluxes bit-for-bit identical; GP fluxes differ by ≤1.1e-15 relative per integration (headline GP RMS 637.976148959680 → 637.976148959682 ppm; max relative change of any reported number 1.9e-11), from the SciPy-vs-NumPy Cholesky unification in Prompt 3. Standard products written to `visit*/products/`.
 - Not testable here: the uncal → load → stage2 path for SOSS/MIRI on real data (only rateints are on disk for PIDs 1541/9234); covered by synthetic tests only.
 
-**Prompt 4 DONE** (pending the MIRI comparison).
+**Prompt 4 DONE.**
 
 ---
 
@@ -146,6 +146,7 @@ Decisions (the report's decision lines were removed; I used its recommendations)
 - [x] `soss.load_products(strict=False)` warns instead of refusing when source files changed.
 - [x] `ts.jwst.download(..., exposure=, segments=, detectors=, skip_existing=True)` returns the selected paths (+ test).
 - [x] `src/runner.py` (`ts.run`, `load_config`, step folders `<step>-<hash>`, force/from_step, per-exposure loading, CRDS context pinning, keep_stage2) and `src/cli.py` (`transitspectroscopy run config.toml`, `transitspectroscopy modes`); console script in pyproject.
-- [ ] Runner tests (synthetic), docs page.
+- [x] Runner tests (`tests/test_runner.py`: products/manifests, step reuse, recompute on change, from_step, TOML + CLI, config errors, warn/strict). Suite **177 passed, 13 skipped**. Commit `c67b9d5`.
+- [ ] Runner docs page.
 - [ ] Port validation scripts (configs → `validation/configs/*.toml`) and re-run.
 

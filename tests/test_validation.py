@@ -129,35 +129,30 @@ def test_gp_stage2_recovers_original_mask_after_image_filling():
     assert np.all(variance[mask] == 1e18)
 
 
-def test_calibration_reuse_checks_inputs_settings_and_completed_stages(tmp_path, monkeypatch):
+def _driver(name, monkeypatch):
     monkeypatch.syspath_prepend(str(ROOT/'validation'))
-    spec = importlib.util.spec_from_file_location('validation_driver', ROOT/'validation/validate.py')
-    driver = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(driver)
-    records = [dict(path='/data/segment_uncal.fits', sha256='raw-hash')]
-    config = dict(detector_parameters={}, ramp_fit_parameters={'maximum_cores': '1'})
-    product = tmp_path/'product.fits'
-    product.write_bytes(b'read-only calibration product')
-    entry = dict(input='segment_uncal.fits', datamodel=product.name, elapsed_seconds=10.)
-    previous = dict(inputs=records, config=config, source_hashes={'src/jwst.py': 'old-code'},
-                    software={'jwst': '3.0.0'}, stages={
-                        'detector_calibration': [entry], 'ramp_fitting': [entry]})
-    diag.write_json(tmp_path/'reduction.json', previous)
-    reused = driver.calibration_reuse(tmp_path, records, config)
-    saved = reused['stages']['ramp_fitting']['segment_uncal.fits']
-    assert saved['reused'] and saved['elapsed_seconds'] == 0.
-    assert saved['original_elapsed_seconds'] == 10.
-    assert saved['sha256'] == driver.sha256(product)
-    assert saved['datamodel'] == str(product.resolve())
-    with pytest.raises(ValueError, match='changed detector_parameters'):
-        driver.calibration_reuse(tmp_path, records, dict(config, detector_parameters={'different': True}))
-    with pytest.raises(ValueError, match='changed ramp_fit_method'):
-        driver.calibration_reuse(tmp_path, records, dict(config, ramp_fit_method='sparta'))
-    with pytest.raises(ValueError, match='changed ramp_fit_options'):
-        driver.calibration_reuse(tmp_path, records, dict(config, ramp_fit_options={'sigma': 7}))
-    with pytest.raises(ValueError, match='same input segments/hashes'):
-        driver.calibration_reuse(tmp_path, [dict(records[0], sha256='different')], config)
-    previous['stages']['ramp_fitting'] = []
-    diag.write_json(tmp_path/'reduction.json', previous)
-    with pytest.raises(ValueError, match='Incomplete source stage'):
-        driver.calibration_reuse(tmp_path, records, config)
+    spec = importlib.util.spec_from_file_location(name, ROOT/f'validation/{name}.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_validation_configs_are_run_configurations(monkeypatch):
+    import transitspectroscopy as ts
+    driver = _driver('validate', monkeypatch)
+    for kind, name in driver.DEFAULT_CONFIGS.items():
+        config = driver.read_config(ROOT/'validation/configs'/name)
+        assert config['validation']['kind'] == kind
+        assert Path(config['run']['output']).is_absolute() and Path(config['data']['folder']).is_absolute()
+        for settings in config['extraction'].values():
+            ts.ExtractionConfig(**settings)  # every variant is a valid Stage 2 configuration
+    nrs1 = driver.nrs1_settings(driver.read_config(ROOT/'validation/configs/nrs1-hatp14b.toml'))
+    assert nrs1['aperture_radius'] == 2. and nrs1['gp_options']['length_scale'] == 100.
+    assert nrs1['extraction_options'] == {'polynomial_spacing': 1., 'polynomial_order': 3, 'nsigma': 10.}
+    soss = driver.read_config(ROOT/'validation/configs/soss-hatp14b.toml')
+    reference = Path(soss['extraction']['soss']['soss']['background_reference'])
+    assert reference.is_absolute() and reference.parent == ROOT/'validation/references/soss'
+    assert _driver('soss_validate', monkeypatch).soss_settings(soss)['extraction'] == {'aperture_radius': 15.}
+    miri = _driver('miri_validate', monkeypatch).miri_settings(
+        driver.read_config(ROOT/'validation/configs/miri-ltt1445a.toml'))
+    assert set(miri['visits']) == {'1', '2'} and miri['events'] == {'1': [], '2': []}

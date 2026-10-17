@@ -80,14 +80,14 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
     data_product : str
         (Optional) String representing the kind of data products the user wants; `uncal` will download the uncalibrated products, 
         `ramp` will download the calibrated ramps, `rateints` will download the rates per integration. Default is to download `uncal` products.
-    exposure : str
-        (Optional) Only download files of this exposure, e.g. `'jw01118005001_04101_00001'`.
+    exposure : str or list of str
+        (Optional) Only download files of this exposure (or these exposures), e.g. `'jw01118005001_04101_00001'`.
     segments : list of int
         (Optional) Only download these segments (1 is `-seg001`).
     detectors : list of str
         (Optional) Only download these detectors, e.g. `['nrs1']`.
     skip_existing : bool
-        (Optional) Do not download again files already in `outputfolder`. Default is True.
+        (Optional) Do not download again files already in `outputfolder` (also as `.fits.gz`). Default is True.
 
     Returns
     -------
@@ -161,11 +161,20 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
     # Apply mask:
     data_products = data_products[indexes]
 
+    def local_file(name):
+        # An already downloaded file, possibly compressed afterwards:
+        for candidate in (outputfolder+'/'+name, outputfolder+'/'+name+'.gz'):
+            if os.path.exists(candidate):
+                return candidate
+        return None
+
     # Optional selection of exposure, segments and detectors from the file names
     # (e.g., jw01118005001_04101_00001-seg001_nrs1_uncal.fits):
+    exposures = [exposure] if isinstance(exposure, str) else exposure
+
     def selected(filename):
         name = filename.lower()
-        if exposure is not None and not name.startswith(exposure.lower()):
+        if exposures is not None and not any(name.startswith(e.lower()) for e in exposures):
             return False
         if segments is not None and not any('-seg{0:03d}'.format(int(segment)) in name for segment in segments):
             return False
@@ -180,7 +189,7 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
 
         if skip_existing:
 
-            data_products = data_products[[not os.path.exists(outputfolder+'/'+str(name)) for name in data_products['productFilename']]]
+            data_products = data_products[[local_file(str(name)) is None for name in data_products['productFilename']]]
 
     elif exposure is not None or segments is not None or detectors is not None:
 
@@ -193,7 +202,7 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
     if len(data_products) == 0 and wanted is not None:
 
         print('\n\t >> All {0:} selected files are already in {1:}.'.format(len(wanted), outputfolder))
-        return [outputfolder+'/'+name for name in wanted]
+        return [local_file(name) for name in wanted]
 
     # Report final size of the package with the user:
     print( '\n\t >> {0:.2f} GB of data will be downloaded in total considering the following files:\n'.format( data_products['size'].sum()/1e9 ) )
@@ -270,7 +279,7 @@ def download(pid, obs_num, mast_api_token = None, outputfolder = None, data_prod
     downloaded_files = pd.DataFrame(downloaded_files)
     print(downloaded_files)
 
-    return [outputfolder+'/'+name for name in (wanted if wanted is not None else fnames)]
+    return [local_file(name) or outputfolder+'/'+name for name in (wanted if wanted is not None else fnames)]
 
     print('\n\t >> Data gathered on: ', dm.meta.observation.date,' | PI: ', dm.meta.program.pi_name)
 

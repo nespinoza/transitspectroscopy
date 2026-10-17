@@ -295,44 +295,52 @@ def run(config, force=False, from_step=None, hash_inputs=True, keep_stage2=False
         os.environ['CRDS_CONTEXT'] = calibration['crds_context']
     mode_name = config['mode']['name']
     mode = None if mode_name == 'auto' else instruments.get_mode(mode_name)
-    for number, files in enumerate(_exposures(result.files)):
-        exposure_folder = calibrate.folder / f'exposure{number + 1}'
-        exposure_folder.mkdir(parents=True, exist_ok=True)
-        dataset = jwst.load(
-            files,
-            outputfolder=str(calibrate.folder / f'exposure{number + 1}'),
-            ramp_fit_method=calibration.get('ramp_fit_method', 'jwst'),
-            ramp_fit_options=calibration.get('ramp_fit_options') or None,
-        )
-        if mode is not None and dataset.mode != mode.name:
-            dataset.mode_definition, dataset.mode = mode, mode.name
-        if config['data']['product'] == 'uncal':
-            dataset.detector_calibration(
-                parameters=calibration.get('parameters', {}),
-                use_tso_jump=calibration.get('use_tso_jump', True),
-                group_1f=calibration.get('group_1f', False),
+    # The extraction step decides whether the data must be loaded at all: when both the
+    # calibration and the extraction are cached, nothing is read again.
+    extract = step('extract', calibrate.digest)
+    if not calibrate.cached or not extract.cached:
+        for number, files in enumerate(_exposures(result.files)):
+            exposure_folder = calibrate.folder / f'exposure{number + 1}'
+            exposure_folder.mkdir(parents=True, exist_ok=True)
+            dataset = jwst.load(
+                files,
+                outputfolder=str(exposure_folder),
+                ramp_fit_method=calibration.get('ramp_fit_method', 'jwst'),
+                ramp_fit_options=calibration.get('ramp_fit_options') or None,
             )
-            dataset.fit_ramps(parameters=calibration.get('ramp_fit_parameters', {}))
-        result.datasets.append(dataset)
-    reference = result.dataset.rateints_per_segment[-1]
-    crds_context = calibration.get('crds_context') or getattr(
-        getattr(getattr(reference.meta, 'ref_file', None), 'crds', None), 'context_used', None
-    )
+            if mode is not None and dataset.mode != mode.name:
+                dataset.mode_definition, dataset.mode = mode, mode.name
+            if config['data']['product'] == 'uncal':
+                dataset.detector_calibration(
+                    parameters=calibration.get('parameters', {}),
+                    use_tso_jump=calibration.get('use_tso_jump', True),
+                    group_1f=calibration.get('group_1f', False),
+                )
+                dataset.fit_ramps(parameters=calibration.get('ramp_fit_parameters', {}))
+            result.datasets.append(dataset)
+    if result.datasets:
+        reference = result.dataset.rateints_per_segment[-1]
+        crds_context = calibration.get('crds_context') or getattr(
+            getattr(getattr(reference.meta, 'ref_file', None), 'crds', None), 'context_used', None
+        )
+        mode_used = result.dataset.mode
+    else:
+        recorded = provenance.read_manifest(calibrate.folder / 'manifest.json')
+        crds_context, mode_used = recorded.get('crds_context'), recorded.get('mode')
     if not calibrate.cached:
         calibrate.complete(
             provenance.build_manifest(
                 config={k: config[k] for k in ('mode', 'calibration')},
                 crds_context=crds_context,
                 step='calibrate',
-                mode=result.dataset.mode,
+                mode=mode_used,
                 input_files=input_records,
             ),
-            mode=result.dataset.mode,
+            mode=mode_used,
             exposures=len(result.datasets),
         )
 
     # 3. Extraction: one Stage 2 per variant; products are written with their manifests.
-    extract = step('extract', calibrate.digest)
     for variant, settings in config['extraction'].items():
         folder = extract.folder / variant
         if extract.cached:
@@ -356,7 +364,7 @@ def run(config, force=False, from_step=None, hash_inputs=True, keep_stage2=False
             ),
             crds_context=crds_context,
             step='extract',
-            mode=result.dataset.mode,
+            mode=mode_used,
             input_files=input_records,
         )
         result.products[variant] = stage2_result['products']
