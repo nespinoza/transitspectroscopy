@@ -141,9 +141,9 @@ def function_quantiles(X, alpha = 0.68, method = 'median'):
     median_model : numpy.array
         Array of length M denoting the median model
     upper_band : numpy.array
-        Array of length M denoting the upper `alpha`*100 credibility band.
+        Array of length M denoting the upper ``alpha*100`` credibility band.
     lower_band : numpy.array
-        Array of length M denoting the lower `alpha`*100 credibility band.
+        Array of length M denoting the lower ``alpha*100`` credibility band.
 
     """
 
@@ -155,14 +155,14 @@ def function_quantiles(X, alpha = 0.68, method = 'median'):
     return median_model, upper_band, lower_band
 
 def get_quantiles(dist,alpha = 0.68, method = 'median'):
-    """ 
-    get_quantiles function
-    DESCRIPTION
-        This function returns, in the default case, the parameter median and the error% 
-        credibility around it. This assumes you give a non-ordered 
-        distribution of parameters.
-    OUTPUTS
-        Median of the parameter,upper credibility bound, lower credibility bound
+    """
+    Return the median of a distribution and the bounds of the ``alpha`` credibility
+    interval around it. The distribution does not need to be ordered.
+
+    Returns
+    -------
+    median, upper, lower : float
+        Median of the parameter, upper credibility bound, lower credibility bound.
     """
     ordered_dist = dist[np.argsort(dist)]
     param = 0.0 

@@ -53,7 +53,7 @@ def getP(data, centroids, aperture_radius, ron, gain, nsigma, polynomial_spacing
     Given a 2D-spectrum, centroids over it and various properties of the noise, this function returns the light 
     fractions of a spectrum using the algorithm described in detail in Marsh (1989, PASP 101, 1032). 
    
-    Attributes
+    Parameters
     ----------
     data : numpy.array
         Array containing the 2D-spectrum. 
@@ -206,7 +206,7 @@ def getOptimalSpectrum(data, centroids, aperture_radius, ron, gain, nsigma, poly
     obtained with the `getP` function), you can ingest that instead which will significantly speed-up the algorithm when ran on 
     several spectra. 
  
-    Attributes
+    Parameters
     ----------
     data : numpy.array
         Array containing the 2D-spectrum. 
@@ -377,7 +377,7 @@ def getFastSimpleSpectrum(data, centroids, aperture_radius, min_column = None, m
     Given a 2D-spectrum, this function returns a simple-extracted spectrum. This function is fast to 
     compute, but it doesn't calculate errors on the spectra.
  
-    Attributes
+    Parameters
     ----------
     data : numpy.array
         Array containing the 2D-spectrum. 

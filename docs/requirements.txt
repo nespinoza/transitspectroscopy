@@ -1,0 +1,8 @@
+# Documentation build requirements (the package itself, with jwst, is installed separately).
+sphinx>=8
+myst-nb>=1.1
+pydata-sphinx-theme>=0.16
+sphinx-copybutton
+sphinxcontrib-mermaid
+matplotlib
+ipykernel

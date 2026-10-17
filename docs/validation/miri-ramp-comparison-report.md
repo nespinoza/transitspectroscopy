@@ -6,25 +6,25 @@ official JWST ramp fitter and the new correlated-difference fitter completed.
 In this test, **JWST produces lower photometric scatter**.
 
 The final audited results are in
-[`runs/miri_ramp_comparison_20261002_corrected/`](runs/miri_ramp_comparison_20261002_corrected/).
+`runs/miri_ramp_comparison_20261002_corrected/` (`validation/runs/miri_ramp_comparison_20261002_corrected`).
 The earlier `miri_ramp_comparison_20261001` run remains available for debugging
 but contains a short-chunk calibration artifact and is superseded.
 
 ## Comparison figures and numerical products
 
-- [Visit 1 comparison](runs/miri_ramp_comparison_20261002_corrected/visit1_ramp_comparison.png):
+- Visit 1 comparison (`validation/runs/miri_ramp_comparison_20261002_corrected/visit1_ramp_comparison.png`):
   120-second binned photometry, native-integration running-median residuals,
   and paired SPARTA-minus-JWST differences, for both sum and GP photometry.
-- [Visit 2 comparison](runs/miri_ramp_comparison_20261002_corrected/visit2_ramp_comparison.png).
-- [Comparison metrics](runs/miri_ramp_comparison_20261002_corrected/comparison.json),
-  [complete run/provenance manifest](runs/miri_ramp_comparison_20261002_corrected/comparison_manifest.json),
-  [independent audit](runs/miri_ramp_comparison_20261002_corrected/audit.json), and
-  [product hashes](runs/miri_ramp_comparison_20261002_corrected/product_manifest.json).
+- Visit 2 comparison (`validation/runs/miri_ramp_comparison_20261002_corrected/visit2_ramp_comparison.png`).
+- Comparison metrics (`validation/runs/miri_ramp_comparison_20261002_corrected/comparison.json`),
+  complete run/provenance manifest (`validation/runs/miri_ramp_comparison_20261002_corrected/comparison_manifest.json`),
+  independent audit (`validation/runs/miri_ramp_comparison_20261002_corrected/audit.json`), and
+  product hashes (`validation/runs/miri_ramp_comparison_20261002_corrected/product_manifest.json`).
 - Paired numerical time series:
-  [visit 1 sum](runs/miri_ramp_comparison_20261002_corrected/visit1_sum_paired.csv),
-  [visit 1 GP](runs/miri_ramp_comparison_20261002_corrected/visit1_gp_paired.csv),
-  [visit 2 sum](runs/miri_ramp_comparison_20261002_corrected/visit2_sum_paired.csv),
-  [visit 2 GP](runs/miri_ramp_comparison_20261002_corrected/visit2_gp_paired.csv).
+  visit 1 sum (`validation/runs/miri_ramp_comparison_20261002_corrected/visit1_sum_paired.csv`),
+  visit 1 GP (`validation/runs/miri_ramp_comparison_20261002_corrected/visit1_gp_paired.csv`),
+  visit 2 sum (`validation/runs/miri_ramp_comparison_20261002_corrected/visit2_sum_paired.csv`),
+  visit 2 GP (`validation/runs/miri_ramp_comparison_20261002_corrected/visit2_gp_paired.csv`).
 
 Each of `jwst/visit1`, `jwst/visit2`, `sparta/visit1` and `sparta/visit2`
 contains the same product set:

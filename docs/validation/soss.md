@@ -4,7 +4,7 @@ This path follows the [reading/tracing notebook](https://github.com/nespinoza/ho
 using PASTASOSS instead of manually chosen trace starting positions. It produces
 separate spectral products and light curves for orders **1, 2 and 3**. The
 three-order reduction requires NIRISS `CLEAR/GR700XD`, `SUBSTRIP256` science data
-and JWST 3.0 in the repository's [full environment](../environment.yml).
+and JWST 3.0 in the repository's [full environment](https://github.com/nespinoza/transitspectroscopy/blob/master/environment.yml).
 
 ## Run the HAT-P-14 b case
 
@@ -45,9 +45,9 @@ calibration options are in the separate `config.soss-hatp14.json` preset.
 PASTASOSS and background files are normally selected by CRDS using the **science
 metadata**, including observation date, filter and exposure type. Explicit
 `--pastasoss-reference file.asdf` and `--background-reference file.fits` overrides
-support pinned/offline runs. See [reference provenance](references/soss/README.md).
+support pinned/offline runs. See [reference provenance](https://github.com/nespinoza/transitspectroscopy/blob/master/validation/references/soss/README.md).
 Image limits and extraction/transit settings are in
-[`config.soss-hatp14-optimal.json`](config.soss-hatp14-optimal.json); the original
+[`config.soss-hatp14-optimal.json`](https://github.com/nespinoza/transitspectroscopy/blob/master/validation/config.soss-hatp14-optimal.json); the original
 box-only and NRS1 configs are unchanged.
 
 ## Library interface and processing order
@@ -280,6 +280,6 @@ python validation/validate.py --mode soss \
 The source extraction's code, saved product hashes and extraction/background
 settings must match. A failed validation can also be reused if its extraction
 products were fully written; the manifest retains the failure. See
-[`SOSS_OVERLAP_REPORT.md`](SOSS_OVERLAP_REPORT.md) for the current correction and validation.
+[overlap-correction report](../validation/soss-overlap-report.md) for the current correction and validation.
 All large inputs/runs/reference binaries are ignored by Git and should be
 archived separately.

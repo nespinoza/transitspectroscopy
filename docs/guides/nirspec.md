@@ -1,0 +1,52 @@
+# NIRSpec time series (PRISM, G395H, G395M)
+
+NIRSpec bright-object time series are reduced with the object-oriented `ts.jwst.load`
+workflow for detector calibration, followed by `ts.jwst.stage2` for tracing and extraction.
+The {doc}`../quickstart` walks through a complete G395H example; this page summarizes the
+choices `transitspectroscopy` makes for each mode.
+
+## Detector calibration
+
+`load.detector_calibration()` runs the JWST `calwebb_detector1` steps on all segments of an
+exposure, with these time-series-specific changes:
+
+- **PRISM:** the standard reference-pixel step is replaced by a pedestal estimated from the
+  leftmost and rightmost 25 columns of every group (`side_refpix_correction`).
+- **Jump detection:** by default, jumps are found with `tso_jumpstep`, which looks for
+  outliers in the time series of each pixel's group differences across *all* integrations.
+  Defaults are a 200-integration window for PRISM and 10 for the gratings, at 10 sigma.
+  Pass `use_tso_jump=False` to use the JWST jump step instead.
+- **Group-level 1/f:** `group_1f=True` subtracts column-by-column medians of unilluminated
+  pixels from every group (`group_1f_correction`).
+
+Step parameters can be overridden with the `parameters` dictionary, keyed by step name. Every
+step's output is saved in the output folder and reloaded if it already exists.
+
+## Ramp fitting
+
+`load.fit_ramps()` uses the JWST ramp-fitting step by default. A correlated adjacent-read
+fitter can be selected when the dataset is loaded; see {doc}`ramp-fitting`.
+
+## Tracing and extraction
+
+`ts.jwst.stage2(inputs, ...)` traces every integration (correlation with a Gaussian kernel,
+computed by FFT convolution), smooths the traces with splines, corrects rate-level 1/f noise (`scale_1f=True`),
+and extracts spectra with a fractional-pixel box aperture of `aperture_radius` pixels.
+Useful options:
+
+| Option | Meaning |
+|---|---|
+| `aperture_radius` | Box (or optimal) extraction half-width in pixels |
+| `single_trace_extraction` | Use the median trace for all integrations (default) or each integration's trace |
+| `optimal_extraction` | Marsh (1989) optimal extraction instead of a box; see {doc}`optimal-extraction` |
+| `mask_dq` | Ignore pixels with non-zero DQ flags |
+| `nthreads` | Parallelize tracing and extraction with Ray |
+| `outputfolder`, `suffix` | Where and under which name products are cached |
+
+The returned dictionary holds the traces, FWHMs, spectra (`outputs['spectra']`), wavelength
+map and the normalized white-light curve (`outputs['whitelight']`).
+
+## Validation
+
+A complete NRS1 reduction of the HAT-P-14 b commissioning data, with diagnostic plots, is
+documented in {doc}`../validation/nirspec-nrs1`.

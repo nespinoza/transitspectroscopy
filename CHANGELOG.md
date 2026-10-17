@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-# [0.5.0] - Unreleased
+## [0.5.0] - Unreleased
 Detailed development notes for the work below are in `docs/dev-notes/`.
 
 ### Added
@@ -21,7 +21,7 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
 - MIRI imaging time-series photometry (`ts.miri.reduce_miri`): official Detector1/Image2
   calibration, aperture photometry and a shared 2-D GP PSF.
 - Alternative correlated adjacent-read ramp fitter (`ramp_fit_method='sparta'`, see
-  `RAMP_FITTING.md`), selectable in `ts.jwst.load`, `stage1` and MIRI calibration.
+  `docs/guides/ramp-fitting.md`), selectable in `ts.jwst.load`, `stage1` and MIRI calibration.
 - `ramps_err_available` in `ts.jwst.load`, flagging which integrations carry ramp errors.
 - `stage2` options `extraction_backend`, `profile_method`, `gp_options`,
   `extraction_options`, `shared_profile`, `shared_profile_options`, `soss_options`,
@@ -53,7 +53,7 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
 - Running a `load` step without a prior calibration step failed on suffix initialization.
 - `spill_filter` divided by zero on empty boxes.
 
-# [0.4.1] - 2026-09-13
+## [0.4.1] - 2026-09-13
 ### Added
 - Import of `Marsh` and `CCF` is now optional.
 - Removed `Marsh` setup. Plan is to convert it to Python in the summer.
@@ -61,7 +61,7 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
 ### Fixed
 - Error because jwst build 11.3 removes the .err array in the 4D ramp products (see https://jwst-docs.stsci.edu/jwst-science-calibration-pipeline/jwst-operations-pipeline-build-information/jwst-operations-pipeline-build-11-3-release-notes?utm_source=chatgpt.com#gsc.tab=0). Now if products were created with build 11.3 and above, 4D ramps have error arrays of zeros. If below, save the error arrays.
 
-# [0.4.0] - 2023-02-13 
+## [0.4.0] - 2023-02-13 
 ### Added
 - Initial a-la-`juliet` retrieval functionality.
 - 'convolve' methodology for CCF's added by @tbainesUA in #2.
@@ -73,16 +73,16 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
 - Support for JWST data download via `ts.jwst.download`
 - Implemented `tsojump` step.
 
-# [0.3.13] - 2022-10-28
+## [0.3.13] - 2022-10-28
 ### Added
 - Resolution binning can now consider data errorbars to compute binned errorbars.
 - "Poor man's CCF" calculation in `ts.spectroscopy.get_pm_ccf`.
 
-# [0.3.12] - 2022-08-24
+## [0.3.12] - 2022-08-24
 ### Added
 - Function to compute FWHM: `ts.spectroscopy.get_fwhm(x,y)` and `ts.spectroscopy.trace_fwhm(tso, x, y)`.
 
-# [0.3.11] - 2022-08-02
+## [0.3.11] - 2022-08-02
 ### Added
 - Functions in `utils.py` to predict transits, perform calculations of atmospheric signals and scale-heights.
 - Function in `utils.py` to bin in resolution (`bin_at_resolution`).
@@ -92,49 +92,49 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
 ### Changed
 - `getSimpleSpectrum` has `correct_bkg=False` by default now.
 
-# [0.3.10] - 2022-06-07
+## [0.3.10] - 2022-06-07
 ### Added
 - Now getSimpleSpectrum can use background on both sides or on only one side of the spectrum.
 
-# [0.3.9] - 2022-06-07
+## [0.3.9] - 2022-06-07
 ### Fixed
 - Bug commit that prevented script from compiling.
 
-# [0.3.8] - 2022-06-07
+## [0.3.8] - 2022-06-07
 ### Added
 - New function in `jwst.py`, `get_cds` to get Correlated Double Sampling frames from a dataset or set of segmented datasets.
 - The `jwst.stage` can now receive `rateints` products as inputs too.
 
-# [0.3.7] - 2022-06-06
+## [0.3.7] - 2022-06-06
 ### Added
 - Now allow background fits with LOOM.
 
-# [0.3.6] - 2022-05-04
+## [0.3.6] - 2022-05-04
 ### Fixed
 - Fixed bug that didn't allow to import `transitspectroscopy.jwst`.
 
-# [0.3.5] - 2022-05-04
+## [0.3.5] - 2022-05-04
 ### Added
 - New function in `utils.py` to fit splines.
 - `quicklook` flag added for reduction.
 
-# [0.3.4] - 2022-04-01
+## [0.3.4] - 2022-04-01
 ### Added
 - New set of algorithms for creating uniluminated masks.
 
-# [0.3.3] - 2022-03-31
+## [0.3.3] - 2022-03-31
 ### Fixed
 - JWST ramp-fitting outputs can't be oppened with datamodels.RampModel. Changed that.
 
-# [0.3.2] - 2022-03-30
+## [0.3.2] - 2022-03-30
 ### Fixed
 - JWST stage 1 was forced in `transitspectroscopy` to use an input gain reference file. Now use the default one if none was added.
 
-# [0.3.1] - 2022-03-18
+## [0.3.1] - 2022-03-18
 ### Fixed
 - ROEBA model corrected thanks to inputs from Everett Schlawin.
 
-# [0.3] - 2022-03-18
+## [0.3] - 2022-03-18
 ### Added
 - Option to trace spectra using CCF instead; implemented gaussian and double gaussian (useful for SOSS).
 - Various CCF utilities.

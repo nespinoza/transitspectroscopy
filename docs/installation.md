@@ -62,7 +62,7 @@ python tests/check_environment.py
 ```
 
 The normal tests use local synthetic references and do not download observations.
-See [tests/README.md](../tests/README.md) for the optional checks.
+See [tests/README.md](https://github.com/nespinoza/transitspectroscopy/blob/master/tests/README.md) for the optional checks.
 
 ## Calibration reference files (CRDS)
 

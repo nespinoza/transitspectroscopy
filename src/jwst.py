@@ -735,9 +735,9 @@ class load(object):
 
         parameters : dict
             (Optional) dictionary hosting different parameters for different steps in the JWST pipeline. Default is empy dict. Each key should be a pipeline step 
-            matching the self.status keywords. Each one of those, in turn, should have keys specifying different pipeline parameters, e.g., 
-            
-                        >> parameters['superbias']['override_superbias'] = 'my_jwst_superbias_reference.fits'
+            matching the self.status keywords. Each one of those, in turn, should have keys specifying different pipeline parameters, e.g.::
+
+                parameters['superbias']['override_superbias'] = 'my_jwst_superbias_reference.fits'
 
         use_tso_jump : bool
             (Optional) flag defining if to run the TSO-based jump step implemented in transitspectroscopy. Default is True. If False, the jump 
@@ -750,7 +750,7 @@ class load(object):
             (Optional) flag to save results into fits files. Default is True.
 
         suffix : str
-            (Optional) string defining suffix for output files if `save = True`. Default is ``.
+            (Optional) string defining suffix for output files if ``save = True``. Default is ``''`` (no suffix).
 
         outputfolder : str
             (Optional) folder where the outputs will be saved to in case this was note defined before. By default, a folder `ts_outputs` is created in that folder. 
@@ -1241,7 +1241,8 @@ def tso_jumpstep(tso_list, window, nsigma = 10):
 
     1. You are locked on the same target in all the sets of exposures given to this function.
     2. Adding all exposures together, the number of integrations is > 1.
-    2. The number of groups per integration is > 1.
+    3. The number of groups per integration is > 1.
+
     
     For every pixel, a group difference is calculated for every integration in the TSO between groups i+1 and i; this defines the time-series of this group-difference. 
     Then, a median filter with an input `window` is substracted from this time-series. This is expected to leave only noise on the time-series. 
@@ -2150,7 +2151,7 @@ def cds_stage1(datafiles, nintegrations, ngroups, trace_radius = 10, ommited_tra
 
 def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outputfolder = '', use_tso_jump = True, suffix = '', ommit_pixeldq = False, *, ramp_fit_method='jwst', ramp_fit_options=None, **kwargs):
     """
-    This function calibrates a set of *uncal.fits files through a "special" version of the JWST TSO CalWebb Stage 1. It has been tested thoroughly for NIRISS/SOSS, NIRSpec/G395H and NIRSpec/Prism.
+    This function calibrates a set of ``*uncal.fits`` files through a "special" version of the JWST TSO CalWebb Stage 1. It has been tested thoroughly for NIRISS/SOSS, NIRSpec/G395H and NIRSpec/Prism.
 
     Parameters
     ----------

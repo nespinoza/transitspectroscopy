@@ -1,7 +1,7 @@
 # HAT-P-14 b NIRISS/SOSS validation — 2026-09-24
 
 **This is the historical box-only run.** The subsequent
-[optimal-extraction validation](SOSS_OPTIMAL_VALIDATION_REPORT.md) adds both
+[optimal-extraction validation](../validation/soss-optimal-report.md) adds both
 polynomial and GP spectra/light curves and compares them on identical columns.
 The default SOSS validation now uses that expanded workflow.
 
@@ -16,10 +16,10 @@ order 3 bins are poorly constrained.
 
 ## Executed run
 
-The final [manifest](runs/soss_hatp14_20260924_complete/reduction.json) and products
+The final manifest (`validation/runs/soss_hatp14_20260924_complete/reduction.json`) and products
 are in `validation/runs/soss_hatp14_20260924_complete/`. This final plotting/fitting
 pass reuses the independently checked extraction in
-[`soss_hatp14_20260924_verified`](runs/soss_hatp14_20260924_verified/reduction.json).
+`soss_hatp14_20260924_verified` (`validation/runs/soss_hatp14_20260924_verified/reduction.json`).
 The latter completed the full extraction and diagnostics in **63.6 seconds**,
 excluding downloads. No Ray workers were used; BLAS/OpenMP threads were limited
 to one.
@@ -43,9 +43,9 @@ python validation/validate.py --mode soss \
   --output validation/runs/new_soss_validation
 ```
 
-See [the guide](SOSS_README.md) for environment/CRDS setup, downloads and reuse.
+See [the guide](../validation/soss.md) for environment/CRDS setup, downloads and reuse.
 The reference filenames, mapping versions and hashes are documented
-[here](references/soss/README.md). Actual PWCPOS is **245.898438 degrees**. The
+[here](https://github.com/nespinoza/transitspectroscopy/blob/master/validation/references/soss/README.md). Actual PWCPOS is **245.898438 degrees**. The
 PASTASOSS file is evaluated separately for orders 1/2/3; traces are refined with
 bounded double-Gaussian correlation and an offset spline. Median fitted-minus-
 reference offsets are approximately −0.006, −0.109 and −0.852 pixels, respectively.
@@ -60,13 +60,13 @@ integration. The aperture radius is 15 pixels. Inputs remain unchanged.
 
 The final directory contains 36 products plus the JSON manifest, including:
 
-- [Background diagnostics](runs/soss_hatp14_20260924_complete/01_soss_background.png),
-  [three traces](runs/soss_hatp14_20260924_complete/02_soss_traces.png), and
-  [trace motion/profile widths](runs/soss_hatp14_20260924_complete/03_soss_motion.png).
-- [All three extracted spectra](runs/soss_hatp14_20260924_complete/04_soss_spectra.png)
-  and [100-point-filter light-curve diagnostics](runs/soss_hatp14_20260924_complete/05_soss_white_light.png).
-- [Transit fits](runs/soss_hatp14_20260924_complete/06_soss_transit_fits.png) and
-  [transmission spectra](runs/soss_hatp14_20260924_complete/07_soss_transmission.png).
+- Background diagnostics (`validation/runs/soss_hatp14_20260924_complete/01_soss_background.png`),
+  three traces (`validation/runs/soss_hatp14_20260924_complete/02_soss_traces.png`), and
+  trace motion/profile widths (`validation/runs/soss_hatp14_20260924_complete/03_soss_motion.png`).
+- All three extracted spectra (`validation/runs/soss_hatp14_20260924_complete/04_soss_spectra.png`)
+  and 100-point-filter light-curve diagnostics (`validation/runs/soss_hatp14_20260924_complete/05_soss_white_light.png`).
+- Transit fits (`validation/runs/soss_hatp14_20260924_complete/06_soss_transit_fits.png`) and
+  transmission spectra (`validation/runs/soss_hatp14_20260924_complete/07_soss_transmission.png`).
 - Per-order FITS/NPZ spectra and errors, micron wavelengths, BJD_TDB times,
   explicit DQ/white-light masks, trace tables and CSV light curves/residuals.
   The spectral FITS format is a custom layout, not an STScI `x1dints` model.

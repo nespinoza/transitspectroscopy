@@ -9,7 +9,7 @@ does not survive the held-out comparison.
 ## Data and reproducibility
 
 This experiment starts from the completed
-[`20260923T042304707564Z` validation](runs/20260923T042304707564Z/reduction.json),
+`20260923T042304707564Z` validation (`validation/runs/20260923T042304707564Z/reduction.json`),
 with 391 integrations of the first NRS1 segment. It reuses the saved extraction
 input, variance/DQ, traces, wavelengths and GP reference profile. The detector
 calibration, background/1/f processing, two-pixel aperture radius, spatial
@@ -150,7 +150,7 @@ They merit targeted masked-pixel flux/injection checks before any adoption. The
 existing mask semantics were preserved, and all selected profile columns remain
 finite, nonnegative and normalized. The numerical checks and largest localized
 differences are saved in
-[`post_run_checks.json`](runs/20260923_gp_sweep/post_run_checks.json).
+`validation/runs/20260923_gp_sweep/post_run_checks.json`.
 
 ## Execution and verification
 
@@ -173,20 +173,20 @@ All three generated comparison figures were visually inspected.
 ## Products
 
 All numerical results, input hashes, candidate timings, eligibility and the
-locked selection are in [`sweep.json`](runs/20260923_gp_sweep/sweep.json).
+locked selection are in `validation/runs/20260923_gp_sweep/sweep.json`.
 The output directory also contains:
 
-- [`candidates.csv`](runs/20260923_gp_sweep/candidates.csv) and
-  [`sweep.png`](runs/20260923_gp_sweep/sweep.png): development-grid comparisons.
-- [`white_light_comparison.png`](runs/20260923_gp_sweep/white_light_comparison.png)
-  and [`spectrum_comparison.png`](runs/20260923_gp_sweep/spectrum_comparison.png):
+- `validation/runs/20260923_gp_sweep/candidates.csv` and
+  `validation/runs/20260923_gp_sweep/sweep.png`: development-grid comparisons.
+- `validation/runs/20260923_gp_sweep/white_light_comparison.png`
+  and `validation/runs/20260923_gp_sweep/spectrum_comparison.png`:
   full-segment baseline/selected comparisons.
 - CSV light curves with times, integrated flux, normalized errors, median filters
   and residuals, for both original and spectrally corrected data.
 - Candidate, holdout and selected-full NPZ products containing profiles, spectra,
   errors and replacement masks. Final products retain the common-band mask and
   timestamps; the selected-full product also includes wavelengths/columns.
-- [`selected_config.json`](runs/20260923_gp_sweep/selected_config.json): a separate
+- `validation/runs/20260923_gp_sweep/selected_config.json`: a separate
   proposed configuration. The user's configuration and library defaults remain
   unchanged.
 

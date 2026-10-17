@@ -5,7 +5,7 @@ dense/analytic covariance solutions, noisy injections, masks, templates and
 JWST FITS/pipeline integration. Run it with `python -m pytest
 tests/test_ramp_fitting.py -q`. The numerical tests need no CRDS or JWST; the
 datamodel/pipeline tests use local synthetic references in the full environment.
-See [RAMP_FITTING.md](../RAMP_FITTING.md).
+See [the ramp-fitting guide](../docs/guides/ramp-fitting.md).
 
 Run from the repository root:
 
@@ -208,5 +208,5 @@ distinct status and reason. This benchmark script uses Unix alarms and process
 resource counters. Fine spatial sampling is substantially
 more expensive than the default benchmark's one-pixel spacing.
 
-See [SHARED_PROFILE.md](../SHARED_PROFILE.md) for the approximation, priors,
+See [the shared-profile guide](../docs/guides/shared-profile.md) for the approximation, priors,
 uncertainty conventions, batching limitations, and deferred noise/ramp work.

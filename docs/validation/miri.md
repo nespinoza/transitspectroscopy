@@ -35,7 +35,7 @@ and gzip FITS are supported. `--visits 1` selects one visit. A narrower input gl
 permits a segment smoke test; JSON distinguishes partial coverage from all
 configured segments.
 
-Settings are in [`config.miri-ltt1445.json`](config.miri-ltt1445.json). Target
+Settings are in [`config.miri-ltt1445.json`](https://github.com/nespinoza/transitspectroscopy/blob/master/validation/config.miri-ltt1445.json). Target
 positions are zero-based `(x,y)` in the input subarray. WCS initializes bounded
 Gaussian-core centroiding; its fitted amplitude is not the science flux. An
 explicit `center` overrides WCS. `exclude_sources` accepts `[x,y,radius]` circles
@@ -152,4 +152,4 @@ python tests/simulated_miri_photometry.py --output validation/runs/miri_injectio
 ```
 
 The second command creates independent noisy Airy-PSF transit/eclipse simulations,
-plots and recovery metrics. See [the executed report](MIRI_VALIDATION_REPORT.md).
+plots and recovery metrics. See [the executed report](../validation/miri-report.md).

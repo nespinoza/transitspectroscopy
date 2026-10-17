@@ -19,3 +19,4 @@ ts_outputs/
 
 # Built documentation
 docs/_build/
+docs/jupyter_execute/

@@ -1,7 +1,7 @@
 # SOSS optimal extraction and validation completion
 
 **Historical isolated-order comparison:** the subsequent
-[overlap correction](SOSS_OVERLAP_REPORT.md) replaces the long-wavelength
+[overlap correction](../validation/soss-overlap-report.md) replaces the long-wavelength
 exclusion with joint profile/flux fitting. The default validation now uses that
 correction; the numbers below describe the earlier isolated-order run.
 
@@ -47,19 +47,19 @@ column fluxes; missing pixels contribute no likelihood.
 
 The complete visit contains 572 integrations from the four previously downloaded
 PID 1541 observation 1 `rateints` segments. Background and trace settings match
-the [historical box run](SOSS_VALIDATION_REPORT.md). The new extraction is still
+the [historical box run](../validation/soss-report.md). The new extraction is still
 downstream of the archival Stage 1 calibration; this is not a new raw-ramp
 calibration of the visit.
 
 The final products are under
-[`soss_hatp14_optimal_20260925_reviewed`](runs/soss_hatp14_optimal_20260925_reviewed/reduction.json):
+`soss_hatp14_optimal_20260925_reviewed` (`validation/runs/soss_hatp14_optimal_20260925_reviewed/reduction.json`):
 
-- [Three extraction methods in the median spectra](runs/soss_hatp14_optimal_20260925_reviewed/04_soss_spectra.png).
-- [Identical-band light-curve comparison](runs/soss_hatp14_optimal_20260925_reviewed/08_soss_extraction_comparison.png).
-- [Profile fit quality](runs/soss_hatp14_optimal_20260925_reviewed/09_soss_profile_fit_quality.png).
-- [Relative spectral differences](runs/soss_hatp14_optimal_20260925_reviewed/10_soss_spectral_differences.png).
-- [Polynomial transmission spectrum](runs/soss_hatp14_optimal_20260925_reviewed/optimal/polynomial/07_soss_transmission.png)
-  and [GP transmission spectrum](runs/soss_hatp14_optimal_20260925_reviewed/optimal/gp/07_soss_transmission.png).
+- Three extraction methods in the median spectra (`validation/runs/soss_hatp14_optimal_20260925_reviewed/04_soss_spectra.png`).
+- Identical-band light-curve comparison (`validation/runs/soss_hatp14_optimal_20260925_reviewed/08_soss_extraction_comparison.png`).
+- Profile fit quality (`validation/runs/soss_hatp14_optimal_20260925_reviewed/09_soss_profile_fit_quality.png`).
+- Relative spectral differences (`validation/runs/soss_hatp14_optimal_20260925_reviewed/10_soss_spectral_differences.png`).
+- Polynomial transmission spectrum (`validation/runs/soss_hatp14_optimal_20260925_reviewed/optimal/polynomial/07_soss_transmission.png`)
+  and GP transmission spectrum (`validation/runs/soss_hatp14_optimal_20260925_reviewed/optimal/gp/07_soss_transmission.png`).
 
 Each method's `05_soss_white_light.png` and `06_soss_transit_fits.png` are in
 the corresponding product directory. Root products retain box-extraction names
@@ -150,7 +150,7 @@ missing optimal-spectrum plot:
    transmission-spectrum benchmark.
 
 The manifest therefore retains `diagnostics_complete_not_certified` rather than
-declaring a blanket science-validation pass. The [usage guide](SOSS_README.md)
+declaring a blanket science-validation pass. The [usage guide](../validation/soss.md)
 describes the API, controls, products and reproducible commands.
 
 ## Verification

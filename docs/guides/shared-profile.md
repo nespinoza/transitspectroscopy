@@ -195,7 +195,7 @@ budgets, and copies for Ray. It is a conservative planning check, not a strict
 operating-system memory limiter; driver/framework overhead and external input
 arrays also occupy memory. Fine spatial sampling can be expensive even when
 the number of integrations is small. Full GP kernels and sparse/banded
-curvature solvers are not implemented in this milestone.
+curvature solvers are not implemented.
 
 ## Stage 2
 
@@ -236,4 +236,4 @@ Use appropriate supplied variances after preprocessing: existing Stage 2
 background and 1/f corrections may introduce covariance absent from diagonal
 error arrays. This feature does not recalibrate those errors. RON/gain fitting,
 correlated ramp/group likelihoods, automatic temporal profile changes, and real
-instrument validation remain later milestones.
+instrument validation remain future work.

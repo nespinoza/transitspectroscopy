@@ -96,10 +96,10 @@ then applies the post-ramp SOSS background/tracing/extraction workflow; detector
 calibration was not rerun from raw ramps for this comparison. Existing validation
 configuration files were preserved.
 
-The full run is [`soss_overlap_20260925_final`](runs/soss_overlap_20260925_final/).
+The full run is `validation/runs/soss_overlap_20260925_final`.
 Its saved extraction was reused with the latest plotting code in
-[`soss_overlap_20260925_reviewed`](runs/soss_overlap_20260925_reviewed/), which is
-the final diagnostic set. Its [JSON manifest](runs/soss_overlap_20260925_reviewed/reduction.json)
+`validation/runs/soss_overlap_20260925_reviewed`, which is
+the final diagnostic set. Its JSON manifest (`validation/runs/soss_overlap_20260925_reviewed/reduction.json`)
 records settings, metrics, software, input/source hashes, product hashes and the
 parent manifest hash. Reuse regenerated the plots and transit fits without
 retraining profiles or re-extracting detector data.
@@ -158,11 +158,11 @@ minimum observed support; restored red coverage; and unchanged box arrays.
 
 Key review products:
 
-- [Three-method spectra for all orders](runs/soss_overlap_20260925_reviewed/04_soss_spectra.png).
-- [Matched-band light-curve comparison](runs/soss_overlap_20260925_reviewed/08_soss_extraction_comparison.png).
-- [Profile residual diagnostics](runs/soss_overlap_20260925_reviewed/09_soss_profile_fit_quality.png).
-- [Inter-order covariance and conditioning](runs/soss_overlap_20260925_reviewed/11_soss_order_overlap.png).
-- [Order 2 throughput consistency](runs/soss_overlap_20260925_reviewed/12_soss_throughput_consistency.png).
+- Three-method spectra for all orders (`validation/runs/soss_overlap_20260925_reviewed/04_soss_spectra.png`).
+- Matched-band light-curve comparison (`validation/runs/soss_overlap_20260925_reviewed/08_soss_extraction_comparison.png`).
+- Profile residual diagnostics (`validation/runs/soss_overlap_20260925_reviewed/09_soss_profile_fit_quality.png`).
+- Inter-order covariance and conditioning (`validation/runs/soss_overlap_20260925_reviewed/11_soss_order_overlap.png`).
+- Order 2 throughput consistency (`validation/runs/soss_overlap_20260925_reviewed/12_soss_throughput_consistency.png`).
 
 The method directories also contain the spectra, white-light curves,
 transmission fits, portable profile models and `order_flux_covariance.npz`.
