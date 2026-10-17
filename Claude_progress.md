@@ -151,6 +151,24 @@ Decisions (the report's decision lines were removed; I used its recommendations)
 - [x] Validation ports (commit `5d24149`, docs `1fe6ac9`): `validation/configs/{nrs1-hatp14b,soss-hatp14b,miri-ltt1445a}.toml` (MAST via ts.jwst.download, CRDS context pinned for NRS1, pinned SOSS references, [validation] diagnostic settings). `validate.py --config X.toml` (or `--mode`) runs `ts.run` then the diagnostics; soss/miri drivers keep their plots/metrics; drivers use the installed package and refuse a stale install. Old JSONs → `validation/configs/legacy/`. Runner loads data only when needed; download takes exposure lists and treats `.fits.gz` as present. Old `--reuse-*` options replaced by the runner's step caching.
 - [~] Re-running the three ported validations (background batch, scratchpad `validations_p5.log`, outputs `validation/runs/{miri,soss,nrs1}_prompt5_runner`), to compare with the reviewed runs.
   - [x] **MIRI (ported, from config alone): reproduces the report** — sum RMS 659.297653/646.667056 ppm, GP RMS 637.976149/632.427043 ppm (visits 1/2), all integrations and segments selected; sum fluxes, times and centroids bit-for-bit identical, GP fluxes ≤1.1e-15 relative (182 s).
-  - [ ] SOSS (running)
-  - [ ] NRS1 (queued)
+  - [x] **SOSS (ported, from config alone): bit-for-bit identical to the reviewed run** — every number in orders/optimal/extraction_comparison/order_overlap/background (544) identical, all 9 spectra files identical; data via ts.jwst.download (MAST query, files reused), rateints through ts.jwst.load → stage2 (13 min, fits in 8.6 GB RAM).
+  - [x] **NRS1 (ported, from config alone): reproduces the report.** First attempt was killed (exit 137) because the disk was 98% full and swap could not grow; after I deleted ~16 GB of my own scratchpad smoke outputs and test venv, the rerun (`--from-step calibrate`, 1295 s) completed: white-light RMS **simple 264.1 / polynomial 273.0 / GP 265.6 ppm**, **1537** common columns (2.674–3.717 µm), trace-motion RMS **0.001906** px, FWHM-change RMS **0.0004471** px, median FWHM **1.8017** px, median simple−polynomial difference **0.8294** DN/s — all as reported in docs/validation/nirspec-nrs1.md. (The original reference folder `nrs1_segment001_20260922_final` is no longer on disk, so this is a comparison with the reported numbers, not file-by-file.)
+  - Disk note for you: the volume is at ~90% after cleanup; `validation/runs/` holds ~12 GB of runs (mine: `*_prompt4_check`, `*_prompt5_runner`) that you may delete once reviewed.
 
+
+
+**Prompt 5 DONE.** Not done: the optional item 5 (embedding SharedProfile/PSF models *inside*
+the product FITS). The models are saved next to the products (as before), and shared-profile
+fingerprints are recorded in the product metadata.
+
+---
+
+## Final state (Prompts 0–5)
+
+- Branch `refactor/consolidation`, all work committed (not pushed). Suite: **178 passed, 13 skipped** on Python 3.13 / jwst 3.0.0 (`transitspectroscopy-py313` env). Docs: `sphinx -W` clean.
+- Real-data checks: NRS1 smoke run bit-identical after Prompts 3 and 4; SOSS bit-identical after Prompt 4 and through the runner; MIRI aperture sums bit-identical and GP ≤1e-15 relative; NRS1 validation reproduces every reported headline number through the runner.
+- Things for you to do / decide:
+  - Swap the conda env: `conda env remove -n transitspectroscopy && conda rename -n transitspectroscopy-py313 transitspectroscopy` (the new env also has CRDS_PATH set and the docs toolchain installed).
+  - Disk is ~90% full: `validation/runs/*_prompt4_check` and `*_prompt5_runner` (~10 GB) can be deleted after review.
+  - Not tested on real data: uncal → load → stage2 for SOSS and MIRI (only rateints on disk); the GitHub Actions workflows (only linted locally).
+  - SOSS tracing still uses the PASTASOSS + double-Gaussian refinement (switching to your CCF tracer would change validated results).
