@@ -139,3 +139,26 @@ def test_changed_code_warns_and_strict_raises(tmp_path):
     with warnings.catch_warnings():
         warnings.simplefilter('error')
         products.read_fits(tmp_path/'q.fits')
+
+
+def test_fit_step_passes_every_light_curve_to_transitfitting(tmp_path, patched_stage2, monkeypatch):
+    from transitspectroscopy import transitfitting
+    path, centers = _write_rateints(tmp_path)
+    patched_stage2(centers)
+    calls = {}
+
+    def fake_fit(data, priors, sampler='multinest', **kwargs):
+        calls.update(data=data, priors=priors, sampler=sampler, kwargs=kwargs)
+        return {key: 'fitted' for key in data}
+    monkeypatch.setattr(transitfitting, 'fit_lightcurves', fake_fit)
+    priors = {'p_p1': {'distribution': 'uniform', 'hyperparameters': [0., .2]}}
+    result = ts.run(dict(run=dict(output=str(tmp_path/'fit')),
+                         data=dict(source='local', glob=str(tmp_path/'*_rateints.fits'), product='rateints'),
+                         extraction=dict(box=dict(aperture_radius=3., scale_1f=False)),
+                         fit=dict(priors=priors, sampler='dynesty', nthreads=None)))
+    assert calls['sampler'] == 'dynesty' and calls['kwargs'] == {'nthreads': None}
+    # One white-light curve each from the corrected and the original spectra.
+    assert len(calls['data']) == 2 and all(p == priors for p in calls['priors'].values())
+    data = next(value for key, value in calls['data'].items() if 'nrs1_corrected_white' in key)
+    np.testing.assert_array_equal(data['flux'], result.lightcurves['box']['nrs1_corrected_white'].flux[0])
+    assert (result.steps['fit']/'step.json').exists()
