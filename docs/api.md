@@ -13,6 +13,16 @@ above it keep the historical interface and add the JWST-specific layers.
              tso_jumpstep, get_cds
 ```
 
+## Stage 2 configuration and observing modes
+
+```{eval-rst}
+.. automodule:: transitspectroscopy.config
+   :members: ExtractionConfig
+
+.. automodule:: transitspectroscopy.instruments.modes
+   :members: Mode, register, unregister, get_mode, list_modes, identify, identify_model, UnknownModeError
+```
+
 ## Spectral tracing and extraction
 
 ```{eval-rst}
@@ -24,14 +34,14 @@ above it keep the historical interface and add the JWST-specific layers.
 
 ```{eval-rst}
 .. automodule:: transitspectroscopy.soss
-   :members: reduce_soss, reference_traces, extract_box, save_products, load_products
+   :members: extract_soss, reduce_soss, reference_traces, extract_box, save_products, load_products
 ```
 
 ## MIRI imaging and photometry
 
 ```{eval-rst}
 .. automodule:: transitspectroscopy.miri
-   :members: reduce_miri, calibrate, prepare_segment, extract_visit
+   :members: extract_photometry, reduce_miri, calibrate, prepare_segment, extract_visit
 
 ```
 

@@ -25,7 +25,7 @@ of alternative settings cannot silently replace the requested calculation.
 
 The same selection is available in `ts.jwst.stage1(...)`,
 `ts.miri.calibrate(..., input_product='uncal')`, and
-`ts.miri.reduce_miri(..., input_product='uncal')`. MIRI uses a subclass of the
+`ts.miri.extract_photometry(..., input_product='uncal')`. MIRI uses a subclass of the
 official Detector1 pipeline that replaces only `ramp_fit`: reset, first/last
 group handling, dark correction and subsequent `gain_scale` retain their
 official ordering. Do not request a new ramp-fitting method on already fitted

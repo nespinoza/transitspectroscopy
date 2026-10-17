@@ -89,4 +89,44 @@ lives in `core/shared_profile.py`, and joint multi-trace (overlap) fitting in
 - [x] Tests: legacy-API test now uses `inspect` on the imported objects (same contract: names, order, defaults, **kwargs) instead of parsing source files; tests that used private helpers now use the public core names. New `tests/test_core_layering.py`: core imports no jwst/stdatamodels/gwcs (checked in a subprocess and on the source), and no module imports another module's underscore names.
 - [x] **Equivalence: 956 arrays, 955 bit-for-bit identical; 1 (cached GP PSF evaluator grid) differs at 3e-16 relative** (Cholesky now via SciPy) — within rtol=1e-12.
 - [x] Suite: **161 passed, 13 skipped** (158 + 3 layering tests). `sphinx -W`: succeeded (API page now documents core).
-- [~] Post-refactor NRS1 smoke run in background (scratchpad `smoke_after/`), to compare with `equiv/smoke_whitelight_before.npy`.
+- [x] Post-refactor NRS1 smoke run (real data, full load → stage2 flow): white-light curve **bit-for-bit identical** to the pre-refactor run.
+- Commits `396b01d`, `425bb38` (gp_sweep: uses core geometry; warns instead of refusing on changed sources).
+
+**Prompt 3 DONE.**
+
+---
+
+## Prompt 4 — Mode registry, ExtractionConfig, SOSS/MIRI in the main flow
+
+Decisions (the report's decision lines were removed; I used its recommendations):
+- Detector stage for every mode = `ts.jwst.load(...).detector_calibration()` with the
+  author's custom steps chosen by the Mode (as before); the official calwebb_detector1
+  remains available through `miri.extract_photometry(input_product='uncal')` / `stage1`.
+- SOSS: the JWST background step (zodiacal light, CRDS bkg template) runs on a median
+  rate image after ramp fitting and before tracing/extraction (unchanged algorithm,
+  now recorded as the mode's `background_strategy='jwst_background_step'`). Tracing is
+  still PASTASOSS + the double-Gaussian refinement (I did not switch it to the CCF
+  tracer: that would change validated SOSS results; noted as a follow-up).
+- Mode names are unchanged (`nirspec/prism`, ..., `miri/photometry`, alias `miri/imaging`)
+  because `load.mode` values are user-visible.
+
+- [x] `src/instruments/` (`modes.py`: Mode, register/unregister, identify, identify_model,
+  list_modes, UnknownModeError; `jwst_modes.py`: built-in modes with the historical values).
+- [x] jwst.py: all `self.mode == ...` / `mode == ...` branches replaced by Mode lookups
+  (check_status, fill_calibration_parameters, detector_calibration, stage1, stage2 tracing
+  and extraction defaults, NRS1/NRS2 suffixes). `cds_stage1` (experimental, takes its own
+  `instrument` string) left as is.
+- [x] `src/config.py`: ExtractionConfig + `from_stage2_arguments` + mode-aware `validate`.
+  stage2 gains `config=` and dispatches on `mode.stage2` ('spectral' | 'soss' | 'imaging' |
+  callable plug-in). Deprecated keywords: extraction_backend, profile_method, gp_options,
+  extraction_options, shared_profile, shared_profile_options, soss_options, miri_options.
+  The author's original stage2 arguments do not warn.
+- [x] soss.reduce_soss → `extract_soss` (+ deprecated wrapper); miri.reduce_miri →
+  `extract_photometry` (+ deprecated wrapper). Callers in tests/validation updated.
+- [x] tests/test_instruments.py (11 tests): registry, historical defaults, synthetic
+  stage2 for PRISM, G395H NRS1/NRS2, G395M NRS1/NRS2, SOSS & MIRI dispatch equivalence
+  (config vs keywords), plug-in mode with no jwst.py edits, config validation.
+- Suite: **172 passed, 13 skipped**. Commit `18df404`.
+- [~] NRS1 real-data smoke run on Prompt 4 code (scratchpad `smoke_p4/`).
+- [ ] Docs: "Adding an observing mode" page; API for instruments/config.
+- [ ] Re-run SOSS and MIRI validations and compare with the reviewed runs.

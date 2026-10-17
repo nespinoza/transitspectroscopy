@@ -10,4 +10,5 @@ soss
 miri
 ramp-fitting
 lightcurve-fitting
+adding-a-mode
 ```

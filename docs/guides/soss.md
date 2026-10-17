@@ -1,29 +1,41 @@
 # NIRISS/SOSS
 
 NIRISS single-object slitless spectroscopy (`CLEAR/GR700XD`) disperses three orders on the
-detector. `ts.soss.reduce_soss` reduces ramp-fitted `rateints` segments of one exposure
-into spectra and white-light curves for orders 1, 2 and 3:
+detector. SOSS data go through the same stages as every other mode: detector calibration
+with `ts.jwst.load`, ramp fitting, and `ts.jwst.stage2`, which for SOSS extracts orders 1,
+2 and 3:
 
 ```python
 import glob
 import transitspectroscopy as ts
+from transitspectroscopy.config import ExtractionConfig
 
-files = sorted(glob.glob('data/jw01541001001_04101_00001-seg00?_nis_rateints.fits'))
-result = ts.soss.reduce_soss(files, aperture_radius=15, outputfolder='soss_products',
-                             optimal_methods=('polynomial',))
+files = sorted(glob.glob('data/jw01541001001_04101_00001-seg00?_nis_uncal.fits'))
+dataset = ts.jwst.load(files, outputfolder='soss_reduction')
+dataset.detector_calibration()
+dataset.fit_ramps()
+
+inputs = {'rampstep': dataset.rateints_per_segment, 'times': dataset.times,
+          'ints_per_segment': [s.data.shape[0] for s in dataset.rateints_per_segment]}
+result = ts.jwst.stage2(inputs, outputfolder='soss_reduction',
+                        config=ExtractionConfig(aperture_radius=15, optimal_extraction=True))
 
 order1 = result['orders'][1]               # box extraction
 wavelength, flux, error = order1['wavelength'], order1['flux'], order1['error']
 optimal = result['optimal']['polynomial']['orders'][1]
 ```
 
-The same reduction runs through `ts.jwst.stage2` when it is given SOSS data.
+To start from archive `rateints` files instead, call the SOSS Stage 2 directly:
+`ts.soss.extract_soss(rateints_files, aperture_radius=15, outputfolder='soss_products',
+optimal_methods=('polynomial',))`. SOSS-specific options (e.g. `background_reference`,
+`pastasoss_reference`, `trace_max_shift`, `optimal_options`) go in `ExtractionConfig(soss={...})`.
 
 ## Processing steps
 
-1. **Background:** the JWST SOSS background step (`BackgroundStep`) is run on a median rate
-   image after ramp fitting, and the fitted static background (zodiacal light) is subtracted
-   from every integration.
+1. **Background:** the JWST background subtraction step (`BackgroundStep`, with the CRDS SOSS
+   background template) is run on a median rate image after ramp fitting, and the fitted
+   static background (zodiacal light) is subtracted from every integration **before** the
+   traces are refined and the spectra extracted.
 2. **Traces and wavelengths:** traces and wavelength solutions for orders 1-3 come from the
    CRDS PASTASOSS reference at the measured pupil-wheel position, then are refined with a
    double-Gaussian cross-correlation.
