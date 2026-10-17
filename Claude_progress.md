@@ -172,3 +172,30 @@ fingerprints are recorded in the product metadata.
   - Disk is ~90% full: `validation/runs/*_prompt4_check` and `*_prompt5_runner` (~10 GB) can be deleted after review.
   - Not tested on real data: uncal → load → stage2 for SOSS and MIRI (only rateints on disk); the GitHub Actions workflows (only linted locally).
   - SOSS tracing still uses the PASTASOSS + double-Gaussian refinement (switching to your CCF tracer would change validated results).
+
+---
+
+## SOSS uncal validation — PID 1541 obs 1, the 6.1-hour TSO (2026-10-17)
+
+Request: download with transitspectroscopy, run the pipeline from uncal, white-light curve,
+RMS about a 100-point median filter.
+
+- Exposure `jw01541001001_04101_00001` (572 ints × 6 groups, SUBSTRIP256, EXPEND−EXPSTART = 6.11 h).
+- [x] Downloaded with `ts.jwst.download(1541, 1, outputfolder='validation/data/soss_uncal', data_product='uncal', exposure=...)`: 4 segments, 3.6 GB.
+- Memory: this Mac has 8.6 GB RAM; `ts.run` would hold all 4 segments' ramps at once (~16 GB).
+  New `validation/soss_uncal_calibrate.py` runs load → detector_calibration → fit_ramps (mode defaults,
+  TSO jump window 10) per segment, keeps `stage1/<seg>_rateints.fits`, deletes the GB-sized ramps.
+- [x] seg001: 265 s, all steps COMPLETE, CRDS jwst_1584.pmap, peak swap ~7.4 GB.
+- [x] seg002–004: 185 / 198 / 194 s. Four rateints in `validation/runs/soss-hatp14b-uncal/stage1/`.
+- [x] Stage 2 (`validate.py --config validation/configs/soss-hatp14b-uncal.toml`): complete, 900 s, 572 integrations.
+- Result (100-pt median-filter RMS, ppm; table in `validation/runs/soss-hatp14b-uncal/white_light_rms_summary.txt`):
+  order 1 box 484.6 (139.5 without integration 60), polynomial 447.1 (130.0), GP 445.2 (132.9);
+  archive rateints: 192.3 / 120.2 / 122.8.
+- Integration 60 (seg001) is +11,100 ppm: a detector-wide event adds ~300 DN to the first group difference of
+  every illuminated pixel. The JWST jump step (archive) flags 32 % of trace pixels (>=2000 DN/group); the TSO
+  jump step at nsigma=10 flags 9 %, since 300 DN < 10 sigma of photon noise there. Not fixed (needs a decision).
+- Transit fits: order-1 depth 6782 ± 229 ppm (reference 6750 ± 40, 0.14 sigma).
+- [ ] Stage 2: `python validation/validate.py --config validation/configs/soss-hatp14b-uncal.toml`
+  (same extraction settings as soss-hatp14b.toml; `validate.py` now also resolves `data.glob` against the repo root).
+- Reference (archive rateints, soss_prompt5_runner), order-1 white light, 100-pt median-filter RMS:
+  box 192.0, polynomial 120.0, GP 122.6 ppm; order 2: 244.7 / 143.8 ppm.

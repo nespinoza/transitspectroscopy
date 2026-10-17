@@ -69,8 +69,9 @@ def read_config(path):
     import transitspectroscopy as ts
     config = ts.load_config(Path(path))
     config['run']['output'] = str(ROOT/config['run']['output'])
-    if 'folder' in config['data']:
-        config['data']['folder'] = str(ROOT/config['data']['folder'])
+    for key in ('folder', 'glob'):
+        if key in config['data']:
+            config['data'][key] = str(ROOT/config['data'][key])
     for settings in config['extraction'].values():
         for key in ('pastasoss_reference', 'background_reference'):
             if key in (settings.get('soss') or {}):

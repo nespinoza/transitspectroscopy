@@ -1,0 +1,67 @@
+# NIRISS/SOSS validation from uncal: HAT-P-14 b (PID 1541, observation 1, the 6.1-hour TSO
+# jw01541001001_04101_00001). Stage 1 is run per segment first (memory), then this config
+# extracts the resulting rateints with the same settings as soss-hatp14b.toml:
+#   python validation/soss_uncal_calibrate.py validation/data/soss_uncal/*_uncal.fits \
+#       --output validation/runs/soss-hatp14b-uncal/stage1
+#   python validation/validate.py --config validation/configs/soss-hatp14b-uncal.toml
+# The uncal files are downloaded with
+#   ts.jwst.download(1541, 1, outputfolder='validation/data/soss_uncal', data_product='uncal',
+#                    exposure='jw01541001001_04101_00001')
+
+[run]
+name = "soss-hatp14b-uncal"
+output = "validation/runs/soss-hatp14b-uncal"
+
+[data]
+source = "local"
+glob = "validation/runs/soss-hatp14b-uncal/stage1/*_rateints.fits"
+product = "rateints"
+
+[extraction.soss]
+aperture_radius = 15.0
+mask_dq = false
+scale_1f = true
+single_trace_extraction = true
+
+[extraction.soss.soss]
+trace_max_shift = 4.0
+sample_integrations = 32
+optimal_methods = ["polynomial", "gp"]
+# Pinned references (see validation/references/soss/README.md), relative to the repository root.
+pastasoss_reference = "validation/references/soss/jwst_niriss_pastasoss_0003.asdf"
+background_reference = "validation/references/soss/jwst_niriss_bkg_0033.fits"
+
+[extraction.soss.soss.background_options]
+soss_source_percentile = 35.0
+soss_bkg_percentile = [25.0, 50.0]
+
+[extraction.soss.soss.optimal_options]
+training_integrations = 4
+spacing = 1.5
+polynomial_order = 5
+initial_width = 8.0
+optimize_hyperparameters = false
+minimum_profile_fraction = 0.5
+nsigma = 0.0
+gp_options = { n_inducing = 12 }
+
+[validation]
+kind = "soss"
+image_limits_dn_per_second = [0.0, 100.0]
+white_light_filter_points = 100
+
+[validation.transit]
+reference = "https://arxiv.org/html/2504.08903v1"
+period_days = 4.62767
+t0_bjd_tdb = 2459738.962267
+a_rs = 8.111
+b_circular = 1.014
+eccentricity = 0.11
+omega_degrees = 106.1
+trim_first_integrations = 80
+resolving_power = 30.0
+reference_soss_weighted_depth_ppm = [6522.4, 9.8]
+
+[validation.transit.reference_white_depth_ppm]
+"1" = [6750.0, 40.0]
+"2" = [6714.0, 68.0]
