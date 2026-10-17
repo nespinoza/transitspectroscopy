@@ -47,7 +47,7 @@ DOI = "https://doi.org/10.5281/zenodo.6960924"
 [tool.setuptools]
 # The package lives in src/ but is installed as `transitspectroscopy`.
 package-dir = { "transitspectroscopy" = "src" }
-packages = ["transitspectroscopy", "transitspectroscopy.core"]
+packages = ["transitspectroscopy", "transitspectroscopy.core", "transitspectroscopy.instruments"]
 zip-safe = false
 
 [tool.setuptools.dynamic]

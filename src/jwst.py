@@ -30,6 +30,8 @@ def __getattr__(name):
 from .utils import *
 from .spectroscopy import *
 from .timeseries import *
+from . import instruments
+from .config import DEPRECATED_STAGE2_KEYWORDS, STAGE2_ARGUMENTS, ExtractionConfig
 from .core.detector import (cc_uniluminated_outliers, correct_1f, get_last_minus_first,  # noqa: F401
                             get_loom, get_roeba, get_uniluminated_mask, group_1f_correct,
                             spill_filter, subtract_side_pedestal, tso_jump_flags)
@@ -343,35 +345,13 @@ class load(object):
 
                 self.status['emicorr'] = data.meta.cal_step.emicorr
 
-        # Take the chance to populate the mode:
-        if self.instrument == 'nirspec' and self.dispersive_element == 'prism':
-
-            print('\t    - Instrument/Mode: NIRSpec/PRISM\n')
-            self.mode = 'nirspec/prism'
-
-        elif self.instrument == 'nirspec' and self.dispersive_element == 'g395h':
-
-            print('\t    - Instrument/Mode: NIRSpec/G395H\n')
-            self.mode = 'nirspec/g395h'
-
-        elif self.instrument == 'nirspec' and self.dispersive_element == 'g395m':
-
-            print('\t    - Instrument/Mode: NIRSpec/G395M\n')
-            self.mode = 'nirspec/g395m'
-
-        elif self.instrument == 'niriss' and self.dispersive_element == 'gr700xd':
-
-            print('\t    - Instrument/Mode: NIRISS/SOSS\n')
-            self.mode = 'niriss/soss'
-
-        elif self.instrument == 'miri' and self.dispersive_element == 'None':
-
-            print('\t    - Instrument/Mode: MIRI/Photometry ({0:})\n'.format(self.filter.upper()))
-            self.mode = 'miri/photometry'
-
-        else:
-
-            raise Exception('\t Error: Instrument/Grating/Filter: '+self.instrument+'/'+self.dispersive_element+'/'+self.filter+' not yet supported!')
+        # Take the chance to populate the mode (see transitspectroscopy.instruments):
+        self.mode_definition = instruments.identify(instrument = self.instrument,
+                                                    dispersive_element = self.dispersive_element,
+                                                    filter = self.filter,
+                                                    exp_type = getattr(getattr(data.meta, 'exposure', None), 'type', None))
+        self.mode = self.mode_definition.name
+        print('\t    - Instrument/Mode: {0:}\n'.format(self.mode_definition.describe(self.filter)))
 
     def fill_calibration_parameters(self, parameters = {}, use_tso_jump = True, group_1f = False, save = True):
         """
@@ -432,38 +412,22 @@ class load(object):
                 self.calibration_parameters[step]['suffix'] = self.actual_suffix+step+'step'
 
         # Set common parameters for various steps for different instrument/modes:
-        if self.mode == 'nirspec/prism':
+        steps = self.mode_definition.detector_steps
 
-            # Reference pixel parameters:
-            if 'left_pixels' not in self.calibration_parameters['refpix'].keys():
+        # Reference pixel parameters:
+        for key, value in steps.get('refpix_parameters', {}).items():
 
-                self.calibration_parameters['refpix']['left_pixels'] = 25
+            if key not in self.calibration_parameters['refpix'].keys():
 
-            if 'right_pixels' not in self.calibration_parameters['refpix'].keys():
+                self.calibration_parameters['refpix'][key] = value
 
-                self.calibration_parameters['refpix']['right_pixels'] = 25
+        # Tracing parameters (window of the median filter that fills NaNs):
+        if steps.get('nan_fill_window') is not None:
 
-            # Tracing parameters:
             if 'row_window' not in self.calibration_parameters['tracing'].keys():
 
-                self.calibration_parameters['tracing']['row_window'] = 1
-                self.calibration_parameters['tracing']['column_window'] = 7
-
-        elif self.mode == 'nirspec/g395h':
-
-             # Tracing parameters:
-            if 'row_window' not in self.calibration_parameters['tracing'].keys():
-
-                self.calibration_parameters['tracing']['row_window'] = 1
-                self.calibration_parameters['tracing']['column_window'] = 7
-
-        elif self.mode == 'nirspec/g395m':
-
-             # Tracing parameters:
-            if 'row_window' not in self.calibration_parameters['tracing'].keys():
-
-                self.calibration_parameters['tracing']['row_window'] = 1
-                self.calibration_parameters['tracing']['column_window'] = 7 
+                self.calibration_parameters['tracing']['row_window'] = steps['nan_fill_window']['row_window']
+                self.calibration_parameters['tracing']['column_window'] = steps['nan_fill_window']['column_window']
 
         # If TSO jump is going to be used, remove some dict keys and set parameters:
         if use_tso_jump:
@@ -474,41 +438,11 @@ class load(object):
                 [self.calibration_parameters['jump'].pop(key) for key in ['output_dir', 'save_results', 'suffix']]
 
             # Define parameters:
-            if 'window' not in self.calibration_parameters['jump'].keys():
+            for key in ['window', 'nsigma']:
 
-                if self.mode == 'nirspec/prism':
+                if key not in self.calibration_parameters['jump'].keys():
 
-                    self.calibration_parameters['jump']['window'] = 200
-
-                elif self.mode == 'nirspec/g395h' or self.mode == 'nirspec/g395m':
-
-                    self.calibration_parameters['jump']['window'] = 10
-
-                elif self.mode == 'niriss/soss':
-
-                    self.calibration_parameters['jump']['window'] = 10
-
-                elif self.mode == 'miri/photometry':
-
-                    self.calibration_parameters['jump']['window'] = 10 
-
-            if 'nsigma' not in self.calibration_parameters['jump'].keys():
-
-                if self.mode == 'nirspec/prism':
-
-                    self.calibration_parameters['jump']['nsigma'] = 10
-
-                elif self.mode == 'nirspec/g395h' or self.mode == 'nirspec/g395m':
-
-                    self.calibration_parameters['jump']['nsigma'] = 10
-
-                elif self.mode == 'niriss/soss':
-
-                    self.calibration_parameters['jump']['nsigma'] = 10
-
-                elif self.mode == 'miri/photometry':
-
-                    self.calibration_parameters['jump']['nsigma'] = 10
+                    self.calibration_parameters['jump'][key] = steps['tso_jump'][key]
 
         else:
 
@@ -810,9 +744,9 @@ class load(object):
         self.step_calls['superbias'] = calwebb_detector1.superbias_step.SuperBiasStep.call
         self.step_calls['dark_sub'] = calwebb_detector1.dark_current_step.DarkCurrentStep.call
 
-        # Call to reference pixel step is typically skipped for NIRSpec/PRISM, so use our own. TODO: this should be and if statement once the refpix 
-        # is added on NIRspec/PRISM:
-        if self.mode == 'nirspec/prism':
+        # The reference pixel step is typically skipped for NIRSpec/PRISM, so the mode can select our own pedestal correction:
+        mode_steps = self.mode_definition.detector_steps
+        if mode_steps['refpix'] == 'side_pedestal':
 
             self.step_calls['refpix'] = side_refpix_correction
 
@@ -826,13 +760,7 @@ class load(object):
         # Now go step-by-step checking which steps were done. If linearity was done and saved, read it:
         if not os.path.exists(self.outputfolder+'ts_outputs/'+self.datanames[-1]+'_'+self.actual_suffix+'linearitystep.fits'):
 
-            if self.mode == 'miri/photometry':
-
-                steps = ['dq_init', 'emicorr', 'saturation', 'linearity']
-
-            else:
-
-                steps = ['dq_init', 'saturation', 'superbias', 'refpix', 'group_1f', 'linearity']
+            steps = list(mode_steps['steps'])
 
             for step in steps:
 
@@ -868,13 +796,7 @@ class load(object):
             self.check_status(self.ramps_per_segment[-1])
             
         # Run rest of the steps prior to the jump but after linearity:
-        if self.mode == 'miri/photometry':
-
-            steps = ['dark_sub', 'refpix']
-
-        else:
-
-            steps = ['dark_sub']
+        steps = list(mode_steps['post_linearity_steps'])
 
         for step in steps:
 
@@ -1651,25 +1573,15 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
     print('\t >> Processing '+str(len(uncal_data))+' *uncal files.\n')
     print('\t    - TSO total duration: {0:.1f} hours'.format((np.max(times)-np.min(times))*24.))
 
-    if instrument_name == 'NIRSPEC' and instrument_grating == 'PRISM':
+    # Identify the mode (see transitspectroscopy.instruments). This procedural Stage 1 supports NIRSpec:
+    mode_definition = instruments.identify(instrument = instrument_name, dispersive_element = instrument_grating,
+                                           filter = instrument_filter)
+    if mode_definition.instrument != 'nirspec':
 
-        print('\t    - Instrument/Mode: NIRSpec/PRISM\n')
+        raise Exception('\t Error: Instrument/Grating/Filter: '+instrument_name+'/'+str(instrument_grating)+'/'+str(instrument_filter)+' not yet supported by stage1; use ts.jwst.load instead.')
 
-        mode = 'nirspec/prism'
-
-    elif instrument_name == 'NIRSPEC' and instrument_grating == 'G395H':
-
-        print('\t    - Instrument/Mode: NIRSpec/G395H\n')
-        mode = 'nirspec/g395h'
-
-    elif instrument_name == 'NIRSPEC' and instrument_grating == 'G395M':
-
-        print('\t    - Instrument/Mode: NIRSpec/G395M\n')
-        mode = 'nirspec/g395m'
-
-    else:
-
-        raise Exception('\t Error: Instrument/Grating/Filter: '+instrument_name+'/'+instrument_grating+'/'+instrument_filter+' not yet supported!')
+    mode = mode_definition.name
+    print('\t    - Instrument/Mode: {0:}\n'.format(mode_definition.describe()))
 
     if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[-1]+'_'+actual_suffix+'linearitystep.fits'):
 
@@ -1712,28 +1624,17 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
         
         # Depending on the instrument/mode, we perform our own reference pixel step:
         refpix_data = []
-        if mode == 'nirspec/prism':
+        if mode_definition.detector_steps['refpix'] == 'side_pedestal':
 
             for i in range( len(superbias_data) ): 
 
                 refpix_data.append( copy(superbias_data[i]) )
                 refpix_data[-1].data = deepcopy(superbias_data[i].data)
 
-                # Go integration per integration, group by group:
-                for integration in range(refpix_data[-1].data.shape[0]):
-
-                    for group in range(refpix_data[-1].data.shape[1]):
-
-                        # Background will be pixels to the left of 25 and the last 25 columns:
-                        background = np.hstack( ( refpix_data[-1].data[integration, group, :, :25],
-                                                  refpix_data[-1].data[integration, group, :, -25:]
-                                                )
-                                              )
-
-                        # Substract that from the data to remove pedestal changes:
-                        refpix_data[-1].data[integration, group, :, :] -= np.nanmedian( background )
-
-                        # TODO: Get fancy and remove odd/even, too.
+                # Remove pedestal changes using the leftmost and rightmost columns of each group.
+                # TODO: Get fancy and remove odd/even, too.
+                subtract_side_pedestal(refpix_data[-1].data,
+                                       **mode_definition.detector_steps['refpix_parameters'])
 
         else:
 
@@ -1784,41 +1685,8 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
             linearity_data.append( datamodels.RampModel(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+'linearitystep.fits') )
 
     # Now, instead of passing this through the normal jump step, we pass it through our own jump step detection:
-    if mode == 'nirspec/prism':
-
-        if 'jump_window' not in kwargs.keys():
-
-            jump_window = 200
-
-        else:
-
-            jump_window = kwargs['jump_window']
-
-        if 'jump_nsigma' not in kwargs.keys():
-
-            jump_nsigma = 10
-
-        else:
-
-            jump_nsigma = kwargs['jump_nsigma']
-
-    elif mode == 'nirspec/g395h' or mode == 'nirspec/g395m':
-
-        if 'jump_window' not in kwargs.keys():
-
-            jump_window = 10
-
-        else:
-
-            jump_window = kwargs['jump_window']
-
-        if 'jump_nsigma' not in kwargs.keys():
-
-            jump_nsigma = 10 
-
-        else:
-
-            jump_nsigma = kwargs['jump_nsigma'] 
+    jump_window = kwargs.get('jump_window', mode_definition.detector_steps['tso_jump']['window'])
+    jump_nsigma = kwargs.get('jump_nsigma', mode_definition.detector_steps['tso_jump']['nsigma'])
 
     if use_tso_jump:
 
@@ -2050,7 +1918,45 @@ def _extract_shared_sequence(data, errors, traces, reference_trace, specificatio
             None if profiles is None else np.asarray(profiles), model)
 
 
-def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, optimal_extraction = False, outputfolder = '', suffix = '', aperture_radius = None, mask_dq = False, extraction_backend='auto', profile_method='polynomial', gp_options=None, extraction_options=None, shared_profile=None, shared_profile_options=None, soss_options=None, miri_options=None, **kwargs):
+def _stage2_imaging(input_dictionary, config, mode, outputfolder, suffix):
+    """Stage 2 of imaging modes (MIRI): calibrated cutouts, aperture and GP PSF photometry."""
+    from .miri import extract_photometry
+    options = dict(config.miri or {})
+    if config.gp_options is not None:
+        options.setdefault('gp_options', config.gp_options)
+    if config.aperture_radius is not None:
+        options.setdefault('aperture_radius', config.aperture_radius)
+        prep = dict(options.get('preparation_options', {}))
+        prep.setdefault('aperture_radius', config.aperture_radius)
+        options['preparation_options'] = prep
+    return extract_photometry(input_dictionary,
+        outputfolder=os.path.join(outputfolder, 'pipeline_outputs', 'miri'+('_'+suffix if suffix else '')),
+        **options)
+
+
+def _stage2_soss(input_dictionary, config, mode, outputfolder, suffix):
+    """Stage 2 of NIRISS/SOSS: JWST background step, then tracing and extraction of three orders."""
+    from .soss import extract_soss
+    options = dict(config.soss or {})
+    if config.optimal_extraction:
+        options.setdefault('optimal_methods', (config.profile_method,))
+        settings = dict(options.get('optimal_options', {}))
+        if config.gp_options is not None:
+            settings['gp_options'] = config.gp_options
+        for name, value in config.extraction_options().items():
+            settings[{'polynomial_spacing': 'spacing'}.get(name, name)] = value
+        options['optimal_options'] = settings
+    aperture_radius = config.aperture_radius
+    if aperture_radius is None:
+        aperture_radius = mode.extraction_defaults['aperture_radius']
+    return extract_soss(input_dictionary, aperture_radius=aperture_radius,
+                        mask_dq=config.mask_dq, scale_1f=config.scale_1f,
+                        single_trace_extraction=config.single_trace_extraction,
+                        outputfolder=os.path.join(outputfolder, 'pipeline_outputs', 'soss'+('_'+suffix if suffix else '')),
+                        **options)
+
+
+def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, optimal_extraction = False, outputfolder = '', suffix = '', aperture_radius = None, mask_dq = False, extraction_backend='auto', profile_method='polynomial', gp_options=None, extraction_options=None, shared_profile=None, shared_profile_options=None, soss_options=None, miri_options=None, *, config=None, **kwargs):
     """
     This function takes an `input_dictionary` having as keys the `rampstep` products on a (chronologically-ordered) list, `times` having the times at 
     each integration in BJD and the integrations per segment `ints_per_segment`. Using those, it performs wavelength calibration, spectral tracing and 
@@ -2104,10 +2010,17 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         evaluated P_t arrays; otherwise Ps is None and P is a reference rendering.
         The fitted model is stored in spectra['shared_profile'] and as an NPZ.
     miri_options : dict or None
-        MIRI MIR_IMAGE dispatches to miri.reduce_miri, returning sum and 2-D GP
+        MIRI MIR_IMAGE dispatches to miri.extract_photometry, returning sum and 2-D GP
         photometry. Use this dictionary for preparation_options, image_options,
         training_integrations and spatial gp_options. Spectral extraction
         options do not define the MIRI PSF model.
+    config : transitspectroscopy.config.ExtractionConfig or None
+        All extraction settings in one object (recommended). The keywords
+        extraction_backend, profile_method, gp_options, extraction_options,
+        shared_profile, shared_profile_options, soss_options and miri_options are
+        deprecated in favour of it. If given, the other extraction keywords must keep
+        their defaults. How Stage 2 runs is decided by the observing mode of the data
+        (see transitspectroscopy.instruments).
 
     Returns
     -------
@@ -2117,88 +2030,59 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
  
     """
 
-    # NIRISS has several overlapping orders and its own post-ramp background
-    # reference. Dispatch before entering the historical single-trace path.
+    # All extraction settings live in one ExtractionConfig. The keywords added during the 0.5
+    # development still work (with a DeprecationWarning) and are mapped onto it:
+    legacy = dict(zero_nans = zero_nans, scale_1f = scale_1f, single_trace_extraction = single_trace_extraction,
+                  optimal_extraction = optimal_extraction, aperture_radius = aperture_radius, mask_dq = mask_dq,
+                  extraction_backend = extraction_backend, profile_method = profile_method,
+                  gp_options = gp_options, extraction_options = extraction_options,
+                  shared_profile = shared_profile, shared_profile_options = shared_profile_options,
+                  soss_options = soss_options, miri_options = miri_options)
+    if config is None:
+
+        config = ExtractionConfig.from_stage2_arguments(**legacy)
+        config.warn_deprecated()
+
+    else:
+
+        changed = [name for name, value in legacy.items()
+                   if value is not {**STAGE2_ARGUMENTS, **DEPRECATED_STAGE2_KEYWORDS}[name]
+                   and value != {**STAGE2_ARGUMENTS, **DEPRECATED_STAGE2_KEYWORDS}[name]]
+        if changed:
+
+            raise ValueError('Pass extraction settings either in config or as keywords, not both: '+', '.join(changed))
+
+    # The observing mode decides how Stage 2 runs (see transitspectroscopy.instruments). NIRISS/SOSS has
+    # several overlapping orders and its own post-ramp background step, MIRI imaging is photometry,
+    # and plug-in modes can provide their own Stage 2:
     from .jwst_models import open_model
-    from .soss import reduce_soss
     with open_model(input_dictionary['rampstep'][0]) as first_model:
-        is_soss = getattr(getattr(first_model.meta, 'exposure', None), 'type', None) == 'NIS_SOSS'
-        is_miri = (getattr(getattr(first_model.meta,'instrument',None),'name',None) == 'MIRI'
-                   and getattr(getattr(first_model.meta,'exposure',None),'type',None) == 'MIR_IMAGE')
-    if is_miri:
-        from .miri import reduce_miri
-        if soss_options is not None or shared_profile is not None or shared_profile_options is not None or extraction_options is not None:
-            raise ValueError('MIRI imaging uses miri_options, not spectral extraction options')
-        options = dict(miri_options or {})
-        if gp_options is not None:
-            options.setdefault('gp_options', gp_options)
-        if aperture_radius is not None:
-            options.setdefault('aperture_radius', aperture_radius)
-            prep = dict(options.get('preparation_options', {}))
-            prep.setdefault('aperture_radius', aperture_radius)
-            options['preparation_options'] = prep
-        return reduce_miri(input_dictionary,
-            outputfolder=os.path.join(outputfolder, 'pipeline_outputs', 'miri'+('_'+suffix if suffix else '')),
-            **options)
-    if miri_options is not None:
-        raise ValueError('miri_options applies only to MIRI imaging exposures')
-    if is_soss:
-        options = dict(soss_options or {})
-        if shared_profile is not None or shared_profile_options is not None:
-            raise ValueError('SOSS trains separate order profiles; use soss_options optimal_options')
-        if optimal_extraction:
-            if extraction_backend not in ('auto', 'python'):
-                raise ValueError('SOSS shared optimal extraction requires the Python backend')
-            if profile_method not in ('polynomial', 'gp'):
-                raise ValueError('profile_method must be polynomial or gp')
-            options.setdefault('optimal_methods', (profile_method,))
-            settings = dict(options.get('optimal_options', {}))
-            if gp_options is not None:
-                if profile_method != 'gp':
-                    raise ValueError('gp_options requires profile_method="gp"')
-                settings['gp_options'] = gp_options
-            for name, value in dict(extraction_options or {}).items():
-                key = {'polynomial_spacing': 'spacing', 'polynomial_order': 'polynomial_order',
-                       'nsigma': 'nsigma'}.get(name)
-                if key is None:
-                    raise ValueError('Unknown extraction_options key')
-                settings[key] = value
-            options['optimal_options'] = settings
-        elif gp_options is not None or extraction_options is not None:
-            raise ValueError('SOSS gp_options/extraction_options require optimal_extraction=True')
-        return reduce_soss(input_dictionary, aperture_radius=15. if aperture_radius is None else aperture_radius,
-                           mask_dq=mask_dq, scale_1f=scale_1f,
-                           single_trace_extraction=single_trace_extraction,
-                           outputfolder=os.path.join(outputfolder, 'pipeline_outputs', 'soss'+('_'+suffix if suffix else '')),
-                           **options)
-    if soss_options is not None:
-        raise ValueError('soss_options applies only to NIS_SOSS exposures')
-    extraction_options = dict(extraction_options or {})
-    if set(extraction_options) - {'polynomial_spacing', 'polynomial_order', 'nsigma'}:
-        raise ValueError('Unknown extraction_options key')
-    if extraction_backend not in ('auto', 'c', 'python') or profile_method not in ('polynomial', 'gp'):
-        raise ValueError('Invalid extraction_backend or profile_method')
-    if gp_options is not None and profile_method != 'gp':
-        raise ValueError('gp_options requires profile_method="gp"')
-    if profile_method == 'gp' and (not optimal_extraction or extraction_backend == 'c'):
-        raise ValueError('GP requires optimal extraction with the Python backend')
-    if shared_profile is not None:
-        from .shared_profile import SharedProfile
-        if not isinstance(shared_profile, SharedProfile) and not (
-                isinstance(shared_profile, str) and shared_profile == 'train'):
-            raise ValueError('shared_profile must be "train" or a SharedProfile instance')
-        if not optimal_extraction or extraction_backend == 'c':
-            raise ValueError('shared profiles require optimal extraction with Python')
-        if isinstance(shared_profile, SharedProfile):
-            if gp_options is not None:
-                raise ValueError('supplied SharedProfile already contains frozen GP options')
-            profile_method = shared_profile.profile_method
-            if aperture_radius is None:
-                aperture_radius = shared_profile.aperture_radius
-            extraction_options.setdefault('polynomial_spacing', shared_profile.spacing)
-            extraction_options.setdefault('polynomial_order', shared_profile.diagnostics.get('polynomial_order',3))
-    elif shared_profile_options is not None:
-        raise ValueError('shared_profile_options requires shared_profile')
+        stage2_mode = instruments.identify_model(first_model)
+    config = config.validate(stage2_mode)
+    handler = stage2_mode.stage2
+    if callable(handler):
+
+        return handler(input_dictionary, config, outputfolder, suffix)
+
+    elif handler == 'imaging':
+
+        return _stage2_imaging(input_dictionary, config, stage2_mode, outputfolder, suffix)
+
+    elif handler == 'soss':
+
+        return _stage2_soss(input_dictionary, config, stage2_mode, outputfolder, suffix)
+
+    elif handler != 'spectral':
+
+        raise ValueError('Unknown Stage 2 handler {0:} of mode {1:}'.format(handler, stage2_mode.name))
+
+    # Spectral (single-trace) Stage 2. Unpack the validated configuration:
+    zero_nans, scale_1f = config.zero_nans, config.scale_1f
+    single_trace_extraction, optimal_extraction = config.single_trace_extraction, config.optimal_extraction
+    aperture_radius, mask_dq = config.aperture_radius, config.mask_dq
+    extraction_backend, profile_method, gp_options = config.backend, config.profile_method, config.gp_options
+    extraction_options = config.extraction_options()
+    shared_profile, shared_profile_options = config.shared_profile, config.shared_profile_options
     custom_extraction = (extraction_backend != 'auto' or profile_method != 'polynomial'
                          or bool(extraction_options) or shared_profile is not None)
     extraction_settings = dict(backend=extraction_backend, profile_method=profile_method,
@@ -2258,52 +2142,29 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     output_dictionary['metadata']['instrument_detector'] = instrument_detector
     output_dictionary['metadata']['instrument_subarray'] = instrument_subarray
 
-    if instrument_name == 'NIRSPEC' and instrument_grating == 'PRISM':
+    # Mode-dependent parameters come from the mode registry (see transitspectroscopy.instruments):
+    mode_definition = instruments.identify_model(input_dictionary['rampstep'][0])
+    mode = mode_definition.name
+    print('\t    - Instrument/Mode: {0:}\n'.format(mode_definition.describe(instrument_filter)))
+    tracing = mode_definition.tracing_for(instrument_detector)
+    defaults = mode_definition.extraction_defaults
 
-        print('\t    - Instrument/Mode: NIRSpec/PRISM\n')
+    # Parameters if zero_nans is False:
+    row_window = tracing['nan_fill_window']['row_window']
+    column_window = tracing['nan_fill_window']['column_window']
 
-        mode = 'nirspec/prism'
-        # Parameters if zero_nans is False:
-        row_window = 1
-        column_window = 7
+    # Set suffix for each detector (e.g., nrs1 and nrs2) of multi-detector modes:
+    if len(mode_definition.detectors) > 1:
 
-    elif instrument_name == 'NIRSPEC' and (instrument_grating == 'G395H' or instrument_grating == 'G395M'):
+        if suffix != '':
 
-        print('\t    - Instrument/Mode: NIRSpec/'+instrument_grating+'\n')
+            suffix = suffix + '_' + instrument_detector.lower()
 
-        mode = 'nirspec/g395'+instrument_grating[-1].lower()
-        # Parameters if zero_nans is False:
-        row_window = 1
-        column_window = 7
+        else:
 
-        # Set suffix for nrs1 and nrs2:
-        if instrument_detector.lower() == 'nrs1':
+            suffix = instrument_detector.lower()
 
-            if suffix != '':
-
-                suffix = suffix + '_nrs1'
-
-            else:
-
-                suffix = 'nrs1'
-
-            actual_suffix = '_'+suffix
-
-        if instrument_detector.lower() == 'nrs2':
-
-            if suffix != '':
-
-                suffix = suffix + '_nrs2'
-
-            else:
-
-                suffix = 'nrs2'
-
-            actual_suffix = '_'+suffix
-
-    else:
-
-        raise Exception('\t Error: Instrument/Grating/Filter: '+instrument_name+'/'+instrument_grating+'/'+instrument_filter+' not yet supported!')
+        actual_suffix = '_'+suffix
 
     print('\t    - Detector/Subarray: {0:}/{1:}\n'.format(instrument_detector, instrument_subarray))
     # First things first, save the results from the rates in a single array for the rates and the errors:
@@ -2385,93 +2246,20 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
 
     else:
 
-        if mode == 'nirspec/prism':
+        xstart = tracing['xstart']
+        xend = tracing['xend']
+        trace_outlier_nsigma = tracing['outlier_nsigma']
+        trace_outlier_window = tracing['outlier_window']
+        nknots = tracing['nknots']
 
-            xstart = 50
-            xend = 490
-            trace_outlier_nsigma = 5
-            trace_outlier_window = 10
-            nknots = 8
+        trace_ccf_method = tracing['ccf_method']
+        trace_ccf_function = tracing['ccf_function']
+        trace_ccf_parameters = tracing['ccf_parameters']
 
-            trace_ccf_method = 'convolve' # 'ccf'
-            trace_ccf_function = 'gaussian'
-            trace_ccf_parameters = [0., 1.7]
-            
-            # For NIRspec/Prism, take the starting point from the average spectral shape between columns 50 to 100:
-            lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, 50:100], axis = 1) )
-
-        if mode == 'nirspec/g395h':
-
-            if 'nrs1' == instrument_detector.lower():
-
-                xstart = 2042
-                xend = 500
-                trace_outlier_nsigma = 5
-                trace_outlier_window = 10
-                nknots = 60
-
-                trace_ccf_method = 'convolve' # 'ccf'
-                trace_ccf_function = 'gaussian'
-                trace_ccf_parameters = [0., 1.7]
-
-                # For NIRspec/G395H, take the starting point from the average spectral shape on the edges of NRS1 or NRS2::
-                lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, xstart-200:xstart], axis = 1) )
-
-            elif 'nrs2' == instrument_detector.lower():
-
-                xstart = 5
-                xend = 2043
-                trace_outlier_nsigma = 5
-                trace_outlier_window = 10
-                nknots = 60
-
-                trace_ccf_method = 'convolve' # 'ccf'
-                trace_ccf_function = 'gaussian'
-                trace_ccf_parameters = [0., 1.7]
-
-                # For NIRspec/G395H, take the starting point from the average spectral shape on the edges of NRS1 or NRS2::
-                lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, xstart:xstart+200], axis = 1) )
-
-            else:
-
-                raise Exception('\t Error: Detector '+instrument_detector+' not yet supported for NIRSpec/G395H')
-
-
-        if mode == 'nirspec/g395m':
-
-            if 'nrs1' == instrument_detector.lower():
-
-                xstart = 2042
-                xend = 700
-                trace_outlier_nsigma = 5
-                trace_outlier_window = 10
-                nknots = 60
-
-                trace_ccf_method = 'convolve' # 'ccf'
-                trace_ccf_function = 'gaussian'
-                trace_ccf_parameters = [0., 1.7]
-
-                # For NIRspec/G395H, take the starting point from the average spectral shape on the edges of NRS1 or NRS2::
-                lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, xstart-200:xstart], axis = 1) )
-
-            elif 'nrs2' == instrument_detector.lower():
-
-                xstart = 5
-                xend = 500
-                trace_outlier_nsigma = 5
-                trace_outlier_window = 10
-                nknots = 60
-
-                trace_ccf_method = 'convolve' # 'ccf'
-                trace_ccf_function = 'gaussian'
-                trace_ccf_parameters = [0., 1.7]
-
-                # For NIRspec/G395H, take the starting point from the average spectral shape on the edges of NRS1 or NRS2::
-                lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, xstart:xstart+200], axis = 1) )
-
-            else:
-
-                raise Exception('\t Error: Detector '+instrument_detector+' not yet supported for NIRSpec/G395H')
+        # Take the starting point from the average spectral shape in the mode's starting columns (e.g., the
+        # edges of NRS1 or NRS2):
+        first_column, last_column = tracing['start_columns']
+        lags, ccf = get_ccf(np.arange(median_rate.shape[0]), np.nanmedian( median_rate[:, first_column:last_column], axis = 1) )
 
         # Find maximum of the initial CCF:
         idx = np.where(ccf == np.max(ccf))[0]
@@ -2627,60 +2415,31 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         print('\t >> Performing spectral extraction...') 
         tic = time.time()
         # Define spectral extraction parameters:
-        if mode == 'nirspec/prism':
+        # Initial time-series parameters:
+        scale_1f_rows = defaults['scale_1f_rows']
+        scale_1f_columns = defaults['scale_1f_columns']
+        scale_1f_window = defaults['scale_1f_window']
 
-            # Initial time-series parameters:
-            scale_1f_rows = [5,25]
-            scale_1f_columns = [200,450]
-            scale_1f_window = 200
+        # Optimal extraction parameters:
+        spectra_oe_polynomial_spacing = defaults['polynomial_spacing']
+        spectra_oe_nsigma = defaults['nsigma']
+        spectra_oe_polynomial_order = defaults['polynomial_order']
 
-            # Optimal extraction parameters:
-            spectra_oe_polynomial_spacing = 0.1
-            spectra_oe_nsigma = 10 
-            spectra_oe_polynomial_order = 3
+        # Spectral extraction, 1/f and background correction/removal parameters:
+        if aperture_radius is None:
 
-            if aperture_radius is None:
+            spectra_aperture_radius = defaults['aperture_radius']
 
-                spectra_aperture_radius = 10
+        else:
 
-            else:
+            spectra_aperture_radius = aperture_radius
 
-                spectra_aperture_radius = aperture_radius
+        spectra_1f_inner_radius = defaults['onef_inner_radius']
+        spectra_1f_outer_radius = defaults['onef_outer_radius']
 
-            spectra_1f_inner_radius = 4
-            spectra_1f_outer_radius = 15
-
-            spectra_bkg_substraction = False
-            spectra_bkg_inner_radius = 14
-            spectra_bkg_outer_radius = None
-
-        elif mode == 'nirspec/g395h' or mode == 'nirspec/g395m':
-
-            # Initial time-series parameters:
-            scale_1f_rows = [0,32]
-            scale_1f_columns = [5,2044]
-            scale_1f_window = 5
-
-            # Optimal extraction parameters:
-            spectra_oe_polynomial_spacing = 0.1
-            spectra_oe_nsigma = 10
-            spectra_oe_polynomial_order = 3
-
-            # Spectral extraction, 1/f and background correction/removal parameters:
-            if aperture_radius is None:
-
-                spectra_aperture_radius = 2
-
-            else:
-
-                spectra_aperture_radius = aperture_radius
-
-            spectra_1f_inner_radius = 3
-            spectra_1f_outer_radius = 8
-
-            spectra_bkg_substraction = True
-            spectra_bkg_inner_radius = 10
-            spectra_bkg_outer_radius = None
+        spectra_bkg_substraction = defaults['background_subtraction']
+        spectra_bkg_inner_radius = defaults['background_inner_radius']
+        spectra_bkg_outer_radius = defaults['background_outer_radius']
 
         spectra_oe_polynomial_spacing = extraction_options.get('polynomial_spacing', spectra_oe_polynomial_spacing)
         spectra_oe_polynomial_order = extraction_options.get('polynomial_order', spectra_oe_polynomial_order)

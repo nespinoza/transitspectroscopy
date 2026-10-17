@@ -74,12 +74,15 @@ def extract_box(data, variance, valid, columns, centers, radius):
     return fractional_box(data, variance, valid, columns, centers, radius)
 
 
-def reduce_soss(inputs, *, pastasoss_reference=None, background_reference=None,
+def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
                 background_options=None, aperture_radius=15., trace_max_shift=4.,
                 sample_integrations=32, mask_dq=False, scale_1f=True,
                 single_trace_extraction=True, outputfolder=None,
                 optimal_methods=(), optimal_options=None):
-    """Reduce one SOSS exposure (all supplied rateints segments), orders 1/2/3.
+    """Stage 2 of one SOSS exposure (all supplied rateints segments), orders 1/2/3.
+
+    This is what ``ts.jwst.stage2`` runs for NIRISS/SOSS data, after
+    ``ts.jwst.load(...).detector_calibration()`` and ``fit_ramps()``.
 
     ``inputs`` is a sequence of CubeModels/paths or a stage1 output dictionary.
     BackgroundStep is mandatory and runs on a representative median rate image
@@ -389,6 +392,17 @@ def reduce_soss(inputs, *, pastasoss_reference=None, background_reference=None,
         save_products(result, outputfolder)
     return result
 
+
+
+def reduce_soss(inputs, **options):
+    """Deprecated: reduce SOSS rateints; use ``ts.jwst.load`` + ``ts.jwst.stage2``.
+
+    Kept for compatibility; it runs :func:`extract_soss`, the SOSS Stage 2 used by
+    ``ts.jwst.stage2``, with the same keywords.
+    """
+    warnings.warn('soss.reduce_soss is deprecated; use ts.jwst.stage2 (or soss.extract_soss)',
+                  DeprecationWarning, stacklevel=2)
+    return extract_soss(inputs, **options)
 
 def save_products(result, folder):
     """Write per-order FITS spectra, NPZ arrays, light curves and trace tables."""

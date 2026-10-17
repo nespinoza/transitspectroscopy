@@ -463,7 +463,7 @@ def main(argv=None):
                 else 'Reused public/local Stage 1 rateints; no fresh detector calibration or group-level validation')
             write_json(folder/'reduction.json',report)
             print('Running SOSS background, tracing and three-order extraction',flush=True)
-            result=ts.soss.reduce_soss(rate_paths,pastasoss_reference=args.pastasoss_reference,
+            result=ts.soss.extract_soss(rate_paths,pastasoss_reference=args.pastasoss_reference,
                 background_reference=args.background_reference,background_options=config['background_options'],
                 outputfolder=folder,**config['extraction'])
         report['stages']=result['metadata']

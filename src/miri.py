@@ -309,10 +309,15 @@ def save_products(result, folder):
         model.meta.bunit_data=result['unit'];model.save(folder/'median_image.fits')
 
 
-def reduce_miri(inputs, *, outputfolder, input_product='rateints', detector_options=None,
-                image_options=None, preparation_options=None, ramp_fit_method='jwst',
-                ramp_fit_options=None, **extraction_options):
-    """Calibrate segments sequentially, then extract both methods for one visit."""
+def extract_photometry(inputs, *, outputfolder, input_product='rateints', detector_options=None,
+                       image_options=None, preparation_options=None, ramp_fit_method='jwst',
+                       ramp_fit_options=None, **extraction_options):
+    """Calibrate segments sequentially, then extract both photometry methods for one visit.
+
+    This is what ``ts.jwst.stage2`` runs for MIRI imaging (``rateints`` from
+    ``ts.jwst.load(...).fit_ramps()``: calwebb_image2, then photometry). With
+    ``input_product='uncal'`` file inputs, the official calwebb_detector1 runs first.
+    """
     from .ramp_fitting import validate_selection
     validate_selection(ramp_fit_method, ramp_fit_options)
     paths=inputs['rampstep'] if isinstance(inputs,dict) else inputs
@@ -343,3 +348,13 @@ def reduce_miri(inputs, *, outputfolder, input_product='rateints', detector_opti
             else:
                 raise ValueError('In-memory uncal inputs are not supported; pass filenames')
     return extract_visit(prepared,outputfolder=outputfolder,**extraction_options)
+
+
+def reduce_miri(inputs, **options):
+    """Deprecated: use ``ts.jwst.load`` + ``ts.jwst.stage2``, or :func:`extract_photometry`.
+
+    Kept for compatibility; same keywords as :func:`extract_photometry`.
+    """
+    warnings.warn('miri.reduce_miri is deprecated; use ts.jwst.stage2 (or miri.extract_photometry)',
+                  DeprecationWarning, stacklevel=2)
+    return extract_photometry(inputs, **options)

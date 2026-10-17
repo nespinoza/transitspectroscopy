@@ -64,7 +64,7 @@ def test_require_ramp_fitting_before_background():
     model = NS(data=np.zeros((2,3,4)), meta=NS(exposure=NS(type='NIS_SOSS'),
                cal_step=NS(ramp_fit=None)))
     with pytest.raises(ValueError, match='ramp fitting'):
-        soss.reduce_soss([model])
+        soss.extract_soss([model])
 
 
 def test_stage2_dispatch_preserves_three_order_result(monkeypatch, tmp_path):
@@ -75,7 +75,7 @@ def test_stage2_dispatch_preserves_three_order_result(monkeypatch, tmp_path):
     def fake(data, **kwargs):
         called.update(kwargs)
         return dict(orders={1:{},2:{},3:{}})
-    monkeypatch.setattr(soss, 'reduce_soss', fake)
+    monkeypatch.setattr(soss, 'extract_soss', fake)
     result = jwst.stage2(inputs, outputfolder=str(tmp_path), soss_options={'trace_max_shift': 3.})
     assert set(result['orders']) == {1,2,3}
     assert called['trace_max_shift'] == 3. and called['aperture_radius'] == 15.
@@ -136,7 +136,7 @@ def test_three_order_noisy_reduction_background_order_and_saved_products(monkeyp
             m.meta.cal_step.bkg_subtract='COMPLETE'
             return m
     monkeypatch.setattr(jwst.background,'BackgroundStep',Background)
-    result=soss.reduce_soss([model],background_reference=ref,outputfolder=tmp_path/'products',sample_integrations=8,
+    result=soss.extract_soss([model],background_reference=ref,outputfolder=tmp_path/'products',sample_integrations=8,
         optimal_methods=optimal_methods,optimal_options=dict(training_integrations=2,
             polynomial_order=2,gp_options={'n_inducing':3}))
     np.testing.assert_array_equal(model.data,original)
