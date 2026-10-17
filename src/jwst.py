@@ -661,10 +661,41 @@ class load(object):
         """ 
         This function gets an estimate of the rates per integration via the self.ramps_per_segment. By default, this uses 
         the STScI JWST Pipeline to do its magic.
+
+        Select ``ramp_fit_method='sparta'`` and ``ramp_fit_options`` in ``load``
+        before detector calibration to use correlated adjacent-read fitting.
+        That backend always recomputes, writes distinct output names, and keeps
+        counts/template/provenance in ``ramp_fit_diagnostics`` per segment.
         """
 
         self.rateints_per_segment = []
         self.initialize_step('ramp_fit', parameters, save, suffix, outputfolder)
+
+        if getattr(self, 'ramp_fit_method', 'jwst') == 'sparta':
+            from .ramp_fitting import fit_model
+            self.ramp_fit_diagnostics = []
+            for name, ramp in zip(self.datanames, self.ramps_per_segment):
+                rate, rateints, diagnostics = fit_model(ramp, **self.ramp_fit_options)
+                try:
+                    if save:
+                        from pathlib import Path
+                        import json
+                        base = Path(self.outputfolder)/'ts_outputs'/f'{name}_{self.actual_suffix}sparta'
+                        rate.save(str(base)+'_rate.fits')
+                        rateints.save(str(base)+'_rateints.fits')
+                        np.savez_compressed(str(base)+'_ramp_diagnostics.npz',
+                            **{k: v for k, v in diagnostics.items() if k != 'provenance'})
+                        Path(str(base)+'_ramp_fit.json').write_text(json.dumps(diagnostics['provenance'], indent=2)+'\n')
+                finally:
+                    rate.close()
+                self.rateints_per_segment.append(rateints)
+                self.ramp_fit_diagnostics.append(diagnostics)
+            self.calibration_parameters['Ramp-fitting method'] = 'sparta'
+            self.calibration_parameters['Ramp-fitting provenance'] = [d['provenance'] for d in self.ramp_fit_diagnostics]
+            self.datatype = 'ramps and rates per integration'
+            self.merge_rateints_segments()
+            self.status['ramp_fit'] = 'COMPLETE'
+            return
 
         print('\t >> Performing Rampfit step...\n')
 
@@ -1012,7 +1043,13 @@ class load(object):
 
             current_nintegrations = current_nintegrations + self.ints_per_segment[i]
             
-    def __init__(self, input_filenames, outputfolder = None):
+    def __init__(self, input_filenames, outputfolder = None, *,
+                 ramp_fit_method='jwst', ramp_fit_options=None):
+
+        from .ramp_fitting import validate_selection
+        validate_selection(ramp_fit_method, ramp_fit_options)
+        self.ramp_fit_method = ramp_fit_method
+        self.ramp_fit_options = deepcopy(ramp_fit_options or {})
 
         if outputfolder is not None:
 
@@ -1026,6 +1063,8 @@ class load(object):
 
         # Read data in for the dataset; detect what kind of product these are first:
         self.datatype = self.check_dataset()
+        if ramp_fit_method == 'sparta' and self.datatype != 'ramps':
+            raise ValueError('Selecting an alternative ramp fitter requires ramp inputs, not rateints')
 
         # Open the data, extract timestamps and useful (to transitspectroscopy) information about the instrument/mode:
         self.datanames = []
@@ -2109,7 +2148,7 @@ def cds_stage1(datafiles, nintegrations, ngroups, trace_radius = 10, ommited_tra
     # For now, return CDS, backgroud and 1/f-noise-corrected data and time-stamps:
     return times, cds_data, initial_whitelight, smooth_wl
 
-def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outputfolder = '', use_tso_jump = True, suffix = '', ommit_pixeldq = False, **kwargs):
+def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outputfolder = '', use_tso_jump = True, suffix = '', ommit_pixeldq = False, *, ramp_fit_method='jwst', ramp_fit_options=None, **kwargs):
     """
     This function calibrates a set of *uncal.fits files through a "special" version of the JWST TSO CalWebb Stage 1. It has been tested thoroughly for NIRISS/SOSS, NIRSpec/G395H and NIRSpec/Prism.
 
@@ -2140,6 +2179,9 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
         Dictionary containing datamodels for the jump step, rampfit step and associated meta-data, including the times of each integration in BJD.
     
     """
+
+    from .ramp_fitting import validate_selection, fit_model
+    validate_selection(ramp_fit_method, ramp_fit_options)
 
     # Add _ if suffix is given to the actual_suffix:
     if suffix != '':
@@ -2428,7 +2470,19 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
     ints_per_segment = []
     for i in range( len(jump_data) ):
 
-        if not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+prefix+'1_'+actual_suffix+'rampfitstep.fits'):
+        if ramp_fit_method == 'sparta':
+            rate, rateints, diagnostics = fit_model(jump_data[i], **(ramp_fit_options or {}))
+            base = outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+'sparta'
+            try:
+                rate.save(base+'_rate.fits')
+                rateints.save(base+'_rateints.fits')
+            finally:
+                rate.close()
+            ramp_data.append(rateints)
+            output_dictionary.setdefault('ramp_fit_diagnostics', []).append(diagnostics)
+            output_dictionary['metadata']['ramp_fit_method'] = 'sparta'
+
+        elif not os.path.exists(outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+prefix+'1_'+actual_suffix+'rampfitstep.fits'):
 
             ramp_data.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(jump_data[i], 
                                                                                output_dir=outputfolder+'pipeline_outputs',
@@ -2581,7 +2635,7 @@ def _extract_shared_sequence(data, errors, traces, reference_trace, specificatio
             None if profiles is None else np.asarray(profiles), model)
 
 
-def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, optimal_extraction = False, outputfolder = '', suffix = '', aperture_radius = None, mask_dq = False, extraction_backend='auto', profile_method='polynomial', gp_options=None, extraction_options=None, shared_profile=None, shared_profile_options=None, soss_options=None, **kwargs):
+def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True, single_trace_extraction = True, optimal_extraction = False, outputfolder = '', suffix = '', aperture_radius = None, mask_dq = False, extraction_backend='auto', profile_method='polynomial', gp_options=None, extraction_options=None, shared_profile=None, shared_profile_options=None, soss_options=None, miri_options=None, **kwargs):
     """
     This function takes an `input_dictionary` having as keys the `rampstep` products on a (chronologically-ordered) list, `times` having the times at 
     each integration in BJD and the integrations per segment `ints_per_segment`. Using those, it performs wavelength calibration, spectral tracing and 
@@ -2634,6 +2688,11 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         optimize_hyperparameters. store_profiles=True additionally stores all
         evaluated P_t arrays; otherwise Ps is None and P is a reference rendering.
         The fitted model is stored in spectra['shared_profile'] and as an NPZ.
+    miri_options : dict or None
+        MIRI MIR_IMAGE dispatches to miri.reduce_miri, returning sum and 2-D GP
+        photometry. Use this dictionary for preparation_options, image_options,
+        training_integrations and spatial gp_options. Spectral extraction
+        options do not define the MIRI PSF model.
 
     Returns
     -------
@@ -2648,11 +2707,49 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     from .soss import _model, reduce_soss
     with _model(input_dictionary['rampstep'][0]) as first_model:
         is_soss = getattr(getattr(first_model.meta, 'exposure', None), 'type', None) == 'NIS_SOSS'
+        is_miri = (getattr(getattr(first_model.meta,'instrument',None),'name',None) == 'MIRI'
+                   and getattr(getattr(first_model.meta,'exposure',None),'type',None) == 'MIR_IMAGE')
+    if is_miri:
+        from .miri import reduce_miri
+        if soss_options is not None or shared_profile is not None or shared_profile_options is not None or extraction_options is not None:
+            raise ValueError('MIRI imaging uses miri_options, not spectral extraction options')
+        options = dict(miri_options or {})
+        if gp_options is not None:
+            options.setdefault('gp_options', gp_options)
+        if aperture_radius is not None:
+            options.setdefault('aperture_radius', aperture_radius)
+            prep = dict(options.get('preparation_options', {}))
+            prep.setdefault('aperture_radius', aperture_radius)
+            options['preparation_options'] = prep
+        return reduce_miri(input_dictionary,
+            outputfolder=os.path.join(outputfolder, 'pipeline_outputs', 'miri'+('_'+suffix if suffix else '')),
+            **options)
+    if miri_options is not None:
+        raise ValueError('miri_options applies only to MIRI imaging exposures')
     if is_soss:
-        if optimal_extraction or shared_profile is not None or gp_options is not None:
-            raise ValueError('SOSS currently supports fractional box extraction; '
-                             'single-order Marsh/GP fitting is not order decontamination')
         options = dict(soss_options or {})
+        if shared_profile is not None or shared_profile_options is not None:
+            raise ValueError('SOSS trains separate order profiles; use soss_options optimal_options')
+        if optimal_extraction:
+            if extraction_backend not in ('auto', 'python'):
+                raise ValueError('SOSS shared optimal extraction requires the Python backend')
+            if profile_method not in ('polynomial', 'gp'):
+                raise ValueError('profile_method must be polynomial or gp')
+            options.setdefault('optimal_methods', (profile_method,))
+            settings = dict(options.get('optimal_options', {}))
+            if gp_options is not None:
+                if profile_method != 'gp':
+                    raise ValueError('gp_options requires profile_method="gp"')
+                settings['gp_options'] = gp_options
+            for name, value in dict(extraction_options or {}).items():
+                key = {'polynomial_spacing': 'spacing', 'polynomial_order': 'polynomial_order',
+                       'nsigma': 'nsigma'}.get(name)
+                if key is None:
+                    raise ValueError('Unknown extraction_options key')
+                settings[key] = value
+            options['optimal_options'] = settings
+        elif gp_options is not None or extraction_options is not None:
+            raise ValueError('SOSS gp_options/extraction_options require optimal_extraction=True')
         return reduce_soss(input_dictionary, aperture_radius=15. if aperture_radius is None else aperture_radius,
                            mask_dq=mask_dq, scale_1f=scale_1f,
                            single_trace_extraction=single_trace_extraction,

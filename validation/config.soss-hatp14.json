@@ -1,0 +1,30 @@
+{
+  "exposure": "jw01541001001_04101_00001",
+  "segments": [1, 2, 3, 4],
+  "extraction": {
+    "aperture_radius": 15.0,
+    "trace_max_shift": 4.0,
+    "sample_integrations": 32,
+    "mask_dq": false,
+    "scale_1f": true,
+    "single_trace_extraction": true
+  },
+  "background_options": {"soss_source_percentile": 35.0, "soss_bkg_percentile": [25.0, 50.0]},
+  "detector_parameters": {"jump": {"window": 10, "nsigma": 10}},
+  "ramp_fit_parameters": {"maximum_cores": "1"},
+  "image_limits_dn_per_second": [0.0, 100.0],
+  "white_light_filter_points": 100,
+  "transit": {
+    "reference": "https://arxiv.org/html/2504.08903v1",
+    "period_days": 4.62767,
+    "t0_bjd_tdb": 2459738.962267,
+    "a_rs": 8.111,
+    "b_circular": 1.014,
+    "eccentricity": 0.11,
+    "omega_degrees": 106.1,
+    "trim_first_integrations": 80,
+    "resolving_power": 30.0,
+    "reference_white_depth_ppm": {"1": [6750.0, 40.0], "2": [6714.0, 68.0]},
+    "reference_soss_weighted_depth_ppm": [6522.4, 9.8]
+  }
+}

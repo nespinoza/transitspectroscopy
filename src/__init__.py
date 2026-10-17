@@ -1,7 +1,8 @@
 from ._version import __version__
-__all__ = ['spectroscopy', 'utils', 'transitfitting', 'jwst', 'soss']
+__all__ = ['spectroscopy', 'utils', 'transitfitting', 'jwst', 'soss', 'miri', 'photometry']
 
 from . import soss
+from . import miri, photometry, ramp_fitting
 
 from .spectroscopy import *
 from .transitfitting import *

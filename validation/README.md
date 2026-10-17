@@ -1,7 +1,15 @@
 # Pipeline validation
 
+For **MIRI imaging/photometry**, use `validate.py --mode miri`; see the
+[MIRI guide](MIRI_README.md) and [LTT 1445 A validation report](MIRI_VALIDATION_REPORT.md).
+It compares sums and shared 2-D GP PSF photometry for both PID 9234 visits.
+
 For **NIRISS/SOSS orders 1, 2 and 3**, use `validate.py --mode soss`; see the
 [SOSS guide](SOSS_README.md) and [executed HAT-P-14 b report](SOSS_VALIDATION_REPORT.md).
+Its default validation compares box, polynomial optimal and GP optimal extraction;
+the [overlap-correction report](SOSS_OVERLAP_REPORT.md) describes the joint fit
+that restores long-wavelength extraction. The [earlier optimal-extraction report](SOSS_OPTIMAL_VALIDATION_REPORT.md) includes
+matched-wavelength precision, depth and profile-quality checks.
 The default mode and the configuration described below remain NRS1.
 
 `validate.py` reduces the HAT-P-14 commissioning exposure used by the original
@@ -327,3 +335,17 @@ are available locally; large run products are git-ignored. The run took 520 s
 after reusing calibration. It tests execution and numerical products, not
 transit-depth bias or the entire three-segment observation. See
 [`../CODEX_CHANGELOG.md`](../CODEX_CHANGELOG.md) for changes and verification.
+
+## Alternative ramp fitting
+
+The full real-data MIRI comparison is complete: see
+[the ramp-fitting comparison report](MIRI_RAMP_COMPARISON_REPORT.md) for both
+visits' plots and FITS/NPZ/CSV products, the corrected short-tail batching, and
+the measured precision of JWST versus the alternative fitter.
+
+The NIRSpec, SOSS and MIRI drivers accept `"ramp_fit_method": "sparta"` plus
+`"ramp_fit_options": {"residual_correction": false, "sigma": 5.0}` in their
+JSON configurations. Use uncalibrated ramps; for SOSS/MIRI specify
+`--input-product uncal`. Omitted settings retain the JWST fitter. Reuse checks
+reject changed methods/options. See [RAMP_FITTING.md](../RAMP_FITTING.md) for
+the optional empirical correction, supported read patterns and uncertainties.

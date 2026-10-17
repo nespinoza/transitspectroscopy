@@ -1,5 +1,12 @@
 # Extraction validation and compatibility tests
 
+`test_ramp_fitting.py` validates the alternative correlated ramp fitter against
+dense/analytic covariance solutions, noisy injections, masks, templates and
+JWST FITS/pipeline integration. Run it with `python -m pytest
+tests/test_ramp_fitting.py -q`. The numerical tests need no CRDS or JWST; the
+datamodel/pipeline tests use local synthetic references in the full environment.
+See [RAMP_FITTING.md](../RAMP_FITTING.md).
+
 Run from the repository root:
 
 ```bash

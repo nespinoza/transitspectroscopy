@@ -1,0 +1,110 @@
+{
+  "description": "First integration of public HAT-P-14 commissioning NRS1 segment; background/1f-corrected extraction frame. Zero variance denotes missing/DQ-masked pixels. Arrays cropped to traced dispersion columns; no ground-truth spectrum is implied.",
+  "input": {
+    "path": "jw01118005001_04101_00001-seg001_nrs1_uncal.fits",
+    "size_bytes": 1025072640,
+    "sha256": "807622463f19802738769d0ff9ae56f6b13fb12eea3fe42970617d04ec710ded",
+    "shape": [
+      391,
+      20,
+      32,
+      2048
+    ],
+    "integration_start": 1,
+    "integration_end": 391,
+    "exposure_nints": 1139,
+    "exposure_start_mjd": 59729.043669467595,
+    "target": "BD+38 2917",
+    "group_time_s": 0.902
+  },
+  "crds_context": "jwst_1584.pmap",
+  "software": {
+    "jwst": "3.0.0",
+    "stdatamodels": "6.0.0",
+    "stcal": "1.20.0",
+    "crds": "14.0.0",
+    "numpy": "2.2.6",
+    "scipy": "1.17.1",
+    "astropy": "7.2.2",
+    "matplotlib": "3.11.1"
+  },
+  "source_hashes": {
+    "src/__init__.py": "2e5c59e9eb8df95da956d2e529c984df63d61652a930f87526c23f574b9682e3",
+    "src/_ccf.py": "3a43f169378e9bd84fa1516178169770b11a33545561a197d7d2267a786bd1b7",
+    "src/_optimal_extraction.py": "daa206bcef24e400299bc4580c84d3556bc8af2f5b9ce1ac054e79d2292f4247",
+    "src/_optional.py": "05260121d1a64b3019700107b0f990d7a2cb289df55dad67e51d4096b47e60dd",
+    "src/_version.py": "a4cb53992521b7e5ed6d1ffb0e8cfa6ec42aa2924977cad9f08f33cb61f0c280",
+    "src/jwst.py": "5d4e6679c8aa0e1d111b90fddad1adb16d7174ccef9718124a8cf44ff14416fe",
+    "src/retrievals.py": "a38240e0f20d48d6085797c0786b3de789b732e4a46cded5c89a20f4df711241",
+    "src/shared_profile.py": "2bb54ff34638d27ea7dcbc153609f7876aec2099a0c550064d40476ae477e55e",
+    "src/spectroscopy.py": "4d05f2ef1ea4c96a8d9e1a69dd135c8c78f4fd35d24a55cd1926bd15d22299f0",
+    "src/timeseries.py": "d7e51d08a7fe3fa75a4bd0cd15583417b1eea4b722d1af7a44b68204d9d0a63c",
+    "src/transitfitting.py": "126bed73ebd36792ecb63eff5282a85840f1fd38b01d5289909474dd5617981e",
+    "src/utils.py": "9a4c43a3f3e1de1e0f2bf7f1568c7b94b1c301c7f8a1a665a24ba14751c7f1f1",
+    "validation/validate.py": "377cb3400bd067ad86c1d35cde5d6191c5f4e47809575d988b1ed97bf0945094",
+    "validation/diagnostics.py": "fc6203cd19d8399b8ca1e894b736ef84459d0980ad1ea17ef6038ba308ebf76b"
+  },
+  "preprocessing_config": {
+    "pixels_xy": [
+      [
+        500,
+        5
+      ],
+      [
+        1000,
+        20
+      ],
+      [
+        1750,
+        15
+      ]
+    ],
+    "plots": {
+      "cmap": "magma",
+      "last_minus_first_limits_dn": [
+        -100,
+        20000
+      ],
+      "rate_limits_dn_per_second": [
+        -10,
+        1500
+      ],
+      "ramp_limits_dn": [
+        -1000,
+        40000
+      ],
+      "ramp_residual_limits_dn": [
+        -150,
+        150
+      ],
+      "asinh_width_dn": 100,
+      "asinh_width_dn_per_second": 10,
+      "dpi": 150
+    },
+    "aperture_radius": 2.0,
+    "extraction_options": {
+      "polynomial_spacing": 1.0,
+      "polynomial_order": 3,
+      "nsigma": 10.0
+    },
+    "gp_options": {
+      "kernel": "matern32",
+      "length_scale": 100.0,
+      "amplitude": 1.0,
+      "n_inducing": 24
+    },
+    "scale_1f": true,
+    "mask_dq": true,
+    "single_trace_extraction": true,
+    "nthreads": null,
+    "detector_parameters": {},
+    "ramp_fit_parameters": {
+      "maximum_cores": "1"
+    },
+    "fwhm_distance_from_trace": 7,
+    "trace_filter_points": 11,
+    "fwhm_filter_points": 21,
+    "white_light_filter_points": 100,
+    "spectrum_variant": "corrected"
+  }
+}

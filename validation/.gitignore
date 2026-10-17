@@ -1,0 +1,4 @@
+data/
+runs/
+*.swp
+__pycache__/

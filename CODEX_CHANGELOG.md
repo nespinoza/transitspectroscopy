@@ -1,5 +1,189 @@
 # CODEX_CHANGELOG
 
+## 2026-10-02 — Paired real MIRI ramp-fitting validation
+
+- Reduced all eight raw PID 9234 F1500W segments (29,689 integrations) through
+  shared JWST detector calibration, then separately through JWST OLS_C and the
+  new correlated ramp fitter. Both branches received gain scaling, Image2 and
+  identical sum/spatial-GP photometry settings. The optional empirical residual
+  template was disabled explicitly; this is not a test of that correction.
+- Added resumable `validation/miri_ramp_compare.py`, per-method FITS/NPZ/CSV
+  photometry, calibrated samples/cutouts, paired light-curve plots and JSON
+  metrics/provenance. Existing user configuration files were not changed.
+- Visual validation found a batching artifact: five final chunks below 100
+  integrations switched JWST's temporal jump-detection mode. Added overlapping
+  context for short tails, retained their original output timestamps/counts,
+  and recalibrated those tails for both fitters. No ramp-fitting algorithm was
+  changed. The original run and its generating driver source are preserved.
+- Added byte-range tail recovery and an independent product audit. Final
+  results: `validation/runs/miri_ramp_comparison_20261002_corrected/`.
+  All 470 cutout hashes, complete integration coverage, timestamp equality,
+  GP convergence, PSF normalization and FITS/NPZ/CSV/metric consistency pass.
+- Final GP RMS (JWST/SPARTA): 638.80/708.45 ppm in visit 1 and 632.90/705.94
+  ppm in visit 2. Sum RMS: 656.72/740.53 and 645.83/734.33 ppm. JWST is more
+  precise in this configuration. Neither result establishes eclipse-depth bias
+  or calibrates the full uncertainty from astrophysical/systematic models.
+- Documented products, limitations, batching correction and reproduction in
+  `validation/MIRI_RAMP_COMPARISON_REPORT.md`. Added regression checks for
+  integration slicing, short-tail context/trimming and HTTP range integrity.
+- Full regression suite: **157 passed, 13 skipped**, with the two existing
+  shared-profile bound warnings. Compilation and `git diff --check` pass.
+
+## 2026-10-01 — Optional correlated adjacent-read ramp fitter
+
+- Added `src/ramp_fitting.py`, an independent NumPy implementation of the
+  covariance equations in arXiv:2305.06240v1 (Methods/Data reduction), with
+  SPARTA's `calibrate.py` as a scientific reference. No SPARTA code or dependency
+  is imported. The official JWST fitter remains the default.
+- Select `ramp_fit_method='sparta'` and `ramp_fit_options` in `jwst.load` before
+  detector calibration. The same selection is available in legacy `stage1`
+  and MIRI calibration/reduction. MIRI replaces only the official Detector1
+  ramp step, preserving detector corrections and later gain scaling.
+- Implemented a stable batched tridiagonal GLS solve, optional empirical median
+  residual-template correction, and monotonic difference clipping. Missing
+  groups, jumps, saturation, nonfinite samples and invalid reference pixels
+  retain masks; covariance weights are recomputed after rejection. Unusable or
+  nonconverged ramps return NaN and DO_NOT_USE instead of fabricated rates.
+- Preserve DN/s units, timestamps, DQ and separate photon/read variance arrays
+  in standard rate/rateints datamodels. Resolve gain/read noise through JWST
+  reference selection or explicit overrides; convert JWST reference read noise
+  to per-read electrons. Explicit gain/noise arrays are also supported.
+- Optional template training uses all integrations in a segment or specified
+  local indices; externally trained templates can be reused. Per-integration
+  pedestals are removed before pooling. Template uncertainty and resulting
+  correlations across integrations are not propagated into rate errors.
+- Added distinct alternative output filenames, NPZ diagnostics and JSON/FITS
+  provenance. The alternative refits rather than using legacy cached rates.
+  NIRSpec/SOSS/MIRI validation configs accept the selection and reject reuse
+  across changed fitter/options; existing presets retain their settings.
+- Added 32 tests: independent dense/analytic covariance and limiting cases,
+  Poisson/read-noise injection bias and error coverage (5,000 ramps per regime),
+  jumps/bad reads/saturation/missing groups, convergence and masking, units,
+  template training/reuse, variable-slope preservation, chunk invariance, local
+  reference conversion, FITS/timestamp round trips and real Detector1 dispatch
+  with already-calibrated synthetic input. No real-data precision improvement
+  is claimed; no full raw-observation validation was run for this change.
+- Final verification: **154 passed, 13 skipped** in the full suite (23.21 s),
+  with two existing shared-profile hyperparameter-bound warnings. Python
+  compilation and `git diff --check` also pass.
+- Supports uniform timing and NFRAMES=1 only. Empirical template correction
+  needs homogeneous training data or explicit injection/recovery for variable
+  scenes. See `RAMP_FITTING.md` for usage, defaults, implementation differences
+  from SPARTA, products, computational scaling and uncertainty limitations.
+
+## 2026-09-27 — MIRI imaging and 2-D GP photometry
+
+- Added `src/miri.py` and `src/photometry.py`: official JWST Detector1/Image2
+  calibration, WCS-initialized centroids, annular background and native-pixel
+  sum/optimal photometry. No Eureka imports or dependency were added.
+- Added a positive, pixel-integrated spatial GP PSF with whitened inducing
+  coefficients, shared per visit and evaluated at each integration's centroid.
+  Reused the existing variable-projection Gauss–Newton optimizer; per-integration
+  fluxes remain independent. Kernel hyperparameters are supplied/fixed.
+- Propagate pixel and correlated sky-estimate uncertainty. Preserve DQ/nonfinite/
+  zero-error masks. Simple sums use fixed permanent-pixel exclusions; transient
+  aperture failures remain NaN. GP can use remaining valid pixels. GP flux uses
+  a fixed reference aperture to prevent moving masks from imprinting false events.
+- Added MIRI `stage2` dispatch, validation/config, lossless compressed downloads,
+  calibrated-cutout reuse/provenance, FITS/NPZ/CSV outputs, PSF models and plots.
+  Existing spectroscopy algorithms and spectral GP defaults are unchanged.
+- Calibrated all eight public PID 9234 F1500W rateints segments with JWST 3.0.0
+  and CRDS 1584: 7,264 integrations in observation 1, 22,425 in observation 2.
+  Final results: `validation/runs/miri_9234_validation_20260927_reviewed/`.
+  Raw Detector1 input support is implemented but not executed on this target.
+- Preparation took 173 seconds; fitting/extraction/plots from cutouts took
+  21.7 seconds. Sum/GP running-median RMS: 659.30/637.98 ppm (visit 1),
+  646.67/632.43 ppm (visit 2). These are diagnostics, not fitted eclipse precision.
+- Audited all eight input/preparation hashes and 36 final product hashes,
+  FITS/NPZ/CSV agreement, times/counts, PSF normalization and optimal flux/error
+  propagation. Exercised the current gzip-input wrapper through real Image2.
+- Added unit/mask/time/covariance/model tests and a separate noisy Airy-PSF
+  two-visit injection experiment. **122 passed, 13 skipped**; four GP-injected
+  event depths recover within 3 formal sigma, with the two shallow events low
+  by about 2.6 sigma. Residual PSF structure and conditional errors remain explicit.
+- Documented usage and results in `validation/MIRI_README.md` and
+  `validation/MIRI_VALIDATION_REPORT.md`. No planet-specific depth inference is
+  claimed without event ephemerides and an astrophysical/systematics model.
+
+## 2026-09-25 — Fix SOSS long-wavelength order overlap
+
+- Diagnosed the abrupt optimal-spectrum ends: a 40-pixel trace-separation mask
+  excluded wavelengths above roughly 2.14 µm/order 1 and 1.08 µm/order 2.
+  Independent aperture extraction also leaves genuine cross-contamination at
+  smaller separations. The reference wavelengths themselves were available.
+- Added `src/soss_overlap.py`: joint native-column weighted flux extraction,
+  full inter-order covariance, scaled condition checks, and joint intrinsic
+  profile training using variable-projection Gauss–Newton. Polynomial and GP
+  coefficients remain shared across integrations, with independent order fluxes.
+- Default optimal extraction now uses the joint model and a profile radius five
+  pixels wider than the extraction aperture to include contaminating wings.
+  Retained the previous exclusion policy as `overlap_strategy='isolated'`.
+  Box products, NIRSpec algorithms and legacy GP defaults/masking are unchanged.
+- Preserve missing-pixel masks and mask unavailable order support rather than
+  assuming zero contamination. Ill-conditioned or insufficiently observed
+  profiles remain missing. Joint hyperparameter optimization is explicitly
+  unsupported; supplied fixed kernel parameters are honored.
+- Save joint flux covariance, order labels, times and condition numbers; mark
+  optimal FITS with `DEBLEND=True`. Added recovered-overlap counts and a plot/CSV
+  of order correlation and conditioning. Source hashes are captured before
+  reduction so edits during a long fit cannot relabel its provenance.
+- Cache identical trace geometry/profile evaluations and accumulate spatial
+  curvature across integrations before the dense coefficient expansion. This
+  preserves the likelihood/Hessian while avoiding repeated matrix work.
+- Added a PASTASOSS throughput consistency plot and numerical series to expose
+  the remaining model sensitivity of the faint order 2 red tail; it is not a
+  calibration constraint imposed on extracted spectra.
+- Added noisy unequal-brightness/chromatic-transit overlap tests, numerical
+  derivative and curvature checks, singular/missing-column cases, unavailable
+  order masks and covariance product round trips. **114 passed, 13 skipped**;
+  two existing shared-profile hyperparameter-boundary warnings.
+- Completed all 572 real HAT-P-14 b integrations in 707 seconds, then exercised
+  saved-extraction reuse in `validation/runs/soss_overlap_20260925_reviewed/`.
+  Each optimal method recovers 700 formerly excluded columns in both orders 1
+  and 2, reaching 2.827 and 1.411 µm. Audited all 167 products, hashes, covariance
+  diagonals/symmetry/positive semidefiniteness, light-curve sums and unchanged
+  box spectra.
+- Quantified a remaining scientific limitation: above 1.25 µm the median order
+  2 flux/reference-throughput prediction is 2.08 for polynomial and 6.10 for GP.
+  Coverage is restored but that faint tail remains profile-model-sensitive;
+  validation retains `diagnostics_complete_not_certified`.
+- Diagnosis, scientific scope and executed validation are documented in
+  `validation/SOSS_OVERLAP_REPORT.md`. This is spatial deblending on native
+  columns; it does not claim ATOCA's cross-column wavelength/LSF treatment.
+
+## 2026-09-24 — Complete SOSS optimal-extraction comparisons
+
+- Fixed the missing optimal spectrum at its source: SOSS reduction now supports
+  both shared polynomial and GP optimal extraction for all three orders. Fits
+  one intrinsic coefficient set per order/method to sampled independent
+  integrations and reuses it through each exposure trace geometry. Original
+  box outputs and library defaults remain compatible.
+- Added `src/soss_optimal.py`, masked native-pixel variance weighting, optional
+  pixel rejection, minimum observed-profile support, fractional-aperture flux
+  scaling, portable profile models and method-specific FITS/NPZ/CSV products.
+  Preserved legacy GP mask handling/defaults and NIRSpec extraction algorithms.
+- Enabled the SOSS `stage2` optimal-extraction argument and introduced an
+  additional validation preset without modifying the existing box-only config.
+  Default SOSS validation now extracts and plots box, polynomial and GP spectra,
+  and produces white-light/transmission fits for each method.
+- Added identical-wavelength light-curve/depth comparisons, numerical median
+  spectral differences, profile-fit quality plots and extraction/model hash
+  checks for saved-product reuse. Full native coverage is reported separately
+  from matched-band comparisons.
+- Executed the full 572-integration HAT-P-14 b visit and exercised product reuse.
+  The full reduction took about 160 seconds, excluding downloads, with serial
+  execution and one BLAS/OpenMP thread. Optimal extraction recovers many more
+  wavelengths, but equal-band noise gains are modest. Large profile residuals
+  and flux-scale offsets remain exposed; no precision transmission-spectrum
+  certification is claimed.
+- Added noisy moving-trace and time-dependent bad-pixel injection tests,
+  three-order optimal product round trips, sigma-rejection/support tests, and
+  a validation test ensuring comparisons really use the same columns.
+  Repository suite: **109 passed, 13 skipped**, two existing boundary warnings.
+- Usage and limitations: `validation/SOSS_README.md`. Numerical findings and
+  remaining scientific validation: `validation/SOSS_OPTIMAL_VALIDATION_REPORT.md`.
+  Final comparison products: `validation/runs/soss_hatp14_optimal_20260925_reviewed/`.
+
 ## 2026-09-24 — NIRISS/SOSS three-order reduction and validation
 
 - Added `src/soss.py` and SOSS dispatch from `jwst.stage2`, preserving the existing

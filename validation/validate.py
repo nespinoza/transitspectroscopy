@@ -117,6 +117,9 @@ def calibration_reuse(directory, records, config):
     directory = Path(directory).resolve()
     manifest = directory/'reduction.json'
     previous = json.loads(manifest.read_text())
+    for key, default in (('ramp_fit_method', 'jwst'), ('ramp_fit_options', {})):
+        if previous['config'].get(key, default) != config.get(key, default):
+            raise ValueError(f'Cannot reuse calibration with changed {key}')
     for key in ('detector_parameters', 'ramp_fit_parameters'):
         if previous['config'][key] != config[key]:
             raise ValueError(f'Cannot reuse calibration with changed {key}')
@@ -167,7 +170,9 @@ def reduce(records, config, folder, report, ts, reuse=None):
                 dataset = SimpleNamespace(nints=len(ramp.data), ramps_per_segment=[ramp],
                     times=np.asarray(rate.int_times['int_mid_BJD_TDB'])+2400000.5)
             else:
-                dataset = ts.jwst.load([str(path)], outputfolder=str(folder))
+                dataset = ts.jwst.load([str(path)], outputfolder=str(folder),
+                    ramp_fit_method=config.get('ramp_fit_method', 'jwst'),
+                    ramp_fit_options=config.get('ramp_fit_options'))
                 dataset.detector_calibration(parameters=config['detector_parameters'], save=False)
                 ramp = dataset.ramps_per_segment[0]
             if len(dataset.times) != dataset.nints:
@@ -226,7 +231,9 @@ def reduce(records, config, folder, report, ts, reuse=None):
             else:
                 report['stages']['ramp_fitting'].append(dict(input=path.name,
                     elapsed_seconds=time.monotonic()-tick, datamodel=str(rate_path.relative_to(folder)),
-                    metadata=rate.meta.instance.copy(), parameters=config['ramp_fit_parameters']))
+                    metadata=rate.meta.instance.copy(), parameters=config['ramp_fit_parameters'],
+                    method=config.get('ramp_fit_method', 'jwst'),
+                    options=config.get('ramp_fit_options', {})))
             for model in dataset.ramps_per_segment:
                 model.close()
             start += dataset.nints
@@ -323,11 +330,14 @@ def reduce(records, config, folder, report, ts, reuse=None):
 
 def main():
     mode_parser = argparse.ArgumentParser(add_help=False)
-    mode_parser.add_argument('--mode', choices=['nrs1', 'soss'], default='nrs1')
+    mode_parser.add_argument('--mode', choices=['nrs1', 'soss', 'miri'], default='nrs1')
     mode, arguments = mode_parser.parse_known_args()
     if mode.mode == 'soss':
         from soss_validate import main as soss_main
         return soss_main(arguments)
+    if mode.mode == 'miri':
+        from miri_validate import main as miri_main
+        return miri_main(arguments)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--mode', choices=['nrs1', 'soss'], default='nrs1',
                         help='Validation preset; use --mode soss --help for SOSS options')

@@ -155,16 +155,35 @@ its existing JWST dependency declaration.
 NIRISS `CLEAR/GR700XD` rateints now have a three-order reduction path through
 `ts.soss.reduce_soss(rateints_paths)` or `ts.jwst.stage2(...)`. It runs SOSS
 background subtraction **after ramp fitting**, starts traces/wavelengths from
-PASTASOSS at the measured pupil-wheel position, and saves separate box-extracted
-spectra and light curves for orders 1, 2 and 3. Missing apertures and order
-overlap are flagged explicitly; this path does not perform order decontamination.
+PASTASOSS at the measured pupil-wheel position, and saves separate spectra and
+light curves for orders 1, 2 and 3. Box extraction remains the library default;
+`optimal_methods=('polynomial', 'gp')` adds shared-profile Python optimal
+extraction. Missing apertures and order
+overlap are flagged explicitly. Optimal extraction now fits overlapping order
+profiles jointly, including the long-wavelength regions; box spectra retain
+their original blended-aperture interpretation.
 
 Run the full HAT-P-14 b PID 1541 observation 1 validation with
 `python validation/validate.py --mode soss --download`. See
 [the SOSS guide](validation/SOSS_README.md) for raw-data processing, reference
-overrides, seven validation plots, transmission fits and saved-product reuse.
-The [executed report](validation/SOSS_VALIDATION_REPORT.md) distinguishes
+overrides, extraction comparisons, transmission fits and saved-product reuse.
+The default SOSS validation now runs all three extraction methods, including
+matched-wavelength precision and transit-depth comparisons.
+The [overlap-correction report](validation/SOSS_OVERLAP_REPORT.md) distinguishes
 successful reduction from the remaining scientific limitations of the spectrum.
+
+## MIRI imaging/photometry
+
+`ts.miri.reduce_miri(...)` uses official JWST Detector1/Image2 calibration and
+local fractional-aperture sums plus optimal photometry from a shared 2-D spatial
+GP PSF. It preserves masks and integration times and propagates sky uncertainty.
+No Eureka dependency is used.
+
+Run both LTT 1445 A F1500W visits with
+`python validation/validate.py --mode miri --download --compress-downloads`.
+See the [MIRI guide](validation/MIRI_README.md) and
+[executed report](validation/MIRI_VALIDATION_REPORT.md) for the 29,689
+integrations, products, injection tests and scientific limits.
 
 ## Python optimal extraction
 
@@ -267,6 +286,27 @@ See [SHARED_PROFILE.md](SHARED_PROFILE.md) for geometry conventions, Stage 2,
 optimization, parallel execution, uncertainty limitations and reproducibility.
 Noisy simulations, a comparison figure, and measured benchmarks are in
 [tests/shared_profile_comparison](tests/shared_profile_comparison).
+
+## Alternative ramp fitting
+
+JWST ramp fitting remains the default. The correlated adjacent-read method from
+[arXiv:2305.06240](https://arxiv.org/html/2305.06240v1), also used by SPARTA, can
+be selected before detector calibration:
+
+```python
+dataset = ts.jwst.load(filenames, outputfolder="reduction",
+    ramp_fit_method="sparta",
+    ramp_fit_options={"residual_correction": False, "sigma": 5.0})
+dataset.detector_calibration()
+dataset.fit_ramps()
+```
+
+Enable `residual_correction` to add the empirical two-pass ramp-template
+correction, using appropriate training integrations for variable-flux targets.
+The alternative supports uniform, single-frame groups (`NFRAMES=1`), preserves
+DN/s rates and separate variance components, and is also selectable in the
+NIRSpec/SOSS/MIRI validation configurations. See [RAMP_FITTING.md](RAMP_FITTING.md)
+for options, reference-noise conventions, saved diagnostics and uncertainty limits.
 
 ## Licence and attribution
 

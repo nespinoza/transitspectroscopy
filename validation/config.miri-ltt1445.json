@@ -1,0 +1,17 @@
+{
+  "program": 9234,
+  "target": "LTT 1445 A",
+  "filter": "F1500W",
+  "visits": {
+    "1": {"exposures": ["jw09234001001_03101_00001"], "segments": [1, 2], "description": "Transit and eclipse visit; event identities/times require supplied ephemerides"},
+    "2": {"exposures": ["jw09234002001_03101_00001", "jw09234002001_03101_00002", "jw09234002001_03101_00003"], "segments": [1, 2], "description": "Planet b and planet c eclipse visit"}
+  },
+  "preparation": {"center": null, "stamp_radius": 10, "annulus": [12.0, 20.0], "aperture_radius": 5.0, "exclude_sources": []},
+  "extraction": {"aperture_radius": 5.0, "training_integrations": 12, "minimum_fraction": 0.8, "moving_aperture": false,
+    "gp_options": {"n_inducing": 21, "extent": 10.0, "length_scale": 1.0, "amplitude": 2.0, "width": 2.0, "quadrature": 2, "maxiter": 600}},
+  "detector_options": {},
+  "image_options": {},
+  "bin_seconds": 120.0,
+  "white_light_filter_points": 100,
+  "events": {"1": [], "2": []}
+}
