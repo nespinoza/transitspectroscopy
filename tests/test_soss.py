@@ -160,4 +160,20 @@ def test_three_order_noisy_reduction_background_order_and_saved_products(monkeyp
             covariance=result['optimal'][method]['joint_covariance']
             np.testing.assert_allclose(covariance[:,t['columns'],o-1,o-1],t['error']**2,equal_nan=True)
         assert result['optimal'][method]['orders'][1]['white_light_columns'][7]
+    # Standard products are returned and written; changed code warns instead of refusing.
+    names = {f'order{o}_{m}' for o in (1, 2, 3) for m in ('box', *optimal_methods)}
+    assert names | {n+'_whitelight' for n in names} == set(result['products'])
+    from transitspectroscopy.core import products
+    standard = products.read_products(tmp_path/'products'/'products')
+    np.testing.assert_array_equal(standard['order1_box'].flux, result['orders'][1]['flux'])
+    assert standard['order2_box'].order == 2
+    import json
+    metadata_path = tmp_path/'products'/'soss_metadata.json'
+    metadata = json.loads(metadata_path.read_text())
+    metadata['soss_source_sha256'] = 'edited docstring'
+    metadata_path.write_text(json.dumps(metadata))
+    with pytest.warns(UserWarning, match='SOSS extraction code changed'):
+        soss.load_products(tmp_path/'products')
+    with pytest.raises(ValueError, match='regenerate products'):
+        soss.load_products(tmp_path/'products', strict=True)
     model.close()

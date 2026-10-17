@@ -26,6 +26,23 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
 - `stage2` options `extraction_backend`, `profile_method`, `gp_options`,
   `extraction_options`, `shared_profile`, `shared_profile_options`, `soss_options`,
   `miri_options`.
+- `transitspectroscopy.core`: the instrument-independent algorithms (tracing, profiles,
+  extraction, shared profiles, overlapping traces, photometry, ramp fitting, detector
+  corrections, binning, products, provenance), with no JWST-pipeline imports. Existing modules
+  keep their names and signatures as thin layers over it.
+- `transitspectroscopy.instruments`: a registry of observing modes (`Mode`, `register`,
+  `identify`, `list_modes`) holding every mode-specific default; plug-in modes need no edits
+  to `jwst.py` (see `docs/guides/adding-a-mode.md`).
+- `ExtractionConfig` (`transitspectroscopy.config`): all Stage 2 settings in one validated
+  object, `ts.jwst.stage2(..., config=...)`; Stage 2 dispatches on the observing mode.
+- Standard products (`core.products`): `SpectroscopicTimeSeries`, `PhotometricTimeSeries` and
+  `LightCurveSet`, with FITS/ECSV I/O and JSON provenance manifests (versions, git commit,
+  CRDS context, input hashes, resolved configuration). Every Stage 2 path returns them in
+  `result['products']` and writes them.
+- `ts.run(config)` / `transitspectroscopy run config.toml`: configuration-driven reductions
+  with per-step caching (`--force`, `--from-step`); `transitspectroscopy modes`.
+- `ts.jwst.download(..., exposure=, segments=, detectors=)` selects files and returns their paths.
+- Validation configurations in `validation/configs/*.toml`, run by `validation/validate.py`.
 - A pytest suite (`tests/`), including a snapshot of the 0.4 public API
   (`tests/legacy_api.json`), and real-data validation scripts/reports in `validation/`.
 - Conda `environment.yml` for the full pipeline and dependency extras
@@ -39,6 +56,15 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
   is given (previously used the full-exposure `NINTS`).
 - The Python extraction checks the lower and upper aperture edges independently for
   masked (`-9999`) pixels (the C reference keeps its historical behavior).
+- Reading saved products made by different code warns instead of refusing (`strict=True`
+  restores the error), e.g. `soss.load_products`.
+- `soss.reduce_soss` and `miri.reduce_miri` are deprecated in favour of `ts.jwst.stage2` (or
+  `soss.extract_soss` / `miri.extract_photometry`); the 0.5-development `stage2` keywords
+  `extraction_backend`, `profile_method`, `gp_options`, `extraction_options`,
+  `shared_profile(_options)`, `soss_options` and `miri_options` are deprecated in favour of
+  `config=ExtractionConfig(...)`.
+- `ts.jwst.load` orders files by exposure, then segment.
+- The package requires Python >= 3.13 and installs `jwst >= 3.0.0` (`pyproject.toml`).
 - `ramp_fitting.fit_ramps` now defaults to `residual_correction=False`. The empirical
   residual template is trained on all integrations, including in-transit ones, so it must be
   enabled explicitly with suitable training integrations.
