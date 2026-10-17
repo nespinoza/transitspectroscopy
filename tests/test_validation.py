@@ -52,7 +52,7 @@ def test_saved_spectra_share_a_fixed_band_and_preserve_differences(tmp_path):
             f[0, 2] = np.nan
         extractions[method] = dict(wavelengths=np.linspace(2.8, 3.7, k), columns=np.arange(k),
             original=f.copy(), original_err=np.ones_like(f), corrected=f.copy(), corrected_err=np.ones_like(f))
-    config = json.loads((ROOT/'validation/config.json').read_text())
+    config = json.loads((ROOT/'validation/configs/legacy/config.json').read_text())
     report = diag.extraction_diagnostics(extractions, time, config, tmp_path)
     assert report['common_columns'] == k-1
     assert report['simple_minus_polynomial']['difference_dn_per_second']['median'] == -2.
@@ -81,7 +81,7 @@ def test_fwhm_and_trace_motion_recovery(tmp_path):
     data = 1000*np.exp(-.5*((rows-trace[:, None, :])/sigma[:, None, None])**2)
     result = dict(traces=dict(x=np.arange(nx), y=trace, ycorrected=trace, ysmoothed=trace),
                   tso=data, tso_err=np.ones_like(data), validation_median_rate=np.median(data, axis=0))
-    config = json.loads((ROOT/'validation/config.json').read_text())
+    config = json.loads((ROOT/'validation/configs/legacy/config.json').read_text())
     report = diag.trace_diagnostics(result, 2459000+np.arange(n)/86400, config, tmp_path)
     saved = np.load(tmp_path/'trace_fwhm.npz')
     np.testing.assert_allclose(saved['fwhm_pixels'], np.broadcast_to(

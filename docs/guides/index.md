@@ -3,6 +3,7 @@
 ```{toctree}
 :maxdepth: 1
 
+running
 nirspec
 optimal-extraction
 shared-profile

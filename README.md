@@ -41,6 +41,8 @@ outputs = ts.jwst.stage2(inputs, aperture_radius=2, outputfolder='JWSTdata')
 white_light = outputs['whitelight']
 ```
 
+The same reduction can be described in a TOML file and run with `transitspectroscopy run config.toml`, which caches every step and writes standard products with provenance manifests.
+
 ## Documentation
 
 The [documentation](docs/index.md) has a quickstart, user guides for each instrument mode, optimal extraction (polynomial and Gaussian-process profiles), shared spatial profiles, correlated-read ramp fitting and light-curve fitting, tutorials, the API reference and validation reports on real JWST data. The original worked notebooks are in [`tutorials/`](tutorials/).

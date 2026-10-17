@@ -8,38 +8,26 @@ its pipeline wrappers are not used here.
 
 ## Run LTT 1445 A
 
-Activate the repository's full environment and configure CRDS, then run:
+From the repository root, with this checkout installed in the full environment and CRDS set
+up:
 
 ```sh
-python validation/validate.py --mode miri --download --compress-downloads \
-    --output validation/runs/ltt1445_miri
+python validation/validate.py --config validation/configs/miri-ltt1445a.toml
 ```
 
-The preset uses all eight public F1500W science segments in program 9234
-observations 1 and 2: 7,264 integrations in the first visit and 22,425 in the
-second. The second visit contains three consecutive exposures. Exposure gaps
-are retained and acquisition images excluded. Inputs total about 2.74 GB
-uncompressed; gzip downloads save space without losing information. Existing
-inputs are reused and the output directory must be new.
+The run configuration
+[`validation/configs/miri-ltt1445a.toml`](https://github.com/nespinoza/transitspectroscopy/blob/master/validation/configs/miri-ltt1445a.toml) uses
+all eight public F1500W science segments in program 9234 observations 1 and 2: 7,264
+integrations in the first visit and 22,425 in the second, which contains three consecutive
+exposures. Each visit is one `ts.run` (`<output>/reduction/visit<N>/`); exposure gaps are
+retained. `ts.jwst.download` fetches archive Stage 1 rateints (about 2.74 GB; existing files,
+also gzip-compressed ones, are reused). `calwebb_image2` runs WCS assignment, flat field and
+photom; resampling is disabled. `--visits 1` selects one visit.
 
-Default input is **archive Stage 1 rateints**. Official `Image2Pipeline` runs
-WCS assignment, flat field and photom; resampling is disabled. This mode does not
-recalibrate raw ramps. `--input-product uncal --download` additionally runs
-official `Detector1Pipeline`, including MIRI-specific ordering and current
-reference-controlled settings. The historical `jwst.load` detector helper is
-not used by this validation path. Raw processing needs more storage.
-
-`--input-product calints --input-glob 'path/*_calints.fits'` starts from existing
-imaging calibration; completed flat-field calibration is required. Local FITS
-and gzip FITS are supported. `--visits 1` selects one visit. A narrower input glob
-permits a segment smoke test; JSON distinguishes partial coverage from all
-configured segments.
-
-Settings are in [`config.miri-ltt1445.json`](https://github.com/nespinoza/transitspectroscopy/blob/master/validation/config.miri-ltt1445.json). Target
-positions are zero-based `(x,y)` in the input subarray. WCS initializes bounded
-Gaussian-core centroiding; its fitted amplitude is not the science flux. An
-explicit `center` overrides WCS. `exclude_sources` accepts `[x,y,radius]` circles
-for crowded fields; automatic multi-star deblending is not implemented.
+Target positions are zero-based `(x,y)` in the input subarray. WCS initializes bounded
+Gaussian-core centroiding; its fitted amplitude is not the science flux. An explicit
+`center` in `preparation_options` overrides WCS. `exclude_sources` accepts `[x,y,radius]`
+circles for crowded fields; automatic multi-star deblending is not implemented.
 
 ## PSF, weights and flux conventions
 

@@ -20,83 +20,33 @@ universal calibration recipe for every instrument or target.
 
 ## Run
 
-From the repository root, with the full environment installed:
-
-```sh
-conda activate transitspectroscopy
-python validation/validate.py --download --segments 1 \
-  --config validation/config.segment001-measured.json
-```
-
-This downloads only the first raw segment (1.03 GB; 391 integrations × 20 groups
-× 32 rows × 2048 columns). Existing downloaded files are reused. Direct MAST
-product downloads avoid a full-program catalogue query. CRDS downloads the
-necessary calibration references into `CRDS_PATH`; if unset, the script selects
-`$HOME/crds_cache`. Set a compatible `CRDS_CONTEXT` before running if you need
-to reproduce a specific calibration context.
-
-To reduce all three segments of this exposure:
-
-```sh
-python validation/validate.py --download --segments 1 2 3 \
-  --config validation/config.segment001-measured.json
-```
-
-To use files downloaded by the previous script:
-
-```sh
-python validation/validate.py --input-glob 'JWSTdata/jw01118005001_04101*nrs1_uncal.fits'
-```
-
-`--input-glob` uses every matching file and overrides segment/download selection.
-Use `--exposure` and `--data-dir` to change the public exposure identifier or
-download directory. Input metadata must describe NRS1/G395H segments of one
-exposure. The script retains exposure integration numbers and timestamps when
-only a subset is loaded.
-
-Each run creates a new directory in `validation/runs/`. You can choose a new
-directory with `--output`; existing directories are refused to prevent silently
-reusing stale reduction caches. Input and output data are git-ignored locally.
-Detector calibration is performed one segment at a time to limit ramp memory;
-Stage 2 still operates on the combined rate cube in memory. Full-exposure runs
-need several GB of RAM and disk space. Saved calibrated ramps are larger than
-raw ramps. No raw files or old runs are deleted automatically.
-
-The custom TSO jump filter consequently uses integrations **within each segment**.
-For a multi-segment run, flags near segment boundaries can differ from a single
-`load(all_segments).detector_calibration()` call, whose temporal filter spans
-those boundaries. Keep segment selection fixed when comparing validation runs.
-The single-segment reference run is unaffected by this distinction.
-
-For another extraction/plot comparison using completed calibration products:
-
-```sh
-python validation/validate.py --segments 1 \
-  --reuse-calibration validation/runs/previous-run \
-  --config validation/config.segment001-measured.json
-```
-
-This explicitly reuses the calibrated ramp and rate FITS files; it recomputes
-diagnostics, tracing and all three extractions in a new directory. Input segment
-hashes and detector/ramp-fitting settings must match. Both source calibration
-stages must be complete, even if a later extraction failed. The new manifest
-records the original software/source hashes, source manifest hash, absolute FITS
-paths and current FITS hashes. Reused stages are marked `reused: true`, with
-their original runtimes retained separately. Keep the source run directory:
-these large products are referenced rather than copied. This mode validates
-new extraction code against existing calibration; it does not rerun detector
-calibration under the new source version.
-
-The driver loads this checkout explicitly. If you enable Ray through `nthreads`
-in the configuration, reinstall the checkout first so workers run matching code:
+The validation is a run configuration,
+[`validation/configs/nrs1-hatp14b.toml`](https://github.com/nespinoza/transitspectroscopy/blob/master/validation/configs/nrs1-hatp14b.toml): the
+reduction is done by `ts.run` (exactly what `transitspectroscopy run` does), and
+`validate.py` adds the diagnostics. From the repository root, with this checkout installed in
+the full environment:
 
 ```sh
 python -m pip install --no-build-isolation --no-deps .
+python validation/validate.py --config validation/configs/nrs1-hatp14b.toml
 ```
+
+The configuration downloads only the first raw segment of exposure
+`jw01118005001_04101_00001` (1.03 GB; 391 integrations × 20 groups × 32 rows × 2048
+columns) with `ts.jwst.download`, pins the CRDS context of the reference run
+(`jwst_1584.pmap`), and runs three extraction variants (simple, polynomial and GP
+optimal). Reduction steps are written to `<output>/reduction/<step>-<hash>/`, diagnostics to
+`<output>/` (default `validation/runs/nrs1-hatp14b/`, or `--output DIR`). Rerunning reuses the
+calibration of an unchanged configuration; `--force` recomputes everything and
+`--from-step extract` only the extractions. To reduce more segments, list them in
+`data.segments`; to use other local files, set `data.source = "local"` and `data.glob`.
+
+The custom TSO jump filter uses the integrations of all loaded segments together. The
+historical JSON settings are in `validation/configs/legacy/`.
 
 ## Fixed settings and comparisons
 
-[config.json](https://github.com/nespinoza/transitspectroscopy/blob/master/validation/config.json) contains all configurable plotting/extraction values.
+[`nrs1-hatp14b.toml`](https://github.com/nespinoza/transitspectroscopy/blob/master/validation/configs/nrs1-hatp14b.toml) contains all configurable plotting/extraction values (the `[validation]` table and the extraction variants).
 Copy it and use `--config my-validation.json` for another version of the preset.
 Every run stores its complete configuration in the JSON report. Limits are
 **fixed across runs**, never recalculated from each image's percentiles:
@@ -114,7 +64,7 @@ them as a permanent reference; saturation outside a plot's limits does not
 change the saved data. Background and illuminated pixel curves also have fixed
 limits so that different runs remain visually comparable.
 
-An optional [config.segment001-measured.json](https://github.com/nespinoza/transitspectroscopy/blob/master/validation/config.segment001-measured.json)
+An optional [config.segment001-measured.json](https://github.com/nespinoza/transitspectroscopy/blob/master/validation/configs/legacy/config.segment001-measured.json)
 preset preserves the reduction settings and changes only three display ranges:
 last-minus-first to −100…32,000 DN, rates to −10…1,900 DN/s, and group signals
 to −150…3,000 DN. These ranges were chosen from real segment-1 measurements:

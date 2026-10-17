@@ -59,6 +59,12 @@ Gaussian-process spatial profile (`profile_method='gp'`); see {doc}`guides/optim
 [juliet](https://juliet.readthedocs.io) (needs the `fitting` extra); see
 {doc}`guides/lightcurve-fitting`.
 
+## The same reduction from a configuration file
+
+The steps above can be written in a TOML file and run with `transitspectroscopy run
+config.toml`, which caches each step and writes standard products with provenance
+manifests; see {doc}`guides/running`.
+
 ## Next steps
 
 - Work through the {doc}`tutorials/index`; the synthetic ones run in a couple of minutes.

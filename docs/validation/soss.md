@@ -8,47 +8,26 @@ and JWST 3.0 in the repository's [full environment](https://github.com/nespinoza
 
 ## Run the HAT-P-14 b case
 
-From the repository root, after activating the full environment and setting up
-CRDS as described in the main README:
+From the repository root, with this checkout installed in the full environment and CRDS set
+up (see {doc}`../installation`):
 
 ```sh
-python validation/validate.py --mode soss --download \
-  --output validation/runs/hatp14_soss
+python validation/validate.py --config validation/configs/soss-hatp14b.toml
 ```
 
-The preset selects PID 1541 observation 1, exposure
-`jw01541001001_04101_00001`, all four science segments, 572 integrations.
-Downloading its Stage 1 `rateints` products takes approximately **6 GB**. This is
-the starting product used in the notebook. The manifest records the upstream
-calibration version; this command does not claim to recalibrate raw ramps.
-The default `config.soss-hatp14-optimal.json` runs box, polynomial optimal and
-GP optimal extraction. The older `config.soss-hatp14.json` remains an explicit
-box-only preset. Existing downloaded files are reused. Each validation output directory must be
-new, and inputs remain unchanged. `--segments 1 --skip-transit` provides a smaller
-extraction/plot smoke test; a single segment is insufficient for a transit fit.
-
-To start from raw data and execute local detector calibration and ramp fitting:
-
-```sh
-python validation/validate.py --mode soss --input-product uncal \
-  --input-glob 'path/to/jw01541001001_04101_00001-seg*_nis_uncal.fits' \
-  --output validation/runs/hatp14_soss_from_raw
-```
-
-Add `--download` instead of `--input-glob` to download raw segments. Raw processing
-requires additional memory, disk space and CRDS references. It saves locally
-generated rateints and then enters exactly the same post-ramp reduction. The
-executed reference below used archive rateints; raw recalibration of this entire
-SOSS visit has not been executed as part of that reference run. Existing detector
-calibration options are in the separate `config.soss-hatp14.json` preset.
-
-PASTASOSS and background files are normally selected by CRDS using the **science
-metadata**, including observation date, filter and exposure type. Explicit
-`--pastasoss-reference file.asdf` and `--background-reference file.fits` overrides
-support pinned/offline runs. See [reference provenance](https://github.com/nespinoza/transitspectroscopy/blob/master/validation/references/soss/README.md).
-Image limits and extraction/transit settings are in
-[`config.soss-hatp14-optimal.json`](https://github.com/nespinoza/transitspectroscopy/blob/master/validation/config.soss-hatp14-optimal.json); the original
-box-only and NRS1 configs are unchanged.
+The run configuration
+[`validation/configs/soss-hatp14b.toml`](https://github.com/nespinoza/transitspectroscopy/blob/master/validation/configs/soss-hatp14b.toml)
+selects PID 1541 observation 1, exposure `jw01541001001_04101_00001`, all four science
+segments, 572 integrations. `ts.jwst.download` fetches its Stage 1 `rateints` products
+(approximately **6 GB**; existing files are reused), the starting product used in the
+notebook. The manifests record the upstream calibration version; this does not
+recalibrate raw ramps (set `data.product = "uncal"` for local detector calibration and ramp
+fitting with `ts.jwst.load`). It runs box, polynomial optimal and GP optimal extraction, with
+the pinned PASTASOSS and background references described in
+[reference provenance](https://github.com/nespinoza/transitspectroscopy/blob/master/validation/references/soss/README.md) (remove
+`pastasoss_reference`/`background_reference` to let CRDS select them from the science
+metadata). `--skip-transit` skips the transit fits. Reduction steps go to
+`<output>/reduction/`, diagnostics to `<output>/` (default `validation/runs/soss-hatp14b/`).
 
 ## Library interface and processing order
 

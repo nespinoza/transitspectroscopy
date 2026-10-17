@@ -13,6 +13,13 @@ above it keep the historical interface and add the JWST-specific layers.
              tso_jumpstep, get_cds
 ```
 
+## Configuration-driven runs
+
+```{eval-rst}
+.. automodule:: transitspectroscopy.runner
+   :members: run, load_config, RunResult
+```
+
 ## Stage 2 configuration and observing modes
 
 ```{eval-rst}
@@ -107,6 +114,9 @@ above it keep the historical interface and add the JWST-specific layers.
 
 .. automodule:: transitspectroscopy.core.binning
    :members:
+
+.. automodule:: transitspectroscopy.core.products
+   :members: SpectroscopicTimeSeries, PhotometricTimeSeries, LightCurveSet, write_fits, read_fits, write_ecsv, read_ecsv, write_products, read_products, resolution_edges
 
 .. automodule:: transitspectroscopy.core.provenance
    :members:
