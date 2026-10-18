@@ -77,6 +77,36 @@ def extract_box(data, variance, valid, columns, centers, radius):
 ONEF_METHODS = ('median', 'template', 'template_ring')
 
 
+def onef_pixels(traces, shape, aperture_radius):
+    """Pixel sets of the 1/f corrections, from the traces of a SOSS Stage 2 result.
+
+    Returns ``source_mask`` (``aperture_radius + 12`` pixels around every order, and the
+    four edge columns on each side), ``apertures`` (the extraction apertures of every order)
+    and ``scale_pixels`` (the order-1 aperture, used for the white-light scale).
+    """
+    nrows = shape[0]
+    source_mask = np.zeros(shape, bool)
+    apertures = np.zeros(shape, bool)
+    for trace in traces.values():
+        weights = aperture_weights(nrows, trace['trace'], aperture_radius+12)
+        source_mask[:, trace['columns']] |= weights > 0
+        weights = aperture_weights(nrows, trace['trace'], aperture_radius)
+        apertures[:, trace['columns']] |= weights > 0
+    source_mask[:, :4] = True
+    source_mask[:, -4:] = True
+    order1 = traces[min(traces)]
+    scale_pixels = np.zeros(shape, bool)
+    weights = aperture_weights(nrows, order1['trace'], aperture_radius)
+    scale_pixels[:, order1['columns']] = weights > 0
+    return dict(source_mask=source_mask, apertures=apertures, scale_pixels=scale_pixels)
+
+
+def white_light_scale(frame, valid, template, scale_pixels):
+    """Flux of a background-subtracted rate image relative to ``template`` over ``scale_pixels``."""
+    use = valid & scale_pixels & np.isfinite(template)
+    return np.sum(frame[use])/np.sum(template[use])
+
+
 def column_levels(frame, valid, background_pixels, template=None, scale_pixels=None,
                   fallback_pixels=None):
     """Per-column 1/f level of a background-subtracted rate image.
@@ -89,8 +119,7 @@ def column_levels(frame, valid, background_pixels, template=None, scale_pixels=N
     """
     residual = frame
     if template is not None:
-        use = valid & scale_pixels & np.isfinite(template)
-        residual = frame - np.sum(frame[use])/np.sum(template[use])*template
+        residual = frame - white_light_scale(frame, valid, template, scale_pixels)*template
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', RuntimeWarning)
         level = np.nanmedian(np.where(valid & background_pixels, residual, np.nan), axis=0)
@@ -219,22 +248,11 @@ def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
                               valid=valid_median, max_shift=trace_max_shift)
         trace.update(trace=y, fit=fit)
     nrows, ncols = median.shape
-    source_mask = np.zeros(median.shape, bool)
-    for trace in traces.values():
-        source_mask[:, trace['columns']] |= aperture_weights(nrows, trace['trace'], aperture_radius+12) > 0
-    source_mask[:, :4] = True
-    source_mask[:, -4:] = True
-    apertures = np.zeros(median.shape, bool)
-    for trace in traces.values():
-        weights = aperture_weights(nrows, trace['trace'], aperture_radius)
-        apertures[:, trace['columns']] |= weights > 0
+    pixels = onef_pixels(traces, median.shape, aperture_radius)
+    source_mask, apertures = pixels['source_mask'], pixels['apertures']
     onef = dict(background_pixels=~source_mask)
     if onef_method != 'median':
-        order1 = traces[min(traces)]
-        scale_pixels = np.zeros(median.shape, bool)
-        weights = aperture_weights(nrows, order1['trace'], aperture_radius)
-        scale_pixels[:, order1['columns']] = weights > 0
-        onef.update(template=median_subtracted, scale_pixels=scale_pixels)
+        onef.update(template=median_subtracted, scale_pixels=pixels['scale_pixels'])
     if onef_method == 'template_ring':
         ring = source_mask & ~apertures
         ring[:, :4] = ring[:, -4:] = False
@@ -441,6 +459,61 @@ def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
         save_products(result, outputfolder)
     return result
 
+
+
+def correct_ramps_1f(ramps, rateints, result):
+    """Group-level 1/f correction of SOSS ramps using a Stage 2 result of their rates.
+
+    The traces, background and median rate of ``result`` (from :func:`extract_soss` on
+    ``rateints``) give the masks (orders 1, 2 and 3) and the white-light factor of every
+    integration, as for ``onef_method='template'``; the ramps are then corrected with
+    :func:`transitspectroscopy.core.detector.group_difference_1f`. Ramp fitting has to be
+    run again afterwards.
+
+    Parameters
+    ----------
+    ramps : list of RampModel
+        Calibrated ramps of every segment (after ``detector_calibration``); corrected in
+        place.
+    rateints : list of CubeModel or str
+        Their rates per integration, in the same order.
+    result : dict
+        Output of :func:`extract_soss` for ``rateints``.
+
+    Returns
+    -------
+    dict
+        Group template factors, removed levels and white-light factors.
+    """
+    from stdatamodels.jwst.datamodels import dqflags
+    from .core.detector import group_difference_1f
+
+    aperture_radius = result['metadata']['settings']['aperture_radius']
+    template, background = result['median_background_subtracted'], result['background']
+    pixels = onef_pixels(result['orders'], template.shape, aperture_radius)
+    scale = []
+    for value in rateints:
+        with open_model(value) as m:
+            for i in range(len(m.data)):
+                frame = np.asarray(m.data[i], float)-background
+                valid = np.isfinite(frame) & ((m.dq[i] & 3) == 0)
+                scale.append(white_light_scale(frame, valid, template, pixels['scale_pixels']))
+    unusable = dqflags.group['DO_NOT_USE'] | dqflags.group['SATURATED']
+    reference = dqflags.pixel['DO_NOT_USE'] | dqflags.pixel['REFERENCE_PIXEL']
+    valid = []
+    for ramp in ramps:
+        groupdq = ramp.groupdq
+        after_jump = np.logical_or.accumulate((groupdq & dqflags.group['JUMP_DET']) > 0, axis=1)
+        good = ((groupdq & unusable) == 0) & ~after_jump
+        good &= ((ramp.pixeldq & reference) == 0)[None, None]
+        valid.append(good)
+    data = [ramp.data for ramp in ramps]
+    diagnostics = group_difference_1f(data, valid, ~pixels['source_mask'], np.asarray(scale),
+                                      pixels['scale_pixels'])
+    for ramp, corrected in zip(ramps, data):
+        ramp.data = corrected
+    diagnostics['white_light_scale'] = np.asarray(scale)
+    return diagnostics
 
 
 def reduce_soss(inputs, **options):

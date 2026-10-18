@@ -7,6 +7,7 @@ detector orientation: frames are ``(row, column)`` with columns along the slow-r
 """
 
 from copy import deepcopy
+import warnings
 
 import numpy as np
 from scipy.ndimage import median_filter
@@ -97,6 +98,83 @@ def group_1f_correct(segments, npixel=4, nsigma=10, column_window=3, row_window=
                     )
 
     return corrected
+
+
+def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels):
+    """Group-level 1/f correction with templates built from median group differences.
+
+    For every group ``k``, the template is the median over all integrations of the
+    difference between groups ``k+1`` and ``k`` (the last group uses the last difference),
+    scaled to the median of group ``k`` with the ratio of their sums over ``scale_pixels``.
+    In each integration ``i`` the template, also multiplied by the white-light factor
+    ``scale[i]``, is subtracted from group ``k``; the median of the remaining valid
+    ``background_pixels`` of each column is the 1/f level, removed from that group.
+
+    Parameters
+    ----------
+    segments : list of numpy.ndarray
+        Chronologically ordered ``(integration, group, row, column)`` arrays; corrected in
+        place.
+    valid : list of numpy.ndarray
+        Boolean arrays like ``segments``; False for unusable groups (e.g., saturated, or
+        after a jump).
+    background_pixels : numpy.ndarray
+        ``(row, column)`` boolean array of the pixels used to measure the 1/f level.
+    scale : numpy.ndarray
+        White-light factor of every integration of all segments (median about 1).
+    scale_pixels : numpy.ndarray
+        ``(row, column)`` boolean array of the pixels used to scale each template to its
+        group (e.g., the order-1 aperture).
+
+    Returns
+    -------
+    dict
+        ``group_scale``, the factor of every group's template, and ``levels``, the removed
+        ``(integration, group, column)`` levels.
+    """
+    ngroups = segments[0].shape[1]
+    if ngroups < 2:
+        raise ValueError('The group-difference 1/f correction needs at least two groups')
+    if len(scale) != sum(len(data) for data in segments):
+        raise ValueError('One white-light factor per integration is needed')
+
+    def stacked(k, difference):
+        values = []
+        for data, good in zip(segments, valid):
+            if difference:
+                both = good[:, k] & good[:, k+1]
+                values.append(np.where(both, data[:, k+1] - data[:, k], np.nan))
+            else:
+                values.append(np.where(good[:, k], data[:, k], np.nan))
+        return np.concatenate(values).astype(np.float32)
+
+    templates = []
+    group_scale = np.zeros(ngroups)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', RuntimeWarning)
+        differences = [np.nanmedian(stacked(k, True), axis=0) for k in range(ngroups - 1)]
+        for k in range(ngroups):
+            template = differences[min(k, ngroups - 2)]
+            group = np.nanmedian(stacked(k, False), axis=0)
+            use = scale_pixels & np.isfinite(template) & np.isfinite(group)
+            group_scale[k] = np.sum(group[use]) / np.sum(template[use])
+            templates.append(group_scale[k] * template)
+
+        levels = np.zeros((len(scale), ngroups, segments[0].shape[3]))
+        integration = 0
+        for data, good in zip(segments, valid):
+            for i in range(len(data)):
+                for k in range(ngroups):
+                    residual = data[i, k] - scale[integration] * templates[k]
+                    level = np.nanmedian(
+                        np.where(good[i, k] & background_pixels, residual, np.nan), axis=0
+                    )
+                    level = np.where(np.isfinite(level), level, 0.0)
+                    data[i, k] -= level[None, :]
+                    levels[integration, k] = level
+                integration += 1
+
+    return dict(group_scale=group_scale, levels=levels)
 
 
 def tso_jump_flags(segments, window, nsigma=10):

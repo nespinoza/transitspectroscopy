@@ -329,3 +329,19 @@ the uncal toml with `onef_method` / `scale_1f = false` (scratchpad copies; comma
   each of orders 1-3, plus 4 edge columns). Checked on seg001: all three orders' apertures fully masked
   (orders 1/2/3 cover columns 4-2043/4-1813/4-1141), >=91 unmasked pixels per column (median 133),
   0.9% of the median-rate light unmasked. This changes default SOSS outputs (requested).
+
+### Group-level 1/f with median group-difference templates (2026-10-18)
+User: like correct_1f but per group; template for group k = median over integrations of
+(group k+1 - group k), scaled to group k (last group uses the last difference); same white-light
+factor; done in Stage 2 (traces, white light), then ramps refitted.
+- Code: `core.detector.group_difference_1f` (template factor = sum of median group k / sum of the
+  difference over the order-1 aperture); `soss.onef_pixels`, `soss.white_light_scale` (shared with
+  onef_method='template'; default numerics unchanged), `soss.correct_ramps_1f(ramps, rateints, result)`
+  (valid = not DNU/saturated, not at/after a jump, not reference/DNU pixels). Test in tests/test_soss.py.
+  Note: the median difference carries the median 1/f of the differences, times the template factor:
+  a static (same in every integration) per-group, per-column offset; not a time-series noise.
+- Experiment: `validation/soss_group_1f_experiment.py` (seg001; Stage 1 TSO jump, no CFN/group 1/f;
+  first-pass rates -> box-only extract_soss -> correct_ramps_1f -> refit). Output
+  validation/runs/soss-seg1-group-diff-1f/{no_group_1f,group_diff_1f}/stage1.
+- [ ] experiment  - [ ] Stage 2 (template default): group_diff_1f, group_diff_1f without Stage 2 1/f,
+  no_group_1f, CFN (1_cfn_tsojump rates)  - [ ] comparison

@@ -208,3 +208,35 @@ def test_template_1f_correction_is_the_default():
     assert inspect.signature(soss.extract_soss).parameters['onef_method'].default == 'template'
     with pytest.raises(ValueError, match='onef_method'):
         soss.extract_soss(['unused.fits'], onef_method='ring')
+
+
+def test_group_difference_1f_recovers_column_stripes_under_a_transit():
+    from transitspectroscopy.core.detector import group_difference_1f
+    rng = np.random.default_rng(7)
+    nints, ngroups, nrows, ncols = 30, 4, 50, 12
+    scene = np.full((nrows, ncols), 0.5)
+    scene[20:30] = 200.
+    scene[33:38] = 20.  # light outside the masked rows
+    scale = 1 - 0.01*((np.arange(nints) > 10) & (np.arange(nints) < 20))
+    stripes = rng.normal(0, 3, (nints, ngroups, ncols))
+    bias = rng.normal(0, 5, (nrows, ncols))  # static, removed by the group differences
+    groups = (scale[:, None, None, None]*scene*(np.arange(ngroups)+1)[None, :, None, None]
+              + bias + stripes[:, :, None, :]).astype(np.float32)
+    valid = np.ones(groups.shape, bool)
+    valid[3, 2:, 25, 5] = False  # e.g. after a jump; not used by the templates
+    masked = np.zeros((nrows, ncols), bool)
+    masked[17:33] = True
+    aperture = np.zeros_like(masked)
+    aperture[20:30] = True
+    corrected = [groups.copy()]
+    out = group_difference_1f(corrected, [valid], ~masked, scale, aperture)
+    np.testing.assert_allclose(out['group_scale'], np.arange(ngroups)+1, rtol=0.02)
+    # The removed levels are the stripes, up to an offset that is the same in every integration
+    # (the bias, and the median stripes of the group differences, in the templates):
+    levels = out['levels'] - out['levels'].mean(axis=0)
+    np.testing.assert_allclose(levels, stripes - stripes.mean(axis=0), atol=0.6)
+    # The transit stays in the corrected groups:
+    residual = corrected[0] - (groups - stripes[:, :, None, :])
+    np.testing.assert_allclose(residual - residual.mean(axis=0), 0., atol=0.6)
+    with pytest.raises(ValueError, match='white-light'):
+        group_difference_1f([groups.copy()], [valid], ~masked, scale[:-1], aperture)
