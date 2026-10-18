@@ -349,5 +349,15 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   at/after a jump. Background rates show no int-60 offset (ramps split at the jump); CFN does not exclude
   jump flags, so it measures the step. Fix: `template_valid` (jumps excluded) separate from the level
   validity (only DNU/saturated/reference excluded); new test. Stale outputs deleted; rerun started.
-- [ ] experiment rerun  - [ ] Stage 2 (template default): s2_group_diff_1f, s2_group_diff_1f_no_stage2_1f,
-  s2_no_group_1f, s2_cfn (1_cfn_tsojump rates)  - [ ] comparison
+- [x] Rerun: int 60 bright-pixel sum +76 ppm (CFN +94, uncorrected +12684); bright trace -0.06 DN/s.
+- [x] Stage 2 (template default) s2_group_diff_1f, s2_group_diff_1f_no_stage2_1f, s2_no_group_1f, s2_cfn;
+  tables in validation/runs/soss-seg1-group-diff-1f/white_light_rms_without_int60.txt (both cases), plots there.
+  RMS ppm (box/poly/GP), all ints | without int 60:
+  order 1: group-diff+template 117.8/114.0/116.4 | 118.1/114.2/117.0; group-diff only 119.4/116.7/118.4 |
+  119.7/115.0/118.1; CFN+template 118.8/115.2/117.8 | 119.3/115.0/118.2; g1f+template 208.2/202.4/206.5 |
+  120.1/118.0/120.0; none+template 928.9/864.0/859.5 | 132.8/130.4/135.1.
+  order 2: group-diff+template 144.5/137.3/136.0 | 139.1/132.4/131.1; group-diff only 140.9/134.7/134.1 |
+  140.9/135.2/134.5; CFN+template 141.4/133.3/132.6 | 140.2/132.7/131.7; g1f+template 211.7/209.3/207.5 |
+  141.7/136.1/135.7; none+template 1344.8/1360.2/1353.2 | 162.4/162.4/160.3.
+- Open: order 2, group-diff + Stage 2 template leaves int 60 at about -480 ppm (not with group-diff alone,
+  nor CFN + template); per-column-range sums too noisy to localize. Unexplained.
