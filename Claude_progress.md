@@ -293,3 +293,16 @@ Folder `validation/runs/soss-seg1-comparison/<variant>/` (stage1 rateints + Stag
 - Suggested: scene-subtracted (scaled median ramp) group_1f, multi-order mask, DQ/NaN exclusion,
   vectorization; keep it before linearity; treat outlier column events as pixel-level (correct in
   linearized space, x' = f^-1(f(x) - delta)). Untested; test plan in the chat answer.
+- Correction (user meant `core.detector.correct_1f`, Stage 2): the SOSS Stage 2 path (`src/soss.py`) does
+  not call correct_1f; with scale_1f=True it subtracts a plain per-column median of background-subtracted
+  rates outside a static mask (all orders, aperture_radius+12 px; no scaled template). correct_1f is only
+  used by the NIRSpec/legacy Stage 2 (jwst.py ~L2600) and the CDS path (~L1557). correct_1f = rate minus
+  white-light-scaled median rate, then median of an annulus r_in<|dy|<r_out around the trace.
+- Rate-level vs group-level: JWST ramp fit uses SNR-dependent weights (power 0 dark .. 10 bright), so a
+  column offset projects onto the slope differently for trace and background pixels: a groups-1..5 step
+  gives 0.143*delta/t_group (uniform) vs 0.20*delta/t_group (end-weighted). Measured int-60 trace excess
+  11.2 DN/s matches 0.2*320/5.494 = 11.6 DN/s. For iid per-group 1/f, a rate-level correction from dark
+  pixels leaves ~0.15 sigma_g of the ~0.28 sigma_g on the brightest pixels.
+- correct_1f edge bug: `signal[:int(y - outer)]` with y < outer gives a negative stop index and masks
+  almost the whole column, keeping only far rows.
+- int-60 JUMP flags in variant 1 rateints: 31% of bright trace pixels, 0% of dark pixels (cols 1100-2000).
