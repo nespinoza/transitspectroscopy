@@ -247,3 +247,13 @@ Plan:
   (configs/soss-hatp14b-uncal-jwstjump.toml).
 - Disk: about 10 GB free; each variant's rateints are 6 GB. I'm deleting the old no-CFN stage1 rateints (its Stage 2
   results and RMS table are kept), and A's rateints after A's Stage 2 if needed.
+- Variant A rerun: seg001/002 done (505/481 s; with clean_flicker_noise, swap grew ~10 GB and filled the disk). Killed (137)
+  in seg003 at 303 MB free. Freed 4.8 GB by deleting the two regenerable NRS1 intermediate ramps in
+  `validation/runs/nrs1_prompt5_runner/reduction/calibrate-715b63a75a7c/exposure1/ts_outputs/` (linearitystep, tsojumpstep;
+  the results are kept). Resumed seg003–004 with a guard that stops below 1.5 GB free (log stage1_resume.log).
+- Resumed run STOPPED by Claude Code (system critically low on memory) during seg003. Not restarted (needs the user's OK).
+  Done: variant A seg001 + seg002 rateints (stage1-tsojump/). To do: A seg003–004, A Stage 2, then variant B.
+  Resume: `python validation/soss_uncal_calibrate.py validation/data/soss_uncal/*_uncal.fits --output validation/runs/soss-hatp14b-uncal-tsojump/stage1 --jump tso`
+  (skips finished segments).
+- Partial check (seg001 ints 40–80, trace-pixel sum): int 60 = +142 ppm (TSO jump + CFN), against −177 ppm for the archive;
+  scatter of the other integrations 147 ppm (ours) vs 219 ppm (archive). The event is fixed by CFN with the TSO jump.
