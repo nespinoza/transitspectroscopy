@@ -34,6 +34,8 @@ def main(argv=None):
     parser.add_argument('--config', type=Path, required=True,
                         help='SOSS validation configuration (for the Stage 2 references)')
     parser.add_argument('--output', type=Path, required=True, help='output folder')
+    parser.add_argument('--drop-first-pass', action='store_true',
+                        help='delete the first-pass rateints at the end (disk)')
     args = parser.parse_args(argv)
     os.environ.setdefault('CRDS_PATH', str(Path.home()/'crds_cache'))
     os.environ.setdefault('CRDS_SERVER_URL', 'https://jwst-crds.stsci.edu')
@@ -82,15 +84,17 @@ def main(argv=None):
     dataset.fit_ramps(save=False)
     dataset.rateints_per_segment[0].save(str(corrected))
     timing['second_ramp_fit'] = time.monotonic() - start - sum(timing.values())
-    np.savez_compressed(args.output/'group_diff_1f'/'diagnostics.npz', **diagnostics)
+    np.savez_compressed(args.output/'group_diff_1f'/f'{name}_diagnostics.npz', **diagnostics)
     record = dict(input=str(args.uncal), config=str(args.config), stage2_first_pass=stage2,
                   stage1_status=dataset.status, timing_seconds=timing,
                   group_scale=diagnostics['group_scale'].tolist(),
                   white_light_scale_range=[float(diagnostics['white_light_scale'].min()),
                                            float(diagnostics['white_light_scale'].max())])
-    (args.output/'group_diff_1f'/'run.json').write_text(
+    (args.output/'group_diff_1f'/f'{name}_run.json').write_text(
         json.dumps(record, indent=2, default=str)+'\n')
     shutil.rmtree(work, ignore_errors=True)
+    if args.drop_first_pass:
+        first.unlink()
     print(json.dumps(timing, indent=2), flush=True)
 
 
