@@ -103,7 +103,7 @@ def column_levels(frame, valid, background_pixels, template=None, scale_pixels=N
 
 def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
                 background_options=None, aperture_radius=15., trace_max_shift=4.,
-                sample_integrations=32, mask_dq=False, scale_1f=True, onef_method='median',
+                sample_integrations=32, mask_dq=False, scale_1f=True, onef_method='template',
                 single_trace_extraction=True, outputfolder=None,
                 optimal_methods=(), optimal_options=None):
     """Stage 2 of one SOSS exposure (all supplied rateints segments), orders 1/2/3.
@@ -122,11 +122,13 @@ def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
     leave no complete wavelength band in long series.
 
     With ``scale_1f``, a per-column 1/f level is removed from every integration
-    (:func:`column_levels`). ``onef_method='median'`` (default) takes the median of the
-    pixels outside all trace masks (``aperture_radius + 12``); ``'template'`` first
-    subtracts the median rate scaled by the order-1 aperture flux of the integration;
-    ``'template_ring'`` does that and uses only the pixels between ``aperture_radius`` and
-    ``aperture_radius + 12`` of the traces, as ``correct_1f`` does for NIRSpec.
+    (:func:`column_levels`), as ``correct_1f`` does for NIRSpec but masking the traces of
+    orders 1, 2 and 3 (``aperture_radius + 12`` pixels around each) and the four edge columns.
+    ``onef_method='template'`` (default) first subtracts the median rate scaled by the
+    order-1 aperture flux of the integration, then takes the median of the unmasked pixels
+    of each column; ``'median'`` skips the template; ``'template_ring'`` uses only the pixels
+    between ``aperture_radius`` and ``aperture_radius + 12`` of the traces (the local
+    annulus of ``correct_1f``), which is noisier on SOSS.
 
     ``optimal_methods=('polynomial', 'gp')`` additionally trains a frozen shared
     intrinsic profile for each order and method. Results are in

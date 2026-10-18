@@ -324,3 +324,8 @@ the uncal toml with `onef_method` / `scale_1f = false` (scratchpad copies; comma
   Order 2 none 168.0/174.8/174.8, median 143.0/140.6/139.6, template 141.7/136.1/135.7,
   ring 166.7/150.8/151.4, CFN+median 143.5/138.4/137.8.
 - Int 60 (order 1 box): none -2115, median -2106, template -2046, ring -2046 ppm: no Stage 2 variant fixes it.
+- [x] User: activate the correct_1f-style Stage 2 1/f for SOSS with masks around orders 1, 2 and 3:
+  `extract_soss(onef_method='template')` is now the default (masks +-(aperture_radius+12) px around
+  each of orders 1-3, plus 4 edge columns). Checked on seg001: all three orders' apertures fully masked
+  (orders 1/2/3 cover columns 4-2043/4-1813/4-1141), >=91 unmasked pixels per column (median 133),
+  0.9% of the median-rate light unmasked. This changes default SOSS outputs (requested).

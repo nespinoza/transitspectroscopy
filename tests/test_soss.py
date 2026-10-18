@@ -201,3 +201,10 @@ def test_three_order_noisy_reduction_background_order_and_saved_products(monkeyp
     with pytest.raises(ValueError, match='regenerate products'):
         soss.load_products(tmp_path/'products', strict=True)
     model.close()
+
+
+def test_template_1f_correction_is_the_default():
+    import inspect
+    assert inspect.signature(soss.extract_soss).parameters['onef_method'].default == 'template'
+    with pytest.raises(ValueError, match='onef_method'):
+        soss.extract_soss(['unused.fits'], onef_method='ring')
