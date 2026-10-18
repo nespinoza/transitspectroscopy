@@ -278,3 +278,18 @@ Folder `validation/runs/soss-seg1-comparison/<variant>/` (stage1 rateints + Stag
     over the groups on the trace); group_1f runs before linearity and subtracts the dark-pixel raw value from the trace, giving
     −10 DN/group ≈ −1.8 DN/s (measured −1.83). Moving group_1f after linearity should fix it (not tested).
   - The TSO jump step beats the STScI jump step (rejection 6) for the box: order 1 121 vs 132, order 2 144 vs 152 ppm.
+
+## 2026-10-18: group 1/f vs clean_flicker_noise (jwst 3.0.0 source review)
+- CFN (SOSS CRDS pars: background_method=median_image, mask_science_regions, n_sigma=0, fit_method=median):
+  builds a draft rateints, subtracts the SOSS background (BackgroundStep), box-extracts order 1 for a
+  white-light scale, takes the median ramp over integrations, and subtracts `scale_i*median_ramp +
+  background_ramp` from every group (group 0 included) before the masked column median; adds it back.
+  Mask: pastasoss traces of all orders, +-16 px. Runs on linearized, dark-subtracted ramps after jump.
+- group_1f: no scene subtraction; one |LMF|-weighted centroid per column, +-10 px. On PID 1541 seg 1 the
+  centroid misses order 1 by 15-45 rows for columns <1800 (pulled by order 2/background); the mask holds
+  1-7% of the column flux there (73% only at columns >1900, where order 2 is absent).
+- Int-60 offset is compressed by nonlinearity (raw 320 dark vs 266-306 trace): pixel-level, not
+  amplifier-level (absent in ref pixels). Genuine 1/f is additive -> pre-linearity is the right place.
+- Suggested: scene-subtracted (scaled median ramp) group_1f, multi-order mask, DQ/NaN exclusion,
+  vectorization; keep it before linearity; treat outlier column events as pixel-level (correct in
+  linearized space, x' = f^-1(f(x) - delta)). Untested; test plan in the chat answer.
