@@ -361,3 +361,22 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   141.7/136.1/135.7; none+template 1344.8/1360.2/1353.2 | 162.4/162.4/160.3.
 - Open: order 2, group-diff + Stage 2 template leaves int 60 at about -480 ppm (not with group-diff alone,
   nor CFN + template); per-column-range sums too noisy to localize. Unexplained.
+
+### Full exposure (4 segments): group-difference 1/f vs group 1/f, both TSO jump + Stage 2 template
+- Stage 1 per segment (seg001 reused from the one-segment runs): group-diff via
+  `soss_group_1f_experiment.py --drop-first-pass` (6 min/segment, peak footprint 10.4 GB);
+  group 1/f via `soss_uncal_calibrate.py --group-1f --skip-clean-flicker-noise` (5 min/segment).
+  Stage 2: validate.py with onef_method='template' (12 and 16 min). First Stage 2 attempt died on a
+  full disk (swap files on the same volume); seg1 experiment FITS/NPZ intermediates deleted (approved).
+- Output validation/runs/soss-hatp14b-full-1f/{s2_group_diff_template,s2_g1f_template,comparison}.
+  Comparison: `validation/soss_full_comparison.py` (archive = soss_prompt5_runner as reference).
+- 100-pt median-filter RMS ppm, all ints (without int 60), poly: order 1 group-diff 118.5 (117.2),
+  group 1/f 145.3 (119.9), archive 120.2; order 2 138.9 (137.5), 162.6 (141.8), 144.0.
+  Int 60: group-diff +436/-477 ppm (o1/o2 poly; o1 worst is now #255), group 1/f -1965/-1909.
+  Transit-fit residual RMS (after the 80-integration trim) poly: o1 120.9 vs 121.8; o2 134.7 vs 138.0.
+  Red noise (binning) the same for all three, archive included.
+- Depths (poly): o1 6820±234 (group-diff) vs 6776±226 (group 1/f), archive 6846; o2 6694 vs 6633,
+  archive 6651. group 1/f / group-diff white-light ratio rises ~+50 ppm in segment 3 (transit bottom):
+  consistent with group 1/f (no scene subtraction) removing a flux-proportional part of the trace
+  wings, diluting the transit (not verified further).
+- Order-2 transmission median uncertainty (poly/GP): 689/741 group-diff vs 800/810 group 1/f.
