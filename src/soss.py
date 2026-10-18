@@ -74,9 +74,36 @@ def extract_box(data, variance, valid, columns, centers, radius):
     return fractional_box(data, variance, valid, columns, centers, radius)
 
 
+ONEF_METHODS = ('median', 'template', 'template_ring')
+
+
+def column_levels(frame, valid, background_pixels, template=None, scale_pixels=None,
+                  fallback_pixels=None):
+    """Per-column 1/f level of a background-subtracted rate image.
+
+    The level is the median of ``frame`` over the valid ``background_pixels`` of each column.
+    With a ``template`` (the background-subtracted median rate), the template scaled by the
+    flux ratio over ``scale_pixels`` is subtracted first, as in
+    :func:`transitspectroscopy.core.detector.correct_1f`. Columns with no usable
+    ``background_pixels`` use ``fallback_pixels`` (if given) or a level of zero.
+    """
+    residual = frame
+    if template is not None:
+        use = valid & scale_pixels & np.isfinite(template)
+        residual = frame - np.sum(frame[use])/np.sum(template[use])*template
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', RuntimeWarning)
+        level = np.nanmedian(np.where(valid & background_pixels, residual, np.nan), axis=0)
+        if fallback_pixels is not None:
+            missing = ~np.isfinite(level)
+            level[missing] = np.nanmedian(
+                np.where(valid & fallback_pixels, residual, np.nan)[:, missing], axis=0)
+    return np.where(np.isfinite(level), level, 0.)
+
+
 def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
                 background_options=None, aperture_radius=15., trace_max_shift=4.,
-                sample_integrations=32, mask_dq=False, scale_1f=True,
+                sample_integrations=32, mask_dq=False, scale_1f=True, onef_method='median',
                 single_trace_extraction=True, outputfolder=None,
                 optimal_methods=(), optimal_options=None):
     """Stage 2 of one SOSS exposure (all supplied rateints segments), orders 1/2/3.
@@ -94,6 +121,13 @@ def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
     excludes informational flags (e.g. a successfully fitted jump), and can
     leave no complete wavelength band in long series.
 
+    With ``scale_1f``, a per-column 1/f level is removed from every integration
+    (:func:`column_levels`). ``onef_method='median'`` (default) takes the median of the
+    pixels outside all trace masks (``aperture_radius + 12``); ``'template'`` first
+    subtracts the median rate scaled by the order-1 aperture flux of the integration;
+    ``'template_ring'`` does that and uses only the pixels between ``aperture_radius`` and
+    ``aperture_radius + 12`` of the traces, as ``correct_1f`` does for NIRSpec.
+
     ``optimal_methods=('polynomial', 'gp')`` additionally trains a frozen shared
     intrinsic profile for each order and method. Results are in
     ``result['optimal'][method]['orders']``; the original box products remain
@@ -109,6 +143,8 @@ def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
         ('soss.py', 'soss_optimal.py', 'soss_overlap.py', 'core/shared_profile.py',
          'core/overlap.py', 'core/extraction.py', 'core/geometry.py', 'core/profiles.py',
          'core/kernels.py', 'core/tracing.py')}
+    if onef_method not in ONEF_METHODS:
+        raise ValueError(f'onef_method must be one of {ONEF_METHODS}')
     optimal_methods, optimal_settings = soss_optimal.settings(
         optimal_methods, optimal_options, aperture_radius)
     joint = optimal_settings['overlap_strategy']=='joint'
@@ -186,6 +222,21 @@ def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
         source_mask[:, trace['columns']] |= aperture_weights(nrows, trace['trace'], aperture_radius+12) > 0
     source_mask[:, :4] = True
     source_mask[:, -4:] = True
+    apertures = np.zeros(median.shape, bool)
+    for trace in traces.values():
+        weights = aperture_weights(nrows, trace['trace'], aperture_radius)
+        apertures[:, trace['columns']] |= weights > 0
+    onef = dict(background_pixels=~source_mask)
+    if onef_method != 'median':
+        order1 = traces[min(traces)]
+        scale_pixels = np.zeros(median.shape, bool)
+        weights = aperture_weights(nrows, order1['trace'], aperture_radius)
+        scale_pixels[:, order1['columns']] = weights > 0
+        onef.update(template=median_subtracted, scale_pixels=scale_pixels)
+    if onef_method == 'template_ring':
+        ring = source_mask & ~apertures
+        ring[:, :4] = ring[:, -4:] = False
+        onef.update(background_pixels=ring, fallback_pixels=~source_mask)
     for order, trace in traces.items():
         x, y = trace['columns'], trace['trace']
         isolated = (y-aperture_radius >= -.5) & (y+aperture_radius <= nrows-.5)
@@ -208,10 +259,7 @@ def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
         for index in selected:
             frame = np.asarray(samples[index], float)-background
             if scale_1f:
-                with warnings.catch_warnings():
-                    warnings.simplefilter('ignore', RuntimeWarning)
-                    level = np.nanmedian(np.where(~source_mask, frame, np.nan), axis=0)
-                frame -= np.where(np.isfinite(level), level, 0.)[None, :]
+                frame -= column_levels(frame, np.isfinite(frame), **onef)[None, :]
             training_data.append(frame)
             training_variance.append(sample_variances[index])
         for method in optimal_methods:
@@ -286,10 +334,7 @@ def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
                 valid = np.isfinite(frame) & np.isfinite(variance) & (variance > 0)
                 valid &= (m.dq[i] == 0) if mask_dq else ((m.dq[i] & 3) == 0)
                 if scale_1f:
-                    with warnings.catch_warnings():
-                        warnings.simplefilter('ignore', RuntimeWarning)
-                        level = np.nanmedian(np.where(valid & ~source_mask, frame, np.nan), axis=0)
-                    frame -= np.where(np.isfinite(level), level, 0.)[None, :]
+                    frame -= column_levels(frame, valid, **onef)[None, :]
                 if first_image is None:
                     first_image = frame.copy()
                 last_image = frame.copy()
@@ -351,7 +396,8 @@ def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
         pastasoss=reference_info, background=dict(path=bkg_path, sha256=file_sha256(bkg_path),
         status='COMPLETE', fit='static template fitted by BackgroundStep to sampled median rate',
         options=options), settings=dict(aperture_radius=aperture_radius, trace_max_shift=trace_max_shift,
-        sample_integrations=sample_integrations, scale_1f=scale_1f, mask_dq=mask_dq,
+        sample_integrations=sample_integrations, scale_1f=scale_1f, onef_method=onef_method,
+        mask_dq=mask_dq,
         single_trace_extraction=single_trace_extraction),
         extraction='fractional box; incomplete apertures missing; no order decontamination',
         soss_source_sha256=source_hashes['soss.py'], units='DN/s; no absolute photometric calibration',

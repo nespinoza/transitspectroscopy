@@ -306,3 +306,14 @@ Folder `validation/runs/soss-seg1-comparison/<variant>/` (stage1 rateints + Stag
 - correct_1f edge bug: `signal[:int(y - outer)]` with y < outer gives a negative stop index and masks
   almost the whole column, keeping only far rows.
 - int-60 JUMP flags in variant 1 rateints: 31% of bright trace pixels, 0% of dark pixels (cols 1100-2000).
+
+### Stage 2 1/f test on the group 1/f rates (2026-10-18)
+User asked to run it. `src/soss.py`: new `onef_method` ('median' default, unchanged; 'template' =
+correct_1f-style scaled median-rate template, current mask; 'template_ring' = template + only the
+pixels between aperture_radius and aperture_radius+12 of the traces). Helper `soss.column_levels`.
+Runs (Stage 2 only, on validation/runs/soss-seg1-comparison/2_group1f_tsojump/stage1 rateints),
+folder validation/runs/soss-seg1-stage2-1f/g1f_stage2_{template,template_ring,none}; configs are
+the uncal toml with `onef_method` / `scale_1f = false` (scratchpad copies; command:
+`validate.py --config <toml> --input-glob <rates> --output <folder> --skip-transit`).
+'median' = the existing 2_group1f_tsojump run.
+- [ ] template  - [ ] template_ring  - [ ] none  - [ ] comparison table/plots

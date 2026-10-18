@@ -25,6 +25,30 @@ def test_missing_aperture_is_not_renormalized_or_zero_filled():
     assert np.isnan(f[[1,2]]).all() and np.isnan(e[[1,2]]).all()
 
 
+def test_column_levels_with_and_without_scaled_template():
+    rng = np.random.default_rng(3)
+    template = np.zeros((60, 8))
+    template[25:35] = 100.
+    template[38:45] = 5.  # light outside the aperture, inside the background pixels
+    stripes = rng.normal(0, 2, 8)
+    frame = 0.99*template + stripes[None, :]
+    valid = np.ones_like(frame, bool)
+    aperture = np.zeros_like(valid)
+    aperture[25:35] = True
+    background = ~aperture
+    np.testing.assert_allclose(
+        soss.column_levels(frame, valid, background, template, aperture), stripes, atol=0.02)
+    # Without the template the median picks up part of the extra light only if it is the
+    # majority; here it is not, and the level equals the stripes too:
+    np.testing.assert_allclose(soss.column_levels(frame, valid, background), stripes)
+    # Columns with no background pixels use the fallback pixels:
+    ring = np.zeros_like(valid)
+    ring[:, :4] = background[:, :4]
+    np.testing.assert_allclose(soss.column_levels(frame, valid, ring, fallback_pixels=background),
+                               stripes)
+    np.testing.assert_allclose(soss.column_levels(frame, valid, ring)[4:], 0.)
+
+
 def test_reference_seed_refines_noisy_double_peaked_profile():
     rng = np.random.default_rng(145)
     x = np.arange(160)
