@@ -264,11 +264,14 @@ def main(argv=None):
                         help='recompute the reduction from this step')
     parser.add_argument('--skip-transit', action='store_true', help='SOSS: skip the transit fits')
     parser.add_argument('--reference-spectrum', type=Path, help='SOSS: reference spectrum to overplot')
+    parser.add_argument('--input-glob', help='reduce these local rateints instead of the configured data')
     parser.add_argument('--visits', nargs='+', help='MIRI: visits to reduce (default: all)')
     args = parser.parse_args(argv)
     if args.config is None:
         args.config = ROOT/'validation/configs'/DEFAULT_CONFIGS[args.mode or 'nrs1']
     config = read_config(args.config)
+    if args.input_glob:
+        config['data'] = dict(source='local', glob=str(ROOT/args.input_glob), product='rateints')
     kind = config['validation']['kind']
     # Diagnostics go to the output folder, the reduction steps (ts.run) to <output>/reduction.
     folder = (args.output or Path(config['run']['output'])).resolve()

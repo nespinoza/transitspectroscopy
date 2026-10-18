@@ -257,3 +257,24 @@ Plan:
   (skips finished segments).
 - Partial check (seg001 ints 40–80, trace-pixel sum): int 60 = +142 ppm (TSO jump + CFN), against −177 ppm for the archive;
   scatter of the other integrations 147 ppm (ours) vs 219 ppm (archive). The event is fixed by CFN with the TSO jump.
+
+### One-segment comparison: CFN vs group 1/f, TSO jump vs STScI jump (2026-10-17)
+
+User: just seg001; 4 reductions run serially; white-light RMS plots for each.
+Folder `validation/runs/soss-seg1-comparison/<variant>/` (stage1 rateints + Stage 2 via
+`validate.py --config validation/configs/soss-hatp14b-uncal.toml --input-glob <stage1 rateints> --output <variant> --skip-transit`).
+- [x] 1_cfn_tsojump: Stage 1 reused from the variant A run (current code); seg002 rateints deleted.
+- [x] 2_group1f_tsojump: `--group-1f --skip-clean-flicker-noise` (262 s, peak RSS 4.8 GB)
+- [x] 3_cfn_jwstjump: `--jump jwst` (rejection_threshold 6) (560 s, 4.4 GB)
+- [x] 4_group1f_jwstjump: `--jump jwst --group-1f --skip-clean-flicker-noise` (246 s, 4.7 GB)
+- [x] Stage 2 for all 4 (about 560 s each, `--skip-transit`).
+- [x] `validation/soss_segment_comparison.py` written and tested (references: archive_rateints = soss_prompt5_runner, uncal_no_correction = soss-hatp14b-uncal; first 144 ints).
+  Run: `python validation/soss_segment_comparison.py validation/runs/soss-seg1-comparison --reference archive_rateints=validation/runs/soss_prompt5_runner --reference uncal_no_correction=validation/runs/soss-hatp14b-uncal`
+- Results (seg001, 144 integrations; order 1 box/polynomial/GP; tables in validation/runs/soss-seg1-comparison/white_light_rms*.{json,txt}, plots white_light_rms_*.png):
+  - All integrations: 1 CFN+TSO 120.4/117.0/119.9; 2 g1f+TSO 213.9/209.6/214.0; 3 CFN+STScI 132.1/123.2/125.8;
+    4 g1f+STScI 219.7/210.6/215.4; archive 193.6/123.0/125.6; uncal with neither 934.7/862.6/857.5.
+  - Without int 60: 1 120.8/117.1/120.3; 2 122.7/120.6/123.1; 3 132.4/122.5/126.1; 4 132.1/124.6/126.9.
+  - Group 1/f overcorrects int 60 (−2,100 ppm). The event offset is constant AFTER linearity (raw offset +320 DN on dark pixels, 306→266 DN
+    over the groups on the trace); group_1f runs before linearity and subtracts the dark-pixel raw value from the trace, giving
+    −10 DN/group ≈ −1.8 DN/s (measured −1.83). Moving group_1f after linearity should fix it (not tested).
+  - The TSO jump step beats the STScI jump step (rejection 6) for the box: order 1 121 vs 132, order 2 144 vs 152 ppm.

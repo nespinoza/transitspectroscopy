@@ -23,7 +23,8 @@ import shutil
 import time
 
 
-def calibrate_segment(ts, filename, output, jump='tso', rejection_threshold=6.0):
+def calibrate_segment(ts, filename, output, jump='tso', rejection_threshold=6.0, group_1f=False,
+                      clean_flicker_noise=True):
     """Calibrate one uncal segment; return the path of its rateints."""
     name = Path(filename).name.split('_uncal')[0]
     folder = output/name
@@ -34,20 +35,20 @@ def calibrate_segment(ts, filename, output, jump='tso', rejection_threshold=6.0)
     folder.mkdir(parents=True, exist_ok=True)
     start = time.monotonic()
     dataset = ts.jwst.load([str(filename)], outputfolder=str(folder))
-    if jump == 'tso':
-        dataset.detector_calibration(save=False)
-    else:
-        dataset.detector_calibration(
-            use_tso_jump=False,
-            parameters={'jump': {'rejection_threshold': rejection_threshold}},
-            save=False,
-        )
+    parameters = {} if clean_flicker_noise else {'skip': ['clean_flicker_noise']}
+    if jump == 'jwst':
+        parameters['jump'] = {'rejection_threshold': rejection_threshold}
+    dataset.detector_calibration(
+        parameters=parameters, use_tso_jump=jump == 'tso', group_1f=group_1f, save=False
+    )
     dataset.fit_ramps(save=False)
     rateints = dataset.rateints_per_segment[0]
     rateints.save(str(final))
     record = dict(
         input=str(filename),
         jump=jump,
+        group_1f=group_1f,
+        clean_flicker_noise=clean_flicker_noise,
         calibration_parameters=dataset.calibration_parameters,
         status=dataset.status,
         elapsed_seconds=time.monotonic() - start,
@@ -70,6 +71,10 @@ def main(argv=None):
                         help='TSO jump step (default) or the STScI jump step')
     parser.add_argument('--rejection-threshold', type=float, default=6.0,
                         help='STScI jump step rejection threshold (with --jump jwst)')
+    parser.add_argument('--group-1f', action='store_true',
+                        help='group-level 1/f correction (as for NIRSpec), before linearity')
+    parser.add_argument('--skip-clean-flicker-noise', action='store_true',
+                        help='do not run clean_flicker_noise')
     args = parser.parse_args(argv)
     os.environ.setdefault('CRDS_PATH', str(Path.home()/'crds_cache'))
     os.environ.setdefault('CRDS_SERVER_URL', 'https://jwst-crds.stsci.edu')
@@ -77,7 +82,8 @@ def main(argv=None):
 
     ts = installed_package()
     for filename in sorted(args.uncal):
-        calibrate_segment(ts, filename, args.output, args.jump, args.rejection_threshold)
+        calibrate_segment(ts, filename, args.output, args.jump, args.rejection_threshold,
+                          args.group_1f, not args.skip_clean_flicker_noise)
 
 
 if __name__ == '__main__':
