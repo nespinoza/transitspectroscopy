@@ -343,5 +343,11 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
 - Experiment: `validation/soss_group_1f_experiment.py` (seg001; Stage 1 TSO jump, no CFN/group 1/f;
   first-pass rates -> box-only extract_soss -> correct_ramps_1f -> refit). Output
   validation/runs/soss-seg1-group-diff-1f/{no_group_1f,group_diff_1f}/stage1.
-- [ ] experiment  - [ ] Stage 2 (template default): group_diff_1f, group_diff_1f without Stage 2 1/f,
-  no_group_1f, CFN (1_cfn_tsojump rates)  - [ ] comparison
+- First experiment run (6 min, peak RSS 4.9 GB): template factors 0.99/1.99/2.99/4.00/4.99/5.99 (groups
+  1-6); white-light factors 0.9997-1.0102. But int 60 stayed (+9261 ppm, bright-pixel sum): the TSO jump
+  flags 97.6% of background pixels in int 60 (31% of bright trace pixels), and the levels excluded groups
+  at/after a jump. Background rates show no int-60 offset (ramps split at the jump); CFN does not exclude
+  jump flags, so it measures the step. Fix: `template_valid` (jumps excluded) separate from the level
+  validity (only DNU/saturated/reference excluded); new test. Stale outputs deleted; rerun started.
+- [ ] experiment rerun  - [ ] Stage 2 (template default): s2_group_diff_1f, s2_group_diff_1f_no_stage2_1f,
+  s2_no_group_1f, s2_cfn (1_cfn_tsojump rates)  - [ ] comparison

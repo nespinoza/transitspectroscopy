@@ -498,18 +498,21 @@ def correct_ramps_1f(ramps, rateints, result):
                 frame = np.asarray(m.data[i], float)-background
                 valid = np.isfinite(frame) & ((m.dq[i] & 3) == 0)
                 scale.append(white_light_scale(frame, valid, template, pixels['scale_pixels']))
+    # Jump-flagged groups are excluded from the templates but not from the 1/f levels: an
+    # offset shared by a whole integration (PID 1541 observation 1, integration 60) gets most
+    # background pixels flagged, and would otherwise remain on the (unflagged) trace pixels.
     unusable = dqflags.group['DO_NOT_USE'] | dqflags.group['SATURATED']
     reference = dqflags.pixel['DO_NOT_USE'] | dqflags.pixel['REFERENCE_PIXEL']
-    valid = []
+    valid, template_valid = [], []
     for ramp in ramps:
         groupdq = ramp.groupdq
+        good = ((groupdq & unusable) == 0) & ((ramp.pixeldq & reference) == 0)[None, None]
         after_jump = np.logical_or.accumulate((groupdq & dqflags.group['JUMP_DET']) > 0, axis=1)
-        good = ((groupdq & unusable) == 0) & ~after_jump
-        good &= ((ramp.pixeldq & reference) == 0)[None, None]
         valid.append(good)
+        template_valid.append(good & ~after_jump)
     data = [ramp.data for ramp in ramps]
     diagnostics = group_difference_1f(data, valid, ~pixels['source_mask'], np.asarray(scale),
-                                      pixels['scale_pixels'])
+                                      pixels['scale_pixels'], template_valid=template_valid)
     for ramp, corrected in zip(ramps, data):
         ramp.data = corrected
     diagnostics['white_light_scale'] = np.asarray(scale)

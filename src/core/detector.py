@@ -100,7 +100,8 @@ def group_1f_correct(segments, npixel=4, nsigma=10, column_window=3, row_window=
     return corrected
 
 
-def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels):
+def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels,
+                        template_valid=None):
     """Group-level 1/f correction with templates built from median group differences.
 
     For every group ``k``, the template is the median over all integrations of the
@@ -116,8 +117,8 @@ def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels)
         Chronologically ordered ``(integration, group, row, column)`` arrays; corrected in
         place.
     valid : list of numpy.ndarray
-        Boolean arrays like ``segments``; False for unusable groups (e.g., saturated, or
-        after a jump).
+        Boolean arrays like ``segments``; False for groups not to be used for the 1/f
+        levels (e.g., saturated).
     background_pixels : numpy.ndarray
         ``(row, column)`` boolean array of the pixels used to measure the 1/f level.
     scale : numpy.ndarray
@@ -125,6 +126,10 @@ def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels)
     scale_pixels : numpy.ndarray
         ``(row, column)`` boolean array of the pixels used to scale each template to its
         group (e.g., the order-1 aperture).
+    template_valid : list of numpy.ndarray, optional
+        Like ``valid``, for the templates (e.g., also False at and after a jump). Defaults
+        to ``valid``. Jump-flagged pixels should not be excluded from the levels: an offset
+        shared by many pixels of an integration (which then get flagged) would go uncorrected.
 
     Returns
     -------
@@ -138,9 +143,12 @@ def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels)
     if len(scale) != sum(len(data) for data in segments):
         raise ValueError('One white-light factor per integration is needed')
 
+    if template_valid is None:
+        template_valid = valid
+
     def stacked(k, difference):
         values = []
-        for data, good in zip(segments, valid):
+        for data, good in zip(segments, template_valid):
             if difference:
                 both = good[:, k] & good[:, k+1]
                 values.append(np.where(both, data[:, k+1] - data[:, k], np.nan))
