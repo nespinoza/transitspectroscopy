@@ -316,4 +316,11 @@ folder validation/runs/soss-seg1-stage2-1f/g1f_stage2_{template,template_ring,no
 the uncal toml with `onef_method` / `scale_1f = false` (scratchpad copies; command:
 `validate.py --config <toml> --input-glob <rates> --output <folder> --skip-transit`).
 'median' = the existing 2_group1f_tsojump run.
-- [ ] template  - [ ] template_ring  - [ ] none  - [ ] comparison table/plots
+- [x] template, template_ring, none (about 870 s each, peak RSS 1.8 GB); comparison plots/json in the
+  folder (`soss_segment_comparison.py ... --reference g1f_stage2_median=... --reference cfn_stage2_median=...`),
+  table without int 60 in `white_light_rms_without_int60.txt`.
+- Without int 60 (box/poly/GP, ppm): order 1 none 122.1/117.0/118.2, median 123.1/120.8/123.4,
+  template 120.1/118.0/120.0, ring 128.5/123.9/126.1, CFN+median 121.0/117.3/120.3.
+  Order 2 none 168.0/174.8/174.8, median 143.0/140.6/139.6, template 141.7/136.1/135.7,
+  ring 166.7/150.8/151.4, CFN+median 143.5/138.4/137.8.
+- Int 60 (order 1 box): none -2115, median -2106, template -2046, ring -2046 ppm: no Stage 2 variant fixes it.
