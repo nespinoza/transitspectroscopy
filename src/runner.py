@@ -18,7 +18,10 @@ Configuration sections (all optional except ``data``)::
     [data]         source = 'mast' (program, observation, exposure, segments, detectors,
                    product, folder, mast_api_token) or 'local' (glob, product)
     [mode]         name = 'auto' or a registered mode name (see ts.instruments.list_modes())
-    [calibration]  parameters, use_tso_jump, group_1f, ramp_fit_method, ramp_fit_options,
+    [calibration]  parameters, use_tso_jump, group_1f, group_difference_1f (default true:
+                   group-level 1/f correction with median group-difference templates after a
+                   first ramp fit, for NIRSpec and NIRISS/SOSS; options in
+                   parameters.group_difference_1f), ramp_fit_method, ramp_fit_options,
                    ramp_fit_parameters, crds_context (pins the CRDS context, e.g. 'jwst_1584.pmap')
     [extraction.<variant>]  ExtractionConfig fields (one table per extraction variant)
     [execution]    nthreads
@@ -88,7 +91,8 @@ def load_config(config):
     if data['source'] == 'local' and 'glob' not in data:
         raise ValueError('data.source = "local" needs data.glob')
     config.setdefault('mode', {}).setdefault('name', 'auto')
-    config.setdefault('calibration', {})
+    # Defaults that changed are written out, so that they enter the calibration step's hash:
+    config.setdefault('calibration', {}).setdefault('group_difference_1f', True)
     extraction = config.setdefault('extraction', {'default': {}})
     if not extraction or not all(isinstance(value, dict) for value in extraction.values()):
         raise ValueError('[extraction] must contain named tables, e.g. [extraction.box]')
@@ -315,6 +319,7 @@ def run(config, force=False, from_step=None, hash_inputs=True, keep_stage2=False
                     parameters=calibration.get('parameters', {}),
                     use_tso_jump=calibration.get('use_tso_jump', True),
                     group_1f=calibration.get('group_1f', False),
+                    group_difference_1f=calibration['group_difference_1f'],
                 )
                 dataset.fit_ramps(parameters=calibration.get('ramp_fit_parameters', {}))
             result.datasets.append(dataset)

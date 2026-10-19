@@ -52,8 +52,10 @@ class Mode:
     detector_steps : dict
         Defaults of ``load.detector_calibration``: ``refpix`` (``'side_pedestal'`` or
         ``'jwst'``), ``refpix_parameters``, ``steps`` (run before linearity is saved),
-        ``post_linearity_steps``, ``tso_jump`` (``window``, ``nsigma``) and
-        ``nan_fill_window`` (median-filter window used to fill NaNs before tracing).
+        ``post_linearity_steps``, ``post_jump_steps``, ``tso_jump`` (``window``,
+        ``nsigma``), ``nan_fill_window`` (median-filter window used to fill NaNs before
+        tracing) and ``group_difference_1f`` (True if the mode supports the group-difference
+        1/f correction of ``load.fit_ramps``).
     tracing : dict
         Per-detector tracing parameters for the ``'spectral'`` Stage 2 (``xstart``,
         ``xend``, ``nknots``, ``outlier_nsigma``, ``outlier_window``, ``ccf_method``,

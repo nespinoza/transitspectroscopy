@@ -64,6 +64,7 @@ NIRSPEC_PRISM = register(
             post_linearity_steps=_NIR_POST_LINEARITY,
             tso_jump=dict(window=200, nsigma=10),
             nan_fill_window=_NAN_FILL,
+            group_difference_1f=True,
         ),
         tracing={'*': _gaussian_tracing(xstart=50, xend=490, nknots=8, start_columns=(50, 100))},
         extraction_defaults=dict(
@@ -103,6 +104,7 @@ NIRSPEC_G395H = register(
             post_linearity_steps=_NIR_POST_LINEARITY,
             tso_jump=dict(window=10, nsigma=10),
             nan_fill_window=_NAN_FILL,
+            group_difference_1f=True,
         ),
         tracing={
             'nrs1': _gaussian_tracing(xstart=2042, xend=500, nknots=60, start_columns=(1842, 2042)),
@@ -129,6 +131,7 @@ NIRSPEC_G395M = register(
             post_linearity_steps=_NIR_POST_LINEARITY,
             tso_jump=dict(window=10, nsigma=10),
             nan_fill_window=_NAN_FILL,
+            group_difference_1f=True,
         ),
         tracing={
             'nrs1': _gaussian_tracing(xstart=2042, xend=700, nknots=60, start_columns=(1842, 2042)),
@@ -163,6 +166,9 @@ NIRISS_SOSS = register(
             post_jump_steps=('clean_flicker_noise',),
             tso_jump=dict(window=10, nsigma=10),
             nan_fill_window=None,
+            # The group-difference 1/f correction (after a first ramp fit; the default) replaces
+            # clean_flicker_noise, which then only runs with group_difference_1f=False:
+            group_difference_1f=True,
         ),
         extraction_defaults=dict(aperture_radius=15.0),
         background_strategy='jwst_background_step',

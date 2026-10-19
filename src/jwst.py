@@ -415,7 +415,8 @@ class load(object):
         self.mode = self.mode_definition.name
         print('\t    - Instrument/Mode: {0:}\n'.format(self.mode_definition.describe(self.filter)))
 
-    def fill_calibration_parameters(self, parameters = {}, use_tso_jump = True, group_1f = False, save = True):
+    def fill_calibration_parameters(self, parameters = {}, use_tso_jump = True, group_1f = False, save = True,
+                                    group_difference_1f = False):
         """
         This function fills in the `self.calibration_parameters` dictionary which holds all the calibration parameters.
 
@@ -433,7 +434,12 @@ class load(object):
 
         save : bool
             (Optional) Decide if save by-products of the pipeline to disk. Default is `True`.
-        
+
+        group_difference_1f : bool
+            (Optional) Decide whether `fit_ramps` applies the group-difference 1/f correction
+            (see `group_difference_1f_correction`), for modes that support it. If applied, it
+            replaces the `clean_flicker_noise` step of NIRISS/SOSS. Default is `False` here;
+            `detector_calibration` defaults to `True`.
 
         """
         if not group_1f:
@@ -443,6 +449,21 @@ class load(object):
         else:
 
             self.status['group_1f'] = None
+
+        mode_steps = self.mode_definition.detector_steps
+        if group_difference_1f and mode_steps.get('group_difference_1f', False):
+
+            self.status['group_difference_1f'] = None
+
+            # It replaces clean_flicker_noise (NIRISS/SOSS):
+            if ('clean_flicker_noise' in mode_steps.get('post_jump_steps', ())
+                    and self.status.get('clean_flicker_noise') is None):
+
+                self.status['clean_flicker_noise'] = 'SKIPPED'
+
+        else:
+
+            self.status['group_difference_1f'] = 'SKIPPED'
 
         # Fill empty parameter sets for steps for which no input parameters were given:
         for step in list( self.status.keys() ):
@@ -666,10 +687,59 @@ class load(object):
         before detector calibration to use correlated adjacent-read fitting.
         That backend always recomputes, writes distinct output names, and keeps
         counts/template/provenance in ``ramp_fit_diagnostics`` per segment.
+
+        If `detector_calibration` enabled the group-difference 1/f correction (the default for
+        NIRSpec and NIRISS/SOSS), the ramps are then corrected using these rates (see
+        `group_difference_1f`) and fitted again; with ``save = True`` the corrected rates are
+        saved as ``<name>_<suffix>groupdiff1f_rateints.fits``.
+        """
+
+        self.initialize_step('ramp_fit', parameters, save, suffix, outputfolder)
+        self.run_ramp_fit(save)
+
+        if self.status.get('group_difference_1f', 'SKIPPED') is None:
+
+            self.group_difference_1f(save = save)
+
+    def group_difference_1f(self, save = True):
+        """
+        This function performs the group-level 1/f correction with median group-difference
+        templates on self.ramps_per_segment, using the current rates per integration (see
+        `group_difference_1f_correction`; options from ``parameters['group_difference_1f']`` of
+        `detector_calibration`), and fits the ramps again. Diagnostics are kept in
+        ``self.group_difference_1f_diagnostics``. Called by `fit_ramps` when the correction is
+        enabled.
+        """
+
+        print('\t >> Performing group-difference 1/f correction...\n')
+        options = self.calibration_parameters.get('group_difference_1f', {})
+        diagnostics = group_difference_1f_correction(self.ramps_per_segment,
+                                                     self.rateints_per_segment,
+                                                     self.mode_definition, **options)
+        self.group_difference_1f_diagnostics = diagnostics
+
+        # Fit the corrected ramps (without overwriting or reusing the saved first-pass rates):
+        self.run_ramp_fit(save = False, use_saved = False)
+        if save:
+
+            for i in range( len(self.rateints_per_segment) ):
+
+                name = self.datanames[i]+'_'+self.actual_suffix+'groupdiff1f_rateints.fits'
+                self.rateints_per_segment[i].save( name, dir_path = self.outputfolder+'ts_outputs' )
+
+        factors = diagnostics['group_scale'].tolist()
+        self.calibration_parameters['Group-difference 1/f template factors'] = factors
+        self.status['group_difference_1f'] = 'COMPLETE'
+
+    def run_ramp_fit(self, save = True, use_saved = True):
+        """
+        Fit self.ramps_per_segment with the selected ramp-fitting method (see `fit_ramps`). With
+        ``use_saved``, rates saved by an earlier run of the STScI ramp fit are loaded instead;
+        without it, the STScI ramp fit neither loads nor saves its products (``save`` only
+        applies to the sparta backend).
         """
 
         self.rateints_per_segment = []
-        self.initialize_step('ramp_fit', parameters, save, suffix, outputfolder)
 
         if getattr(self, 'ramp_fit_method', 'jwst') == 'sparta':
             from .ramp_fitting import fit_model
@@ -699,14 +769,23 @@ class load(object):
 
         print('\t >> Performing Rampfit step...\n')
 
+        ramp_fit_parameters = dict(self.calibration_parameters['ramp_fit'])
+        if not use_saved:
+
+            for key in ['output_dir', 'save_results', 'suffix']:
+
+                ramp_fit_parameters.pop(key, None)
+
         # Run if not already in:
         for i in range( len(self.ramps_per_segment) ):
 
             rateint_filename = self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'1_ramp_fitstep.fits'
-            if not os.path.exists(rateint_filename):
+            if not (use_saved and os.path.exists(rateint_filename)):
 
-                self.rateints_per_segment.append( calwebb_detector1.ramp_fit_step.RampFitStep.call(self.ramps_per_segment[i], **self.calibration_parameters['ramp_fit'])[1]
-                                    )
+                self.rateints_per_segment.append(
+                    calwebb_detector1.ramp_fit_step.RampFitStep.call(self.ramps_per_segment[i],
+                                                                     **ramp_fit_parameters)[1]
+                )
 
             else:
 
@@ -725,7 +804,8 @@ class load(object):
         # Modify status of the step:
         self.status['ramp_fit'] = 'COMPLETE'
 
-    def detector_calibration(self, parameters = {}, use_tso_jump = True, group_1f = False, save = True, suffix = '', outputfolder = None, **kwargs):
+    def detector_calibration(self, parameters = {}, use_tso_jump = True, group_1f = False, save = True, suffix = '', outputfolder = None,
+                             group_difference_1f = True, **kwargs):
         """
         This function performs detector-level calibration --- i.e., most of what is Stage1 in the STScI JWST pipeline,
         but not performing ramp-fitting nor CDS. In other words, this stops at the jump step.
@@ -756,6 +836,14 @@ class load(object):
             (Optional) folder where the outputs will be saved to in case this was note defined before. By default, a folder `ts_outputs` is created in that folder. 
             Default is the current working directory.
 
+        group_difference_1f : bool
+            (Optional) flag defining if `fit_ramps` performs the group-level 1/f correction with
+            median group-difference templates (see `group_difference_1f_correction`): the ramps
+            are fitted, corrected using the traces and white-light factors of those rates, and
+            fitted again. Applied to the modes that support it (NIRSpec and NIRISS/SOSS); for
+            NIRISS/SOSS it replaces `clean_flicker_noise`. Options go in
+            ``parameters['group_difference_1f']``. Default is True.
+
         """
 
         self.suffix = suffix
@@ -785,7 +873,8 @@ class load(object):
 
         # Check and fill detector calibration input parameters per step:
         self.calibration_parameters = {} 
-        self.fill_calibration_parameters(parameters, use_tso_jump, group_1f, save)
+        self.fill_calibration_parameters(parameters, use_tso_jump, group_1f, save,
+                                         group_difference_1f)
 
         # Print some information to the user:
         print('\t [START] Detector-level Calibration\n\n')
@@ -1185,6 +1274,158 @@ def group_1f_correction(tso_list, npixel = 4, nsigma = 10, column_window = 3, ro
         output_tso_list[-1].data = data
 
     return output_tso_list
+
+def group_difference_1f_correction(ramps, rateints, mode, **options):
+    """
+    This function performs the group-level 1/f correction with median group-difference
+    templates, the default for the near-infrared spectroscopic modes. The rates of a first ramp
+    fit give the traces and the white-light factor of every integration; for every group ``k``,
+    the median over all integrations of group ``k+1`` minus group ``k`` (the last group uses the
+    last difference), scaled to group ``k`` and by the white-light factor, is subtracted, and the
+    median of the remaining background pixels of each column (the 1/f level) is removed from that
+    group (see `transitspectroscopy.core.detector.group_difference_1f`). Ramps have to be fitted
+    again afterwards.
+
+    Parameters
+    ----------
+
+    ramps : list
+        List of calibrated ramps (RampModels, after the jump step) of the segments of an
+        exposure, in chronological order. Corrected in place.
+
+    rateints : list
+        List of the rates per integration (CubeModels) of those ramps.
+
+    mode : transitspectroscopy.instruments.Mode
+        Mode of the data. For NIRISS/SOSS, a box-only `transitspectroscopy.soss.extract_soss` of
+        the rates gives the traces (orders 1, 2 and 3 masked), background, median rate and
+        white-light factors (as ``onef_method = 'template'``), and ``options`` are passed to it
+        (e.g., ``pastasoss_reference``). For the other spectroscopic modes, the median rate is
+        traced, the white-light factors are those of the Stage 2 1/f correction
+        (``scale_1f_rows``, ``scale_1f_columns`` and ``scale_1f_window`` of the mode) and the 1/f
+        levels are the medians between ``inner_radius`` and ``outer_radius`` pixels from the
+        trace, as in `transitspectroscopy.core.detector.correct_1f` (but also in the untraced
+        columns, around the trace extended at its edge values); ``options`` may set
+        ``aperture_radius`` (pixels used to scale each template to its group), ``inner_radius``
+        and ``outer_radius`` (default: the mode's).
+
+    Returns
+    -------
+
+    diagnostics : dict
+        Template factor of every group (``group_scale``), removed levels (``levels``, per
+        integration, group and column) and white-light factors (``white_light_scale``).
+    """
+
+    if mode.stage2 == 'soss':
+
+        from .soss import correct_ramps_1f, extract_soss
+        settings = dict(options)
+        settings.setdefault('aperture_radius', mode.extraction_defaults['aperture_radius'])
+        result = extract_soss(rateints, **settings)
+        return correct_ramps_1f(ramps, rateints, result)
+
+    if mode.stage2 != 'spectral':
+
+        raise ValueError('The group-difference 1/f correction is only defined for '
+                         'spectroscopic modes')
+
+    return _spectral_group_difference_1f(ramps, rateints, mode, **options)
+
+def _spectral_group_difference_1f(ramps, rateints, mode, aperture_radius = None,
+                                  inner_radius = None, outer_radius = None):
+
+    from .core.detector import group_difference_1f
+    from .jwst_models import ramp_1f_validity
+
+    tracing = mode.tracing_for(ramps[0].meta.instrument.detector)
+    defaults = mode.extraction_defaults
+    aperture_radius = defaults['aperture_radius'] if aperture_radius is None else aperture_radius
+    inner_radius = defaults['onef_inner_radius'] if inner_radius is None else inner_radius
+    outer_radius = defaults['onef_outer_radius'] if outer_radius is None else outer_radius
+
+    # Rates and median rate, NaNs zeroed as in stage2:
+    rates = np.concatenate([np.asarray(model.data, dtype = np.float32) for model in rateints])
+    median_rate = np.nanmedian(rates, axis = 0)
+    median_rate_nan = deepcopy(median_rate)
+    median_rate[np.isnan(median_rate)] = 0.
+    rates[np.isnan(rates)] = 0.
+
+    # Trace of the median rate, from the mode's starting columns, with outliers replaced and
+    # smoothed as in stage2:
+    first_column, last_column = tracing['start_columns']
+    lags, ccf = get_ccf(np.arange(median_rate.shape[0]),
+                        np.nanmedian( median_rate[:, first_column:last_column], axis = 1) )
+    center_pixel = lags[np.argmax(ccf)]
+    x, y = trace_spectrum(median_rate, np.zeros(median_rate.shape),
+                          xstart = tracing['xstart'], ystart = center_pixel, xend = tracing['xend'],
+                          y_tolerance = 5,
+                          method = tracing['ccf_method'],
+                          ccf_function = tracing['ccf_function'],
+                          ccf_parameters = tracing['ccf_parameters']
+                         )
+    x, y = np.asarray(x, dtype = int), np.array(y, dtype = float)
+    idx_outliers, mfilter = outlier_detector(y, nsigma = tracing['outlier_nsigma'],
+                                             window = tracing['outlier_window'],
+                                             return_filter = True)
+    y[idx_outliers] = mfilter[idx_outliers]
+    _, y = fit_spline(x, y, nknots = tracing['nknots'])
+
+    # Pixels: the 1/f levels use the rows between inner_radius and outer_radius from the trace,
+    # as correct_1f but without its wrap-around near the edges, and also in the untraced columns
+    # (where correct_1f uses all rows), with the trace extended at its edge values; the template
+    # factors use the aperture:
+    nrows, ncols = median_rate.shape
+    rows = np.arange(nrows)
+    order = np.argsort(x)
+    centers = np.interp(np.arange(ncols), x[order], y[order])
+    background_pixels = np.ones(median_rate.shape, dtype = bool)
+    for column, center in enumerate(centers):
+
+        excluded = np.zeros(nrows, dtype = bool)
+        excluded[max(int(center) - inner_radius, 0) : max(int(center) + inner_radius, 0)] = True
+        excluded[: max(int(center - outer_radius), 0)] = True
+        excluded[max(int(center + outer_radius), 0) :] = True
+        background_pixels[:, column] = ~excluded
+
+    scale_pixels = np.zeros(median_rate.shape, dtype = bool)
+    scale_pixels[:, x] = np.abs(rows[:, None] - y[None, :]) <= aperture_radius
+
+    # White-light factors as in the stage2 1/f correction (after its background subtraction,
+    # if any):
+    if defaults['background_subtraction']:
+
+        out_of_trace = np.ones(median_rate.shape)
+        for column, center in zip(x, y):
+
+            distance = np.abs(rows - center)
+            out_of_trace[distance <= defaults['background_inner_radius'], column] = np.nan
+            if defaults['background_outer_radius'] is not None:
+
+                out_of_trace[distance >= defaults['background_outer_radius'], column] = np.nan
+
+        background = np.nanmedian(median_rate_nan * out_of_trace, axis = 0)
+        background[np.isnan(background)] = 0.
+        rates -= background.astype(np.float32)
+
+    scale_1f_rows, scale_1f_columns = defaults['scale_1f_rows'], defaults['scale_1f_columns']
+    timeseries = np.nansum(rates[:, scale_1f_rows[0]:scale_1f_rows[1],
+                                 scale_1f_columns[0]:scale_1f_columns[1]],
+                           axis = (1, 2), dtype = float)
+    scale = median_filter(timeseries / np.nanmedian(timeseries), defaults['scale_1f_window'])
+    del rates
+
+    valid, template_valid = ramp_1f_validity(ramps)
+    data = [ramp.data for ramp in ramps]
+    diagnostics = group_difference_1f(data, valid, background_pixels, scale, scale_pixels,
+                                      template_valid = template_valid)
+    for ramp, corrected in zip(ramps, data):
+
+        ramp.data = corrected
+
+    diagnostics.update(white_light_scale = scale, trace_columns = x, trace = y)
+
+    return diagnostics
 
 def tso_jumpstep(tso_list, window, nsigma = 10):
     """ 
