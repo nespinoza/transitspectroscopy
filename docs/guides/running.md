@@ -34,6 +34,7 @@ name = "auto"                        # or a registered mode, see `transitspectro
 crds_context = "jwst_1584.pmap"      # optional: pin the calibration references
 use_tso_jump = true
 group_1f = false
+group_difference_1f = true           # group-level 1/f with group-difference templates (default)
 ramp_fit_method = "jwst"             # or "sparta" (correlated-read fitter)
 
 [extraction.box]                     # one table per extraction variant

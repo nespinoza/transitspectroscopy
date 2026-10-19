@@ -16,8 +16,15 @@ exposure, with these time-series-specific changes:
   outliers in the time series of each pixel's group differences across *all* integrations.
   Defaults are a 200-integration window for PRISM and 10 for the gratings, at 10 sigma.
   Pass `use_tso_jump=False` to use the JWST jump step instead.
-- **Group-level 1/f:** `group_1f=True` subtracts column-by-column medians of unilluminated
-  pixels from every group (`group_1f_correction`).
+- **Group-level 1/f (default):** after a first ramp fit, `fit_ramps` traces the median rate
+  and, for every group `k`, subtracts the median over all integrations of group `k+1` minus
+  group `k` (the last group uses the last difference), scaled to group `k` and by the
+  white-light factor of the integration (the same as the Stage 2 1/f correction); the
+  column-by-column median of the remaining pixels between `onef_inner_radius` and
+  `onef_outer_radius` from the trace is removed from that group, and the ramps are fitted
+  again (`group_difference_1f_correction`; `group_difference_1f=False` turns it off).
+- **Group-level 1/f before linearity:** `group_1f=True` subtracts column-by-column medians of
+  unilluminated pixels from every group (`group_1f_correction`). Off by default.
 
 Step parameters can be overridden with the `parameters` dictionary, keyed by step name. Every
 step's output is saved in the output folder and reloaded if it already exists.
@@ -25,7 +32,10 @@ step's output is saved in the output folder and reloaded if it already exists.
 ## Ramp fitting
 
 `load.fit_ramps()` uses the JWST ramp-fitting step by default. A correlated adjacent-read
-fitter can be selected when the dataset is loaded; see {doc}`ramp-fitting`.
+fitter can be selected when the dataset is loaded; see {doc}`ramp-fitting`. With the
+group-difference 1/f correction (the default), the ramps are fitted twice: the first rates
+give the trace and white-light factors of the correction, and the corrected ramps are fitted
+again (saved as `*_groupdiff1f_rateints.fits`).
 
 ## Tracing and extraction
 

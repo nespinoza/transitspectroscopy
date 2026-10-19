@@ -49,6 +49,14 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
   (`fitting`, `parallel`, `download`, `test`).
 
 ### Changed
+- Group-level 1/f correction with median group-difference templates
+  (`group_difference_1f_correction`, `load.group_difference_1f`) is the default for NIRSpec
+  and NIRISS/SOSS (`detector_calibration(group_difference_1f=True)`, `[calibration]
+  group_difference_1f = true`): `fit_ramps` fits the ramps, corrects every group using the
+  traces and white-light factors of those rates, and fits them again. For SOSS it replaces
+  `clean_flicker_noise`. Numerical outputs of reductions from `uncal` files change.
+- NIRISS/SOSS Stage 2 removes rate-level 1/f with the median rate scaled by the white light
+  (`onef_method='template'`, orders 1-3 masked) by default.
 - Compatibility with JWST pipeline 3.0 (`stdatamodels` datamodels, ramp models without `ERR`).
 - Optional dependencies (juliet, Ray, astroquery, pandas) are imported only when used, so
   `import transitspectroscopy` no longer fails when one of them is missing.

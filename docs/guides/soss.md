@@ -32,6 +32,14 @@ optimal_methods=('polynomial',))`. SOSS-specific options (e.g. `background_refer
 
 ## Processing steps
 
+0. **Group-level 1/f (default):** `load.fit_ramps()` fits the ramps, runs a box-only
+   `extract_soss` on those rates (traces, background, white-light factors), and corrects every
+   group with median group-difference templates, masking orders 1, 2 and 3
+   (`soss.correct_ramps_1f`); the ramps are then fitted again. This replaces the
+   `clean_flicker_noise` step, which runs instead with
+   `detector_calibration(group_difference_1f=False)`. On PID 1541 (four segments) it gives
+   a lower white-light scatter than group 1/f before linearity, and removes the
+   integration-60 column offset.
 1. **Background:** the JWST background subtraction step (`BackgroundStep`, with the CRDS SOSS
    background template) is run on a median rate image after ramp fitting, and the fitted
    static background (zodiacal light) is subtracted from every integration **before** the

@@ -10,7 +10,7 @@ above it keep the historical interface and add the JWST-specific layers.
 ```{eval-rst}
 .. automodule:: transitspectroscopy.jwst
    :members: download, load, stage1, stage2, side_refpix_correction, group_1f_correction,
-             tso_jumpstep, get_cds
+             group_difference_1f_correction, tso_jumpstep, get_cds
 ```
 
 ## Configuration-driven runs

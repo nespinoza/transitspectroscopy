@@ -64,8 +64,9 @@ def main(argv=None):
     timing = {}
     start = time.monotonic()
     dataset = ts.jwst.load([str(args.uncal)], outputfolder=str(work))
+    # The correction is applied by hand below (fit_ramps does the same by default):
     dataset.detector_calibration(parameters={'skip': ['clean_flicker_noise']}, use_tso_jump=True,
-                                 group_1f=False, save=False)
+                                 group_1f=False, save=False, group_difference_1f=False)
     timing['stage1'] = time.monotonic() - start
     dataset.fit_ramps(save=False)
     dataset.rateints_per_segment[0].save(str(first))

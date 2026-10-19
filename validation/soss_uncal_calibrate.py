@@ -3,10 +3,11 @@
 ``ts.run`` calibrates all segments of an exposure together, which for a full SOSS TSO
 (e.g. PID 1541, 572 integrations of 6 groups) needs more memory than a laptop has. This
 script runs the same steps (``load`` -> ``detector_calibration`` -> ``fit_ramps``, with the
-mode defaults, including ``clean_flicker_noise`` after the jump step) on each segment
-separately and keeps only the rates per integration. The TSO jump step then sees one
-segment at a time; with its 10-integration median filter this only changes the first and
-last few integrations of each segment. ``--jump jwst`` uses the STScI jump step instead,
+mode defaults, including the group-difference 1/f correction of ``fit_ramps``) on each
+segment separately and keeps only the rates per integration; with
+``--no-group-difference-1f``, ``clean_flicker_noise`` runs after the jump step instead. The
+TSO jump step then sees one segment at a time; with its 10-integration median filter this only
+changes the first and last few integrations of each segment. ``--jump jwst`` uses the STScI jump step instead,
 with the rejection threshold of the CRDS calwebb_detector1 parameters for SOSS (6).
 Run from the repository root:
 
@@ -24,7 +25,7 @@ import time
 
 
 def calibrate_segment(ts, filename, output, jump='tso', rejection_threshold=6.0, group_1f=False,
-                      clean_flicker_noise=True):
+                      clean_flicker_noise=True, group_difference_1f=True):
     """Calibrate one uncal segment; return the path of its rateints."""
     name = Path(filename).name.split('_uncal')[0]
     folder = output/name
@@ -39,7 +40,8 @@ def calibrate_segment(ts, filename, output, jump='tso', rejection_threshold=6.0,
     if jump == 'jwst':
         parameters['jump'] = {'rejection_threshold': rejection_threshold}
     dataset.detector_calibration(
-        parameters=parameters, use_tso_jump=jump == 'tso', group_1f=group_1f, save=False
+        parameters=parameters, use_tso_jump=jump == 'tso', group_1f=group_1f, save=False,
+        group_difference_1f=group_difference_1f,
     )
     dataset.fit_ramps(save=False)
     rateints = dataset.rateints_per_segment[0]
@@ -48,7 +50,8 @@ def calibrate_segment(ts, filename, output, jump='tso', rejection_threshold=6.0,
         input=str(filename),
         jump=jump,
         group_1f=group_1f,
-        clean_flicker_noise=clean_flicker_noise,
+        clean_flicker_noise=dataset.status['clean_flicker_noise'],
+        group_difference_1f=dataset.status['group_difference_1f'],
         calibration_parameters=dataset.calibration_parameters,
         status=dataset.status,
         elapsed_seconds=time.monotonic() - start,
@@ -74,7 +77,9 @@ def main(argv=None):
     parser.add_argument('--group-1f', action='store_true',
                         help='group-level 1/f correction (as for NIRSpec), before linearity')
     parser.add_argument('--skip-clean-flicker-noise', action='store_true',
-                        help='do not run clean_flicker_noise')
+                        help='do not run clean_flicker_noise (with --no-group-difference-1f)')
+    parser.add_argument('--no-group-difference-1f', action='store_true',
+                        help='no group-difference 1/f correction (clean_flicker_noise instead)')
     args = parser.parse_args(argv)
     os.environ.setdefault('CRDS_PATH', str(Path.home()/'crds_cache'))
     os.environ.setdefault('CRDS_SERVER_URL', 'https://jwst-crds.stsci.edu')
@@ -83,7 +88,8 @@ def main(argv=None):
     ts = installed_package()
     for filename in sorted(args.uncal):
         calibrate_segment(ts, filename, args.output, args.jump, args.rejection_threshold,
-                          args.group_1f, not args.skip_clean_flicker_noise)
+                          args.group_1f, not args.skip_clean_flicker_noise,
+                          not args.no_group_difference_1f)
 
 
 if __name__ == '__main__':
