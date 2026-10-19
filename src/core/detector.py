@@ -101,7 +101,7 @@ def group_1f_correct(segments, npixel=4, nsigma=10, column_window=3, row_window=
 
 
 def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels,
-                        template_valid=None):
+                        template_valid=None, shared_fraction=0.5):
     """Group-level 1/f correction with templates built from median group differences.
 
     For every group ``k``, the template is the median over all integrations of the
@@ -110,6 +110,13 @@ def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels,
     In each integration ``i`` the template, also multiplied by the white-light factor
     ``scale[i]``, is subtracted from group ``k``; the median of the remaining valid
     ``background_pixels`` of each column is the 1/f level, removed from that group.
+
+    Pixels excluded from the templates only (e.g., at and after a jump) are also excluded
+    from the levels, so that a cosmic ray covering part of a column does not shift it,
+    unless more than ``shared_fraction`` of the valid background pixels of the group are:
+    the offset is then taken to be shared by the whole group (PID 1541 observation 1,
+    integration 60, where the jump step flags 98% of the background pixels), and they are
+    used.
 
     Parameters
     ----------
@@ -128,14 +135,17 @@ def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels,
         group (e.g., the order-1 aperture).
     template_valid : list of numpy.ndarray, optional
         Like ``valid``, for the templates (e.g., also False at and after a jump). Defaults
-        to ``valid``. Jump-flagged pixels should not be excluded from the levels: an offset
-        shared by many pixels of an integration (which then get flagged) would go uncorrected.
+        to ``valid``.
+    shared_fraction : float, optional
+        Fraction of the valid background pixels of a group excluded from the templates
+        above which they are used for its levels (see above). Default is 0.5.
 
     Returns
     -------
     dict
-        ``group_scale``, the factor of every group's template, and ``levels``, the removed
-        ``(integration, group, column)`` levels.
+        ``group_scale``, the factor of every group's template, ``levels``, the removed
+        ``(integration, group, column)`` levels, and ``shared``, True for the
+        ``(integration, group)`` whose levels used the pixels excluded from the templates.
     """
     ngroups = segments[0].shape[1]
     if ngroups < 2:
@@ -169,20 +179,25 @@ def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels,
             templates.append(group_scale[k] * template)
 
         levels = np.zeros((len(scale), ngroups, segments[0].shape[3]))
+        shared = np.zeros((len(scale), ngroups), bool)
         integration = 0
-        for data, good in zip(segments, valid):
+        for data, good, clean in zip(segments, valid, template_valid):
             for i in range(len(data)):
                 for k in range(ngroups):
                     residual = data[i, k] - scale[integration] * templates[k]
-                    level = np.nanmedian(
-                        np.where(good[i, k] & background_pixels, residual, np.nan), axis=0
-                    )
+                    use = good[i, k] & background_pixels
+                    unflagged = use & clean[i, k]
+                    excluded = use.sum() - unflagged.sum()
+                    shared[integration, k] = excluded > shared_fraction * max(use.sum(), 1)
+                    if not shared[integration, k]:
+                        use = unflagged
+                    level = np.nanmedian(np.where(use, residual, np.nan), axis=0)
                     level = np.where(np.isfinite(level), level, 0.0)
                     data[i, k] -= level[None, :]
                     levels[integration, k] = level
                 integration += 1
 
-    return dict(group_scale=group_scale, levels=levels)
+    return dict(group_scale=group_scale, levels=levels, shared=shared)
 
 
 def tso_jump_flags(segments, window, nsigma=10):

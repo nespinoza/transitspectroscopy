@@ -260,3 +260,28 @@ def test_group_difference_1f_removes_an_offset_shared_by_jump_flagged_pixels():
     group_difference_1f(corrected, [valid], ~masked, np.ones(nints), aperture,
                         template_valid=[template_valid])
     np.testing.assert_allclose(corrected[0][7], corrected[0][6], atol=1e-4)
+
+
+def test_group_difference_1f_ignores_a_cosmic_ray_on_part_of_a_column():
+    from transitspectroscopy.core.detector import group_difference_1f
+    nints, ngroups, nrows, ncols = 20, 4, 40, 6
+    scene = np.full((nrows, ncols), 1.)
+    scene[15:25] = 100.
+    groups = scene*(np.arange(ngroups)+1)[None, :, None, None]*np.ones((nints, 1, 1, 1))
+    groups[7, 2:, 2:12, 3] += 2000.  # a shower on most of the background rows of a column
+    groups[7, 2:, 28:34, 3] += 2000.
+    masked = np.zeros((nrows, ncols), bool)
+    masked[12:28] = True
+    masked[:2] = masked[-1:] = True
+    aperture = np.zeros_like(masked)
+    aperture[15:25] = True
+    valid = np.ones(groups.shape, bool)
+    template_valid = valid.copy()
+    template_valid[7, 2:, 2:12, 3] = False  # flagged by the jump step
+    template_valid[7, 2:, 28:34, 3] = False
+    corrected = [groups.copy()]
+    out = group_difference_1f(corrected, [valid], ~masked, np.ones(nints), aperture,
+                              template_valid=[template_valid])
+    assert not out['shared'].any()
+    # The trace pixels of that column are untouched:
+    np.testing.assert_allclose(corrected[0][7, :, 15:25], groups[7, :, 15:25], atol=1e-4)
