@@ -82,6 +82,38 @@ def white_lights(stage2):
     return curves
 
 
+def white_light_rms(ts, paths, config, output, window=100):
+    """Extract every rate file of ``paths`` (variant: path) with the ``[extraction]`` variants
+    of ``config``; save the white lights and print and save their median-filter RMS."""
+    table = {}
+    for variant, path in paths.items():
+        run = dict(run=dict(name=variant, output=str(output/f'stage2_{variant}')),
+                   data=dict(source='local', glob=str(path), product='rateints'),
+                   mode=config.get('mode', dict(name='auto')), extraction=config['extraction'])
+        result = ts.run(run, keep_stage2=True)
+        table[variant] = {}
+        for extraction, stage2 in result.stage2.items():
+            for label, (times, white) in white_lights(stage2).items():
+                white = np.asarray(white, float)
+                residual = (white/smooth_series(white, window) - 1)*1e6
+                name = f'{extraction}_{label}' if label else extraction
+                np.savetxt(output/f'white_light_{variant}_{name}.csv',
+                           np.column_stack([times, white, residual]),
+                           delimiter=',', header='time_bjd_tdb,relative_flux,residual_ppm')
+                table[variant][name] = dict(
+                    rms_ppm=float(np.sqrt(np.nanmean(residual**2))),
+                    robust_rms_ppm=float(1.4826*np.nanmedian(np.abs(residual))))
+        del result
+        gc.collect()
+    (output/'white_light_rms.json').write_text(json.dumps(table, indent=2)+'\n')
+    print(f'{window}-point median-filter RMS of the white light, ppm (robust RMS)')
+    for variant in table:
+        print(f'  {variant:20s} ' + '  '.join(
+            f"{extraction} {values['rms_ppm']:6.1f} ({values['robust_rms_ppm']:5.1f})"
+            for extraction, values in table[variant].items()))
+    return table
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -99,32 +131,7 @@ def main(argv=None):
     config = tomllib.loads(args.config.read_text())
     paths = calibrate(ts, args.uncal.resolve(), config, args.output.resolve())
 
-    table = {}
-    for variant, path in paths.items():
-        run = dict(run=dict(name=variant, output=str(args.output.resolve()/f'stage2_{variant}')),
-                   data=dict(source='local', glob=str(path), product='rateints'),
-                   mode=config.get('mode', dict(name='auto')), extraction=config['extraction'])
-        result = ts.run(run, keep_stage2=True)
-        table[variant] = {}
-        for extraction, stage2 in result.stage2.items():
-            for label, (times, white) in white_lights(stage2).items():
-                white = np.asarray(white, float)
-                residual = (white/smooth_series(white, args.window) - 1)*1e6
-                name = f'{extraction}_{label}' if label else extraction
-                np.savetxt(args.output/f'white_light_{variant}_{name}.csv',
-                           np.column_stack([times, white, residual]),
-                           delimiter=',', header='time_bjd_tdb,relative_flux,residual_ppm')
-                table[variant][name] = dict(
-                    rms_ppm=float(np.sqrt(np.nanmean(residual**2))),
-                    robust_rms_ppm=float(1.4826*np.nanmedian(np.abs(residual))))
-        del result
-        gc.collect()
-    (args.output/'white_light_rms.json').write_text(json.dumps(table, indent=2)+'\n')
-    print(f'{args.window}-point median-filter RMS of the white light, ppm (robust RMS)')
-    for variant in table:
-        print(f'  {variant:20s} ' + '  '.join(
-            f"{extraction} {values['rms_ppm']:6.1f} ({values['robust_rms_ppm']:5.1f})"
-            for extraction, values in table[variant].items()))
+    white_light_rms(ts, paths, config, args.output.resolve(), args.window)
 
 
 if __name__ == '__main__':
