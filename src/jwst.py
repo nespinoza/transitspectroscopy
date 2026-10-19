@@ -718,8 +718,8 @@ class load(object):
                                                      self.mode_definition, **options)
         self.group_difference_1f_diagnostics = diagnostics
 
-        # Fit the corrected ramps (without overwriting or reusing the saved first-pass rates), and mark
-        # the rates so that stage2 does not remove 1/f noise again:
+        # Fit the corrected ramps (without overwriting or reusing the saved first-pass rates),
+        # and mark the rates so that stage2 does not remove 1/f noise again:
         self.run_ramp_fit(save = False, use_saved = False)
         from .jwst_models import mark_group_1f
         for rateints in self.rateints_per_segment:
@@ -2253,7 +2253,8 @@ def _rate_level_1f(config, input_dictionary):
 
     if all(group_1f_corrected(model) for model in input_dictionary['rampstep']):
 
-        print('\t    - Rates corrected for 1/f noise at the group level: no rate-level 1/f correction.')
+        print('\t    - Rates corrected for 1/f noise at the group level: '
+              'no rate-level 1/f correction.')
         return False
 
     return True
