@@ -412,3 +412,9 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   validation/runs/soss-seg1-group-diff-check: shared groups only int 60 groups 2-6; RMS (all ints)
   order 1 117.9/114.0/116.5, order 2 144.5/137.4/135.9 - same as the earlier manual run
   (117.8/114.0/116.4, 144.5/137.3/136.0); first pass = 'none + template' (928.9/864.0/859.5).
+- [x] User: no double 1/f correction. `load.group_difference_1f` marks the rates (HISTORY, <72 chars so
+  FITS keeps one card); stage2 (spectral + SOSS) skips the rate-level 1/f for marked rates
+  (`_rate_level_1f`; metadata `rate_level_1f`). Commits 5c8e095, 65ecc17. Cost, 100-pt RMS ppm:
+  NRS1 seg1 simple/poly/gp group-diff + Stage 2 159.3/178.9/210.4 -> group-diff only 166.3/185.9/215.4
+  (first pass + Stage 2: 263.8/272.4/297.2). SOSS seg1 (earlier runs): order 1 117.8/114.0/116.4 ->
+  119.4/116.7/118.4; order 2 144.5/137.3/136.0 -> 140.9/134.7/134.1.
