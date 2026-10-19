@@ -418,3 +418,24 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   NRS1 seg1 simple/poly/gp group-diff + Stage 2 159.3/178.9/210.4 -> group-diff only 166.3/185.9/215.4
   (first pass + Stage 2: 263.8/272.4/297.2). SOSS seg1 (earlier runs): order 1 117.8/114.0/116.4 ->
   119.4/116.7/118.4; order 2 144.5/137.3/136.0 -> 140.9/134.7/134.1.
+- [x] User: compare 1/f on groups (standard) vs on group differences (CDS) + SPARTA rates.
+  Review of the SPARTA fitter (core/ramps.py) vs ideasrule/sparta calibrate.py: same covariance
+  (s + 2R^2 diagonal, -R^2 off) and weights (tridiagonal solve instead of the arccosh closed
+  form), one-at-a-time rejection; SPARTA's median-residual template stays opt-in. Changes
+  (ca3e68a): per-ramp active set (refit only while rejecting or estimate moves > 1e-3 sigma of one
+  difference; results no longer depend on chunk neighbours), float32 rates/variances.
+  New `core.detector.difference_1f` (563f014): templates = median difference over ints (jumped
+  differences excluded), levels = column median of background residual of each difference
+  (shared_fraction rule), removed from groups as cumulative sums. `domain='differences'` in
+  group_difference_1f_correction / soss.correct_ramps_1f; flags in detector_calibration
+  `group_difference_1f_domain`, `ramp_fit_method`, `ramp_fit_options` (54455b0); runner key
+  `[calibration] group_difference_1f_domain`. Validation: validation/cds_1f_comparison.py (one
+  Stage 1, first-pass JWST rates for traces, 4 variants, Stage 2 with no rate-level 1/f).
+  100-pt RMS ppm. NRS1 seg1 simple/poly/gp: groups_jwst 166.3/185.9/215.4, groups_sparta
+  167.4/189.0/242.6, differences_jwst 167.6/187.5/217.3, differences_sparta 168.7/187.8/242.0.
+  SOSS seg1 o1 box/poly/gp, o2 box/poly/gp: groups_jwst 119.3/116.5/118.1, 140.9/134.9/134.1;
+  groups_sparta 114.7/121.1/122.9, 139.0/134.8/135.0; differences_jwst 120.6/119.1/120.5,
+  140.4/135.2/134.7; differences_sparta 118.2/124.0/123.7, 138.5/135.9/135.8. No significant
+  white-light gain (RMS sampling error ~6-7 ppm). NRS1 levels: domains disagree by 5-14 DN per
+  column, growing with group -> check spectroscopic channels next. Second jump pass on corrected
+  differences: deferred by user.
