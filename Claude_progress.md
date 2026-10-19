@@ -380,3 +380,35 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   consistent with group 1/f (no scene subtraction) removing a flux-proportional part of the trace
   wings, diluting the transit (not verified further).
 - Order-2 transmission median uncertainty (poly/GP): 689/741 group-diff vs 800/810 group 1/f.
+
+## Group-difference 1/f as the overall default (user request, 2026-10-18)
+- `detector_calibration(group_difference_1f=True)` (new argument, default True; runner
+  `[calibration] group_difference_1f`, default written into the resolved config so cached calibrate
+  steps get a new hash). `fit_ramps` = `run_ramp_fit` (first pass) -> `group_difference_1f` (corrects
+  ramps, refits without loading/saving STScI ramp-fit products; save=True writes
+  `*_groupdiff1f_rateints.fits`). Status key `group_difference_1f`; for SOSS it sets
+  clean_flicker_noise SKIPPED. Only modes with `detector_steps['group_difference_1f']` (NIRSpec
+  PRISM/G395H/G395M, SOSS); MIRI SKIPPED. `fill_calibration_parameters` default False (so fit_ramps
+  without detector_calibration is unchanged). Legacy `stage1`/CDS paths untouched.
+- `jwst.group_difference_1f_correction(ramps, rateints, mode, **options)`: SOSS -> box-only
+  extract_soss + correct_ramps_1f (options to extract_soss); spectral -> median-rate trace (stage2
+  start columns, outlier fix, spline), white-light factors as Stage 2 scale_1f (rows/columns/window,
+  after its background subtraction), 1/f levels from correct_1f's inner..outer annulus without its
+  negative-index wrap, untraced columns masked around the trace extended at its edge values.
+  `jwst_models.ramp_1f_validity` shared by both.
+- Tests: tests/test_group_difference_1f.py (PRISM synthetic stripes; sparta end-to-end fit_ramps;
+  SOSS CFN swap; defaults). Suite 188 passed, 13 skipped. Commits 3370425 (code), a0b230c (docs).
+- [x] Real-data NIRSpec check: validation/group_difference_1f_check.py on PID 1118 NRS1 seg001
+  (first pass vs corrected, Stage 2 simple/polynomial/gp) -> validation/runs/nrs1-group-diff-1f.
+  First run: polynomial optimal extraction failed ('profile rejection removed an entire column'):
+  cosmic-ray showers covering most background rows of a column (int 40, cols 617-619; 24 such steps
+  in 10 ints) shifted the column level by ~2000 DN, trace included, because jump-flagged pixels were
+  kept in the levels (SOSS int-60 fix). Fix (baee093): `shared_fraction=0.5` - jump-flagged pixels
+  excluded from a group's levels unless >50% of its valid background pixels are flagged; new test.
+  Rerun, 100-pt median-filter RMS ppm (simple/polynomial/gp): first pass 263.8/272.4/297.2 (archived
+  reference simple 264.1), group-difference 159.3/178.9/210.4. Seg001 is pre-transit; the ratio
+  corrected/first pass drifts ~65 ppm over 2 h. Shared groups: 0. Peak memory footprint 12 GB.
+- [x] SOSS seg001 through the default path (CRDS references for the first-pass box extraction),
+  validation/runs/soss-seg1-group-diff-check: shared groups only int 60 groups 2-6; RMS (all ints)
+  order 1 117.9/114.0/116.5, order 2 144.5/137.4/135.9 - same as the earlier manual run
+  (117.8/114.0/116.4, 144.5/137.3/136.0); first pass = 'none + template' (928.9/864.0/859.5).
