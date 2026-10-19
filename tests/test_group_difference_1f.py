@@ -156,3 +156,59 @@ def test_stage2_skips_the_rate_level_1f_correction_of_group_corrected_rates():
     assert rate_level(ExtractionConfig(), {'rampstep': [uncorrected]})
     assert rate_level(ExtractionConfig(), {'rampstep': [corrected, uncorrected]})
     assert not rate_level(ExtractionConfig(scale_1f=False), {'rampstep': [uncorrected]})
+
+
+def test_difference_1f_is_insensitive_to_offsets_that_change_between_integrations():
+    # kTC-like offsets (one per pixel and integration) and read noise make the 1/f levels
+    # measured on the groups noisy; on the group differences the offsets cancel:
+    models = pytest.importorskip('stdatamodels.jwst.datamodels')
+    scene, transit, stripes, clean, data = prism_scene()
+    rng = np.random.default_rng(5)
+    offsets = rng.normal(0, 30, (NINTS, 1, NROWS, NCOLS)).astype(np.float32)
+    noise = offsets + rng.normal(0, 5, data.shape).astype(np.float32)
+    mode = instruments.get_mode('nirspec/prism')
+    scatter = {}
+    for domain in ('groups', 'differences'):
+        ramp, rates = prism_models(models, data + noise, scene, transit)
+        out = jwst.group_difference_1f_correction([ramp], [rates], mode, domain=domain)
+        error = np.diff(ramp.data - clean - noise, axis=1)
+        scatter[domain] = np.std(error - error.mean(axis=0))
+    assert out['levels'].shape == (NINTS, NGROUPS - 1, NCOLS) and 'group_scale' not in out
+    uncorrected = np.std(np.diff(stripes, axis=1))
+    assert scatter['differences'] < 0.5*scatter['groups'] and scatter['groups'] > 0.9*uncorrected
+    with pytest.raises(ValueError, match='domain'):
+        jwst.group_difference_1f_correction([ramp], [rates], mode, domain='frames')
+
+
+def test_difference_1f_excludes_a_jump_from_one_difference_only():
+    from transitspectroscopy.core.detector import difference_1f
+    rng = np.random.default_rng(1)
+    nints, ngroups, nrows, ncols = 30, 5, 40, 8
+    stripes = rng.normal(0, 3, (nints, ngroups, 1, ncols))
+    ramps = (np.arange(ngroups)[None, :, None, None]*10. + stripes).repeat(nrows, axis=2)
+    jumps = np.zeros(ramps.shape, bool)
+    # A cosmic ray on the lower half of column 2 of integration 4, at group 2; and an offset
+    # of all pixels of integration 7 from group 3 on, with most of them flagged:
+    ramps[4, 2:, :20, 2] += 500.
+    jumps[4, 2, :20, 2] = True
+    ramps[7, 3:] += 200.
+    jumps[7, 3, :35] = True
+    valid = np.ones(ramps.shape, bool)
+
+    def corrected_differences(jumps):
+        data = ramps.copy()
+        out = difference_1f([data], [valid], np.ones((nrows, ncols), bool), np.ones(nints),
+                            jumps=jumps)
+        assert np.all(data[:, 0] == ramps[:, 0])  # the first group is kept
+        differences = np.diff(data, axis=1)
+        differences[4, 1, :20, 2] -= 500.
+        return out, differences - np.median(differences, axis=0)
+
+    # The corrected differences are those of the template, but for the cosmic ray (only in
+    # the difference that ends at its group); the offset is shared, and removed:
+    out, residual = corrected_differences([jumps])
+    assert out['shared'][7, 2] and out['shared'].sum() == 1
+    assert np.abs(residual).max() < 0.5 < np.diff(stripes, axis=1).std()/5
+    # Unless the cosmic ray is excluded from the levels:
+    out, residual = corrected_differences(None)
+    assert np.abs(residual[4, 1, :, 2]).max() > 100

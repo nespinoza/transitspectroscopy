@@ -60,6 +60,13 @@ def ramp_1f_validity(ramps):
     return valid, template_valid
 
 
+def ramp_jumps(ramps):
+    """Boolean ``(integration, group, row, column)`` arrays, True where a jump was detected."""
+    from stdatamodels.jwst.datamodels import dqflags
+
+    return [(ramp.groupdq & dqflags.group['JUMP_DET']) > 0 for ramp in ramps]
+
+
 # Shorter than a FITS HISTORY card (72 characters), so that it is read back as one entry:
 GROUP_1F_HISTORY = 'transitspectroscopy: group-difference 1/f correction (fit_ramps)'
 

@@ -461,7 +461,7 @@ def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
 
 
 
-def correct_ramps_1f(ramps, rateints, result):
+def correct_ramps_1f(ramps, rateints, result, domain='groups'):
     """Group-level 1/f correction of SOSS ramps using a Stage 2 result of their rates.
 
     The traces, background and median rate of ``result`` (from :func:`extract_soss` on
@@ -479,14 +479,18 @@ def correct_ramps_1f(ramps, rateints, result):
         Their rates per integration, in the same order.
     result : dict
         Output of :func:`extract_soss` for ``rateints``.
+    domain : str, optional
+        ``'groups'`` (default) to measure the 1/f levels on the groups, or ``'differences'``
+        to measure them on the group differences (CDS frames; see
+        :func:`transitspectroscopy.core.detector.difference_1f`).
 
     Returns
     -------
     dict
-        Group template factors, removed levels and white-light factors.
+        Group template factors (``'groups'``), removed levels and white-light factors.
     """
-    from .core.detector import group_difference_1f
-    from .jwst_models import ramp_1f_validity
+    from .core.detector import difference_1f, group_difference_1f
+    from .jwst_models import ramp_1f_validity, ramp_jumps
 
     aperture_radius = result['metadata']['settings']['aperture_radius']
     template, background = result['median_background_subtracted'], result['background']
@@ -500,8 +504,14 @@ def correct_ramps_1f(ramps, rateints, result):
                 scale.append(white_light_scale(frame, valid, template, pixels['scale_pixels']))
     valid, template_valid = ramp_1f_validity(ramps)
     data = [ramp.data for ramp in ramps]
-    diagnostics = group_difference_1f(data, valid, ~pixels['source_mask'], np.asarray(scale),
-                                      pixels['scale_pixels'], template_valid=template_valid)
+    if domain == 'differences':
+        diagnostics = difference_1f(data, valid, ~pixels['source_mask'], np.asarray(scale),
+                                    jumps=ramp_jumps(ramps))
+    elif domain == 'groups':
+        diagnostics = group_difference_1f(data, valid, ~pixels['source_mask'], np.asarray(scale),
+                                          pixels['scale_pixels'], template_valid=template_valid)
+    else:
+        raise ValueError("domain must be 'groups' or 'differences'")
     for ramp, corrected in zip(ramps, data):
         ramp.data = corrected
     diagnostics['white_light_scale'] = np.asarray(scale)

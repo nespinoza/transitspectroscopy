@@ -200,6 +200,88 @@ def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels,
     return dict(group_scale=group_scale, levels=levels, shared=shared)
 
 
+def difference_1f(segments, valid, background_pixels, scale, jumps=None, shared_fraction=0.5):
+    """1/f correction measured on the group differences (CDS frames) of the ramps.
+
+    For every difference ``k`` (group ``k+1`` minus group ``k``), the template is its median
+    over all integrations. In each integration ``i`` the template, multiplied by the
+    white-light factor ``scale[i]``, is subtracted from the difference; the median of the
+    remaining valid ``background_pixels`` of each column is the 1/f level of that difference.
+    Unlike the groups, the differences are free of the offsets that change from integration
+    to integration (e.g., kTC noise and bias drifts). The levels are removed from the
+    differences, i.e., their cumulative sums from the groups after the first, so the ramps
+    keep their first group.
+
+    A jump only affects the difference that ends at the flagged group. Those differences are
+    excluded from the templates, and from the levels unless more than ``shared_fraction`` of
+    the valid background pixels of the difference are flagged (an offset shared by the whole
+    group, as in `group_difference_1f`).
+
+    Parameters
+    ----------
+    segments : list of numpy.ndarray
+        Chronologically ordered ``(integration, group, row, column)`` arrays; corrected in
+        place.
+    valid : list of numpy.ndarray
+        Boolean arrays like ``segments``; False for groups not to be used (e.g., saturated).
+        A difference is valid if both of its groups are.
+    background_pixels : numpy.ndarray
+        ``(row, column)`` boolean array of the pixels used to measure the 1/f levels.
+    scale : numpy.ndarray
+        White-light factor of every integration of all segments (median about 1).
+    jumps : list of numpy.ndarray, optional
+        Boolean arrays like ``segments``, True at the groups where a jump was detected.
+    shared_fraction : float, optional
+        Fraction of the valid background pixels of a difference at a jump above which they
+        are used for its levels. Default is 0.5.
+
+    Returns
+    -------
+    dict
+        ``levels``, the ``(integration, difference, column)`` levels removed from the
+        differences, and ``shared``, True for the ``(integration, difference)`` whose levels
+        used the pixels at a jump.
+    """
+    ngroups = segments[0].shape[1]
+    if ngroups < 2:
+        raise ValueError('The 1/f correction of group differences needs at least two groups')
+    if len(scale) != sum(len(data) for data in segments):
+        raise ValueError('One white-light factor per integration is needed')
+    if jumps is None:
+        jumps = [np.zeros(good.shape, bool) for good in valid]
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', RuntimeWarning)
+        templates = []
+        for k in range(ngroups - 1):
+            values = [np.where(good[:, k] & good[:, k+1] & ~jump[:, k+1],
+                               data[:, k+1] - data[:, k], np.nan).astype(np.float32)
+                      for data, good, jump in zip(segments, valid, jumps)]
+            templates.append(np.nanmedian(np.concatenate(values), axis=0))
+
+        levels = np.zeros((len(scale), ngroups - 1, segments[0].shape[3]))
+        shared = np.zeros((len(scale), ngroups - 1), bool)
+        integration = 0
+        for data, good, jump in zip(segments, valid, jumps):
+            for i in range(len(data)):
+                difference = np.diff(data[i], axis=0)
+                for k in range(ngroups - 1):
+                    use = good[i, k] & good[i, k+1] & background_pixels
+                    unflagged = use & ~jump[i, k+1]
+                    excluded = use.sum() - unflagged.sum()
+                    shared[integration, k] = excluded > shared_fraction * max(use.sum(), 1)
+                    if not shared[integration, k]:
+                        use = unflagged
+                    residual = difference[k] - scale[integration] * templates[k]
+                    level = np.nanmedian(np.where(use, residual, np.nan), axis=0)
+                    levels[integration, k] = np.where(np.isfinite(level), level, 0.0)
+                data[i, 1:] -= np.cumsum(levels[integration], axis=0)[:, None, :].astype(
+                    data.dtype)
+                integration += 1
+
+    return dict(levels=levels, shared=shared)
+
+
 def tso_jump_flags(segments, window, nsigma=10):
     """Detect jumps using the time series of each pixel's group differences.
 

@@ -733,8 +733,10 @@ class load(object):
                 name = self.datanames[i]+'_'+self.actual_suffix+'groupdiff1f_rateints.fits'
                 self.rateints_per_segment[i].save( name, dir_path = self.outputfolder+'ts_outputs' )
 
-        factors = diagnostics['group_scale'].tolist()
-        self.calibration_parameters['Group-difference 1/f template factors'] = factors
+        if 'group_scale' in diagnostics:
+
+            factors = diagnostics['group_scale'].tolist()
+            self.calibration_parameters['Group-difference 1/f template factors'] = factors
         self.status['group_difference_1f'] = 'COMPLETE'
 
     def run_ramp_fit(self, save = True, use_saved = True):
@@ -1313,23 +1315,28 @@ def group_difference_1f_correction(ramps, rateints, mode, **options):
         trace, as in `transitspectroscopy.core.detector.correct_1f` (but also in the untraced
         columns, around the trace extended at its edge values); ``options`` may set
         ``aperture_radius`` (pixels used to scale each template to its group), ``inner_radius``
-        and ``outer_radius`` (default: the mode's).
+        and ``outer_radius`` (default: the mode's). For all modes, ``domain = 'differences'``
+        measures and removes the 1/f levels on the group differences (CDS frames) instead of
+        the groups (see `transitspectroscopy.core.detector.difference_1f`); the default is
+        ``'groups'``.
 
     Returns
     -------
 
     diagnostics : dict
-        Template factor of every group (``group_scale``), removed levels (``levels``, per
-        integration, group and column) and white-light factors (``white_light_scale``).
+        Template factor of every group (``group_scale``, groups only), removed levels
+        (``levels``, per integration, group or difference, and column) and white-light factors
+        (``white_light_scale``).
     """
 
     if mode.stage2 == 'soss':
 
         from .soss import correct_ramps_1f, extract_soss
         settings = dict(options)
+        domain = settings.pop('domain', 'groups')
         settings.setdefault('aperture_radius', mode.extraction_defaults['aperture_radius'])
         result = extract_soss(rateints, **settings)
-        return correct_ramps_1f(ramps, rateints, result)
+        return correct_ramps_1f(ramps, rateints, result, domain = domain)
 
     if mode.stage2 != 'spectral':
 
@@ -1339,10 +1346,14 @@ def group_difference_1f_correction(ramps, rateints, mode, **options):
     return _spectral_group_difference_1f(ramps, rateints, mode, **options)
 
 def _spectral_group_difference_1f(ramps, rateints, mode, aperture_radius = None,
-                                  inner_radius = None, outer_radius = None):
+                                  inner_radius = None, outer_radius = None, domain = 'groups'):
 
-    from .core.detector import group_difference_1f
-    from .jwst_models import ramp_1f_validity
+    from .core.detector import difference_1f, group_difference_1f
+    from .jwst_models import ramp_1f_validity, ramp_jumps
+
+    if domain not in ('groups', 'differences'):
+
+        raise ValueError("domain must be 'groups' or 'differences'")
 
     tracing = mode.tracing_for(ramps[0].meta.instrument.detector)
     defaults = mode.extraction_defaults
@@ -1423,8 +1434,15 @@ def _spectral_group_difference_1f(ramps, rateints, mode, aperture_radius = None,
 
     valid, template_valid = ramp_1f_validity(ramps)
     data = [ramp.data for ramp in ramps]
-    diagnostics = group_difference_1f(data, valid, background_pixels, scale, scale_pixels,
-                                      template_valid = template_valid)
+    if domain == 'differences':
+
+        diagnostics = difference_1f(data, valid, background_pixels, scale,
+                                    jumps = ramp_jumps(ramps))
+
+    else:
+
+        diagnostics = group_difference_1f(data, valid, background_pixels, scale, scale_pixels,
+                                          template_valid = template_valid)
     for ramp, corrected in zip(ramps, data):
 
         ramp.data = corrected
