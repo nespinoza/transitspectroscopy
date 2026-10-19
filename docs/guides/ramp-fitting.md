@@ -64,7 +64,11 @@ Implementation details specific to this library:
   constrained nonnegative.
 - Rejection removes the worst difference above `sigma` per ramp per iteration,
   monotonically. We solve the covariance of the retained differences again;
-  merely zeroing weights from the full covariance is incorrect at gaps.
+  merely zeroing weights from the full covariance is incorrect at gaps. Each
+  ramp is refitted, with the covariance of its new estimate, only while it
+  rejects a difference or its estimate changes by more than 1e-3 of the noise
+  of one difference, so its rate does not depend on other ramps (or on
+  `chunk_pixels`). Rates and variances are returned as float32.
 - `DO_NOT_USE`, nonfinite reads, and saturation exclude affected differences.
   Saturation propagates through later groups. `JUMP_DET` excludes the difference
   ending at the flagged group; subsequent valid differences can still be used.

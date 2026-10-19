@@ -40,7 +40,8 @@ optimal_methods=('polynomial',))`. SOSS-specific options (e.g. `background_refer
    `detector_calibration(group_difference_1f=False)`. On PID 1541 (four segments) it gives
    a lower white-light scatter than group 1/f before linearity, and removes the
    integration-60 column offset. Stage 2 does not remove 1/f noise from these rates again
-   (`scale_1f` only applies to rates without the group-level correction).
+   (`scale_1f` only applies to rates without the group-level correction). The levels can also
+   be measured on the group differences, as for NIRSpec (`domain='differences'`).
 1. **Background:** the JWST background subtraction step (`BackgroundStep`, with the CRDS SOSS
    background template) is run on a median rate image after ramp fitting, and the fitted
    static background (zodiacal light) is subtracted from every integration **before** the

@@ -56,7 +56,13 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
   traces and white-light factors of those rates, and fits them again. For SOSS it replaces
   `clean_flicker_noise`. The corrected rates are marked (HISTORY), and Stage 2 then skips its
   rate-level 1/f correction (`scale_1f`). Numerical outputs of reductions from `uncal` files
-  change.
+  change. With `parameters={'group_difference_1f': {'domain': 'differences'}}` the 1/f levels
+  are measured on the group differences (CDS frames), free of offsets that change between
+  integrations, and removed from the groups as their cumulative sums
+  (`core.detector.difference_1f`); the default is `'groups'`.
+- The correlated (`'sparta'`) ramp fit refits a ramp only while it rejects a difference or its
+  estimate changes (by more than 1e-3 of the noise of one difference), so a ramp's rate no
+  longer depends on the other ramps of its pixel chunk; rates and variances are float32.
 - NIRISS/SOSS Stage 2 removes rate-level 1/f with the median rate scaled by the white light
   (`onef_method='template'`, orders 1-3 masked) by default.
 - Compatibility with JWST pipeline 3.0 (`stdatamodels` datamodels, ramp models without `ERR`).

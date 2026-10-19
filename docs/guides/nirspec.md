@@ -23,7 +23,11 @@ exposure, with these time-series-specific changes:
   column-by-column median of the remaining pixels between `onef_inner_radius` and
   `onef_outer_radius` from the trace is removed from that group, and the ramps are fitted
   again (`group_difference_1f_correction`; `group_difference_1f=False` turns it off). The
-  corrected rates are marked, and Stage 2 does not remove 1/f noise from them again.
+  corrected rates are marked, and Stage 2 does not remove 1/f noise from them again. With
+  `parameters={'group_difference_1f': {'domain': 'differences'}}`, the same levels are
+  measured on the group differences (CDS frames: the median difference over integrations,
+  scaled by the white light, is subtracted), where offsets that change from integration to
+  integration cancel, and their cumulative sums are removed from the groups.
 - **Group-level 1/f before linearity:** `group_1f=True` subtracts column-by-column medians of
   unilluminated pixels from every group (`group_1f_correction`). Off by default.
 
