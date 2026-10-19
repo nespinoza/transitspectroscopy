@@ -74,45 +74,54 @@ def difference_weights(signal, read_variance, valid):
     return rhs
 
 
-def _fit_differences(differences, valid, read_variance, sigma, max_iterations):
-    valid = valid.copy()
+def _fit_differences(differences, valid, read_variance, sigma, max_iterations, tolerance=1e-3):
+    # Each ramp is fitted again (with weights from its new estimate) only while it rejects a
+    # difference or its estimate changes by more than ``tolerance`` times the noise of one
+    # difference: a ramp's result does not depend on the others (nor on the chunking).
+    shape = valid.shape[:-1]
+    differences = differences.reshape(-1, differences.shape[-1])
+    valid = valid.reshape(differences.shape).copy()
+    read_variance = np.broadcast_to(read_variance, shape).reshape(-1)
     initial_valid = valid.copy()
     estimate = np.nan_to_num(_median(np.where(valid, differences, np.nan), -1))
-    converged = np.ones(valid.shape[:-1], dtype=bool)
+    signal = np.zeros(len(valid))
+    alpha = np.zeros(differences.shape)
+    converged = np.ones(len(valid), dtype=bool)
+    active = np.arange(len(valid))
     for iteration in range(max_iterations):
-        signal = np.maximum(estimate, 0.0)
+        d, v, r2 = differences[active], valid[active], read_variance[active]
+        s = np.maximum(estimate[active], 0.0)
         # A zero-R, non-positive-s covariance has no defined likelihood.
-        valid &= ((signal + 2 * read_variance) > 0)[..., None]
-        rejected = np.zeros(valid.shape[:-1], dtype=bool)
+        v &= ((s + 2 * r2) > 0)[:, None]
+        rejected = np.zeros(len(active), dtype=bool)
         if sigma is not None:
-            noise = np.sqrt(signal + 2 * read_variance)
+            noise = np.sqrt(s + 2 * r2)
             z = np.divide(
-                np.abs(differences - estimate[..., None]),
-                noise[..., None],
-                out=np.zeros_like(differences),
-                where=noise[..., None] > 0,
+                np.abs(d - estimate[active, None]),
+                noise[:, None],
+                out=np.zeros_like(d),
+                where=noise[:, None] > 0,
             )
-            z = np.where(valid, z, -np.inf)
+            z = np.where(v, z, -np.inf)
             worst = np.argmax(z, axis=-1)
             rejected = np.max(z, axis=-1) > sigma
             # One difference at a time avoids rejecting neighbouring good reads
             # when a large jump initially perturbs the slope estimate.
-            np.put_along_axis(
-                valid,
-                worst[..., None],
-                np.take_along_axis(valid, worst[..., None], -1) & ~rejected[..., None],
-                axis=-1,
-            )
-        weights = difference_weights(signal, read_variance, valid)
+            v[rejected, worst[rejected]] = False
+        weights = difference_weights(s, r2, v)
         norm = weights.sum(axis=-1)
-        alpha = np.divide(
-            weights, norm[..., None], out=np.zeros_like(weights), where=norm[..., None] > 0
-        )
-        estimate = np.sum(alpha * np.where(valid, differences, 0.0), axis=-1)
-        if not np.any(rejected):
-            break
+        a = np.divide(weights, norm[:, None], out=np.zeros_like(weights), where=norm[:, None] > 0)
+        previous, estimate[active] = estimate[active], np.sum(a * np.where(v, d, 0.0), axis=-1)
+        changed = np.abs(estimate[active] - previous) > tolerance * np.sqrt(s + 2 * r2)
+        valid[active], signal[active], alpha[active] = v, s, a
         if iteration == max_iterations - 1:
-            converged = ~rejected
+            converged[active] = ~rejected
+        active = active[rejected | changed]
+        if not len(active):
+            break
+    valid, initial_valid, alpha = (x.reshape(*shape, -1) for x in (valid, initial_valid, alpha))
+    estimate, signal, read_variance, converged = (
+        x.reshape(shape) for x in (estimate, signal, read_variance, converged))
     square = np.sum(alpha**2, axis=-1)
     photon = signal * square
     read = read_variance * (2 * square - 2 * np.sum(alpha[..., :-1] * alpha[..., 1:], axis=-1))
@@ -216,8 +225,9 @@ def fit_ramps(
         if supplied.shape != (ng, ny, nx) or not np.isfinite(supplied).all():
             raise ValueError('residual_template must be finite with shape (group, row, column)')
         template[:] = supplied.reshape(ng, -1)
-    out = {k: np.empty((ni, ny * nx), float) for k in ('data', 'var_poisson', 'var_rnoise')}
-    out.update({k: np.empty((ni, ny * nx), np.int32) for k in ('n_used', 'n_rejected')})
+    # Rates and variances are float32, as in the JWST products (computed in float64):
+    out = {k: np.empty((ni, ny * nx), np.float32) for k in ('data', 'var_poisson', 'var_rnoise')}
+    out.update({k: np.empty((ni, ny * nx), np.int16) for k in ('n_used', 'n_rejected')})
     out['converged'] = np.empty((ni, ny * nx), bool)
     out['dq'] = np.broadcast_to(pdq.reshape(1, -1), (ni, ny * nx)).astype(np.uint32).copy()
     out['dq'][:, ~good_reference] |= 1
