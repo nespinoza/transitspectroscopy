@@ -54,7 +54,9 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
   and NIRISS/SOSS (`detector_calibration(group_difference_1f=True)`, `[calibration]
   group_difference_1f = true`): `fit_ramps` fits the ramps, corrects every group using the
   traces and white-light factors of those rates, and fits them again. For SOSS it replaces
-  `clean_flicker_noise`. Numerical outputs of reductions from `uncal` files change.
+  `clean_flicker_noise`. The corrected rates are marked (HISTORY), and Stage 2 then skips its
+  rate-level 1/f correction (`scale_1f`). Numerical outputs of reductions from `uncal` files
+  change.
 - NIRISS/SOSS Stage 2 removes rate-level 1/f with the median rate scaled by the white light
   (`onef_method='template'`, orders 1-3 masked) by default.
 - Compatibility with JWST pipeline 3.0 (`stdatamodels` datamodels, ramp models without `ERR`).

@@ -58,3 +58,18 @@ def ramp_1f_validity(ramps):
         valid.append(good)
         template_valid.append(good & ~after_jump)
     return valid, template_valid
+
+
+# Shorter than a FITS HISTORY card (72 characters), so that it is read back as one entry:
+GROUP_1F_HISTORY = 'transitspectroscopy: group-difference 1/f correction (fit_ramps)'
+
+
+def mark_group_1f(model):
+    """Record in ``model`` (rates per integration) the group-difference 1/f correction."""
+    model.history.append(GROUP_1F_HISTORY)
+
+
+def group_1f_corrected(value):
+    """True if the rates (a model or a path) were corrected with ``mark_group_1f``."""
+    with open_model(value) as model:
+        return any(GROUP_1F_HISTORY in str(entry) for entry in getattr(model, 'history', ()))

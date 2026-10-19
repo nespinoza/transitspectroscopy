@@ -22,7 +22,8 @@ exposure, with these time-series-specific changes:
   white-light factor of the integration (the same as the Stage 2 1/f correction); the
   column-by-column median of the remaining pixels between `onef_inner_radius` and
   `onef_outer_radius` from the trace is removed from that group, and the ramps are fitted
-  again (`group_difference_1f_correction`; `group_difference_1f=False` turns it off).
+  again (`group_difference_1f_correction`; `group_difference_1f=False` turns it off). The
+  corrected rates are marked, and Stage 2 does not remove 1/f noise from them again.
 - **Group-level 1/f before linearity:** `group_1f=True` subtracts column-by-column medians of
   unilluminated pixels from every group (`group_1f_correction`). Off by default.
 
@@ -40,7 +41,8 @@ again (saved as `*_groupdiff1f_rateints.fits`).
 ## Tracing and extraction
 
 `ts.jwst.stage2(inputs, ...)` traces every integration (correlation with a Gaussian kernel,
-computed by FFT convolution), smooths the traces with splines, corrects rate-level 1/f noise (`scale_1f=True`),
+computed by FFT convolution), smooths the traces with splines, corrects rate-level 1/f noise (`scale_1f=True`;
+skipped for rates already corrected at the group level),
 and extracts spectra with a fractional-pixel box aperture of `aperture_radius` pixels.
 Useful options:
 

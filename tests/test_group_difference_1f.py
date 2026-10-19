@@ -94,7 +94,11 @@ def test_fit_ramps_corrects_and_refits_by_default(tmp_path):
     dataset.fill_calibration_parameters({}, group_difference_1f=True, save=False)
     dataset.fit_ramps(save=True)
     assert dataset.status['group_difference_1f'] == 'COMPLETE'
-    assert len(list((tmp_path/'ts_outputs').glob('*groupdiff1f_rateints.fits'))) == 1
+    saved = list((tmp_path/'ts_outputs').glob('*groupdiff1f_rateints.fits'))
+    assert len(saved) == 1
+    # The rates are marked, so that stage2 does not remove 1/f noise again:
+    from transitspectroscopy.jwst_models import group_1f_corrected
+    assert group_1f_corrected(dataset.rateints_per_segment[0]) and group_1f_corrected(saved[0])
     # Column stripes of the rates are gone (up to a static pattern), the transit is kept:
     residual = dataset.rateints - transit[:, None, None]*scene
     residual -= residual.mean(axis=0)
@@ -138,3 +142,17 @@ def test_group_difference_1f_is_the_default():
         assert instruments.get_mode(name).detector_steps['group_difference_1f']
     config = runner.load_config({'data': {'glob': '*.fits'}})
     assert config['calibration']['group_difference_1f'] is True
+
+
+def test_stage2_skips_the_rate_level_1f_correction_of_group_corrected_rates():
+    models = pytest.importorskip('stdatamodels.jwst.datamodels')
+    from transitspectroscopy.config import ExtractionConfig
+    from transitspectroscopy.jwst_models import mark_group_1f
+    corrected, uncorrected = (models.CubeModel(data=np.zeros((2, 4, 4), np.float32))
+                              for _ in range(2))
+    mark_group_1f(corrected)
+    rate_level = jwst._rate_level_1f
+    assert not rate_level(ExtractionConfig(), {'rampstep': [corrected]})
+    assert rate_level(ExtractionConfig(), {'rampstep': [uncorrected]})
+    assert rate_level(ExtractionConfig(), {'rampstep': [corrected, uncorrected]})
+    assert not rate_level(ExtractionConfig(scale_1f=False), {'rampstep': [uncorrected]})

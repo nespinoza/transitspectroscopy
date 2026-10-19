@@ -718,8 +718,14 @@ class load(object):
                                                      self.mode_definition, **options)
         self.group_difference_1f_diagnostics = diagnostics
 
-        # Fit the corrected ramps (without overwriting or reusing the saved first-pass rates):
+        # Fit the corrected ramps (without overwriting or reusing the saved first-pass rates), and mark
+        # the rates so that stage2 does not remove 1/f noise again:
         self.run_ramp_fit(save = False, use_saved = False)
+        from .jwst_models import mark_group_1f
+        for rateints in self.rateints_per_segment:
+
+            mark_group_1f(rateints)
+
         if save:
 
             for i in range( len(self.rateints_per_segment) ):
@@ -2237,6 +2243,21 @@ def _extract_shared_sequence(data, errors, traces, reference_trace, specificatio
             None if profiles is None else np.asarray(profiles), model)
 
 
+def _rate_level_1f(config, input_dictionary):
+    """Whether stage2 removes 1/f noise from the rates: ``scale_1f``, unless all the rates were
+    corrected at the group level already (``load.group_difference_1f``)."""
+    from .jwst_models import group_1f_corrected
+    if not config.scale_1f:
+
+        return False
+
+    if all(group_1f_corrected(model) for model in input_dictionary['rampstep']):
+
+        print('\t    - Rates corrected for 1/f noise at the group level: no rate-level 1/f correction.')
+        return False
+
+    return True
+
 def _stage2_imaging(input_dictionary, config, mode, outputfolder, suffix):
     """Stage 2 of imaging modes (MIRI): calibrated cutouts, aperture and GP PSF photometry."""
     from .miri import extract_photometry
@@ -2269,7 +2290,7 @@ def _stage2_soss(input_dictionary, config, mode, outputfolder, suffix):
     if aperture_radius is None:
         aperture_radius = mode.extraction_defaults['aperture_radius']
     return extract_soss(input_dictionary, aperture_radius=aperture_radius,
-                        mask_dq=config.mask_dq, scale_1f=config.scale_1f,
+                        mask_dq=config.mask_dq, scale_1f=_rate_level_1f(config, input_dictionary),
                         single_trace_extraction=config.single_trace_extraction,
                         outputfolder=os.path.join(outputfolder, 'pipeline_outputs', 'soss'+('_'+suffix if suffix else '')),
                         **options)
@@ -2294,7 +2315,8 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         but the resulting stellar spectrum will look better if simple extraction is used.
     scale_1f : bool
         (Optional) If True, the "scale 1/f" noise technique will be used to remove 1/f noise at the ramp level. This removes the scaled median frame from each ramp, 
-        and estimates (and removes) the 1/f noise from the resultant frame on the original frame.
+        and estimates (and removes) the 1/f noise from the resultant frame on the original frame. Rates already corrected at the group level
+        (`load.group_difference_1f`, the default of `fit_ramps` for NIRSpec and NIRISS/SOSS) are not corrected again.
     single_trace_extraction : bool
         (Optional) If True, a single trace is used to extract the spectra --- the median of all, integration-level traces. If False, the trace for each 
         individual integration is used to extract the spectra for that integration.
@@ -2410,7 +2432,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         raise ValueError('Unknown Stage 2 handler {0:} of mode {1:}'.format(handler, stage2_mode.name))
 
     # Spectral (single-trace) Stage 2. Unpack the validated configuration:
-    zero_nans, scale_1f = config.zero_nans, config.scale_1f
+    zero_nans, scale_1f = config.zero_nans, _rate_level_1f(config, input_dictionary)
     single_trace_extraction, optimal_extraction = config.single_trace_extraction, config.optimal_extraction
     aperture_radius, mask_dq = config.aperture_radius, config.mask_dq
     extraction_backend, profile_method, gp_options = config.backend, config.profile_method, config.gp_options
@@ -2449,6 +2471,7 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     # Create output dictionary:
     output_dictionary = {}
     output_dictionary['metadata'] = {}
+    output_dictionary['metadata']['rate_level_1f'] = scale_1f
 
     #####################################################
     #                       STAGE 2                     #

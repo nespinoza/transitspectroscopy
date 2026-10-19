@@ -52,7 +52,9 @@ class ExtractionConfig:
     zero_nans : bool
         Replace missing pixels by zeros (``True``) or by a median-filtered rate image.
     scale_1f : bool
-        Remove 1/f noise with the median-scaling technique.
+        Remove 1/f noise with the median-scaling technique, unless the rates were corrected
+        at the group level already (``load.group_difference_1f``, the default of
+        ``load.fit_ramps`` for NIRSpec and NIRISS/SOSS).
     backend : {'auto', 'c', 'python'}
         Optimal-extraction backend.
     profile_method : {'polynomial', 'gp'}
