@@ -813,7 +813,8 @@ class load(object):
         self.status['ramp_fit'] = 'COMPLETE'
 
     def detector_calibration(self, parameters = {}, use_tso_jump = True, group_1f = False, save = True, suffix = '', outputfolder = None,
-                             group_difference_1f = True, **kwargs):
+                             group_difference_1f = True, group_difference_1f_domain = None,
+                             ramp_fit_method = None, ramp_fit_options = None, **kwargs):
         """
         This function performs detector-level calibration --- i.e., most of what is Stage1 in the STScI JWST pipeline,
         but not performing ramp-fitting nor CDS. In other words, this stops at the jump step.
@@ -852,7 +853,35 @@ class load(object):
             NIRISS/SOSS it replaces `clean_flicker_noise`. Options go in
             ``parameters['group_difference_1f']``. Default is True.
 
+        group_difference_1f_domain : str
+            (Optional) where that correction measures the 1/f levels: ``'groups'`` (the groups)
+            or ``'differences'`` (the group differences, or CDS frames, where offsets that
+            change from integration to integration cancel; their cumulative sums are removed
+            from the groups). Default is None: ``parameters['group_difference_1f']['domain']``
+            if given, else ``'groups'``.
+
+        ramp_fit_method : str
+            (Optional) ramp fit of `fit_ramps`: ``'jwst'`` (the JWST ramp-fitting step) or
+            ``'sparta'`` (the correlated fit of the group differences, arXiv:2305.06240; see
+            `transitspectroscopy.ramp_fitting`), replacing the one selected in `load`. Default
+            is None (keep it).
+
+        ramp_fit_options : dict
+            (Optional) options of the ``'sparta'`` ramp fit, with ``ramp_fit_method``. Default
+            is None (none).
+
         """
+
+        if ramp_fit_method is not None:
+
+            from .ramp_fitting import validate_selection
+            validate_selection(ramp_fit_method, ramp_fit_options)
+            self.ramp_fit_method = ramp_fit_method
+            self.ramp_fit_options = deepcopy(ramp_fit_options or {})
+
+        elif ramp_fit_options is not None:
+
+            raise ValueError('ramp_fit_options requires ramp_fit_method')
 
         self.suffix = suffix
 
@@ -883,6 +912,21 @@ class load(object):
         self.calibration_parameters = {} 
         self.fill_calibration_parameters(parameters, use_tso_jump, group_1f, save,
                                          group_difference_1f)
+        options = dict(self.calibration_parameters.get('group_difference_1f', {}))
+        if group_difference_1f_domain is not None:
+
+            if options.get('domain', group_difference_1f_domain) != group_difference_1f_domain:
+
+                raise ValueError('group_difference_1f_domain and '
+                                 "parameters['group_difference_1f']['domain'] differ")
+
+            options['domain'] = group_difference_1f_domain
+
+        if options.get('domain', 'groups') not in ('groups', 'differences'):
+
+            raise ValueError("group_difference_1f_domain must be 'groups' or 'differences'")
+
+        self.calibration_parameters['group_difference_1f'] = options
 
         # Print some information to the user:
         print('\t [START] Detector-level Calibration\n\n')

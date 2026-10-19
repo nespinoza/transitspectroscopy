@@ -212,3 +212,31 @@ def test_difference_1f_excludes_a_jump_from_one_difference_only():
     # Unless the cosmic ray is excluded from the levels:
     out, residual = corrected_differences(None)
     assert np.abs(residual[4, 1, :, 2]).max() > 100
+
+
+def test_detector_calibration_flags_select_the_1f_domain_and_the_ramp_fit():
+    dataset = bare_dataset('nirspec/g395h')
+    dataset.status.update({step: None for step in ('dq_init', 'saturation', 'superbias',
+                                                   'refpix', 'linearity', 'dark_sub',
+                                                   'ramp_fit', 'tracing')})
+    dataset.ramp_fit_method, dataset.ramp_fit_options = 'jwst', {}
+    dataset.outputfolder = 'unused/'
+
+    def calibrate(**options):
+        # The flags are applied before the data are touched; this dataset has none:
+        with pytest.raises(AttributeError, match='ramps_per_segment'):
+            dataset.detector_calibration(save=False, **options)
+        return dataset.calibration_parameters['group_difference_1f']
+
+    assert calibrate().get('domain', 'groups') == 'groups'
+    assert calibrate(group_difference_1f_domain='differences')['domain'] == 'differences'
+    parameters = {'group_difference_1f': {'domain': 'differences'}}
+    assert calibrate(parameters=parameters)['domain'] == 'differences'
+    with pytest.raises(ValueError, match='differ'):
+        dataset.detector_calibration(parameters=parameters, group_difference_1f_domain='groups')
+    with pytest.raises(ValueError, match="'groups' or 'differences'"):
+        dataset.detector_calibration(group_difference_1f_domain='frames')
+    calibrate(ramp_fit_method='sparta', ramp_fit_options={'sigma': 4.0})
+    assert dataset.ramp_fit_method == 'sparta' and dataset.ramp_fit_options == {'sigma': 4.0}
+    with pytest.raises(ValueError, match='requires ramp_fit_method'):
+        dataset.detector_calibration(ramp_fit_options={'sigma': 4.0})

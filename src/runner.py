@@ -21,7 +21,9 @@ Configuration sections (all optional except ``data``)::
     [calibration]  parameters, use_tso_jump, group_1f, group_difference_1f (default true:
                    group-level 1/f correction with median group-difference templates after a
                    first ramp fit, for NIRSpec and NIRISS/SOSS; options in
-                   parameters.group_difference_1f), ramp_fit_method, ramp_fit_options,
+                   parameters.group_difference_1f), group_difference_1f_domain ('groups',
+                   the default, or 'differences': 1/f levels measured on the group
+                   differences), ramp_fit_method ('jwst' or 'sparta'), ramp_fit_options,
                    ramp_fit_parameters, crds_context (pins the CRDS context, e.g. 'jwst_1584.pmap')
     [extraction.<variant>]  ExtractionConfig fields (one table per extraction variant)
     [execution]    nthreads
@@ -320,6 +322,7 @@ def run(config, force=False, from_step=None, hash_inputs=True, keep_stage2=False
                     use_tso_jump=calibration.get('use_tso_jump', True),
                     group_1f=calibration.get('group_1f', False),
                     group_difference_1f=calibration['group_difference_1f'],
+                    group_difference_1f_domain=calibration.get('group_difference_1f_domain'),
                 )
                 dataset.fit_ramps(parameters=calibration.get('ramp_fit_parameters', {}))
             result.datasets.append(dataset)

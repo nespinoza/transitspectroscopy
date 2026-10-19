@@ -59,7 +59,9 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
   change. With `parameters={'group_difference_1f': {'domain': 'differences'}}` the 1/f levels
   are measured on the group differences (CDS frames), free of offsets that change between
   integrations, and removed from the groups as their cumulative sums
-  (`core.detector.difference_1f`); the default is `'groups'`.
+  (`core.detector.difference_1f`); the default is `'groups'`. `detector_calibration` takes
+  the flags `group_difference_1f_domain` and `ramp_fit_method`/`ramp_fit_options` (replacing
+  the ramp fit selected in `load`); `[calibration] group_difference_1f_domain` in `ts.run`.
 - The correlated (`'sparta'`) ramp fit refits a ramp only while it rejects a difference or its
   estimate changes (by more than 1e-3 of the noise of one difference), so a ramp's rate no
   longer depends on the other ramps of its pixel chunk; rates and variances are float32.

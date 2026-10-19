@@ -27,7 +27,10 @@ exposure, with these time-series-specific changes:
   `parameters={'group_difference_1f': {'domain': 'differences'}}`, the same levels are
   measured on the group differences (CDS frames: the median difference over integrations,
   scaled by the white light, is subtracted), where offsets that change from integration to
-  integration cancel, and their cumulative sums are removed from the groups.
+  integration cancel, and their cumulative sums are removed from the groups. The same is
+  selected with `detector_calibration(group_difference_1f_domain='differences')`, and
+  `detector_calibration(ramp_fit_method='sparta')` fits the corrected group differences with
+  the correlated ramp fit (see {doc}`ramp-fitting`).
 - **Group-level 1/f before linearity:** `group_1f=True` subtracts column-by-column medians of
   unilluminated pixels from every group (`group_1f_correction`). Off by default.
 

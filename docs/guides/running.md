@@ -35,6 +35,7 @@ crds_context = "jwst_1584.pmap"      # optional: pin the calibration references
 use_tso_jump = true
 group_1f = false
 group_difference_1f = true           # group-level 1/f with group-difference templates (default)
+group_difference_1f_domain = "groups"  # or "differences": 1/f measured on CDS frames
 ramp_fit_method = "jwst"             # or "sparta" (correlated-read fitter)
 
 [extraction.box]                     # one table per extraction variant
