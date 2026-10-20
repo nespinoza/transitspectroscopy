@@ -466,3 +466,8 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   DN, none / current column median / median on centred groups / GP: NRS1 8.05/7.50/6.20/5.81
   (floor 4.56), SOSS 9.80/5.75/5.58/4.51 (floor 3.05). Neighbouring columns add nothing for SOSS,
   little for NRS1. Awaiting user decision.
+- [x] Difference-domain hold-out (scratch gp1f/predict_diff.py): band-mean rms of the group
+  differences, DN, none / median on groups then differenced / median on differences / GP per
+  difference / GP on centred groups then differenced: NRS1 11.90/10.62/8.80/8.22/8.22 (floor
+  6.45), SOSS 14.45/8.36/8.13/6.47/6.47 (floor 4.32). GP per difference = joint model (the
+  linear predictor commutes with differencing when masks are shared and frames independent).
