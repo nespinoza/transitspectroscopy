@@ -481,3 +481,12 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   those flags: GP 219.1 ppm; dropping the NaN columns in all: jwst 174.7, sparta 179.1, nojump
   178.6 (+3.9 +- 1.0 ppm, block bootstrap); polynomial +1.7 +- 1.7, simple +0.2 +- 0.6. Variances
   of both fits equally calibrated. No pipeline change yet.
+- [x] User: no second jump detection in SPARTA after the TSO jump step. 0d4cc25:
+  `ramp_fitting.jump_step_options` sets `sigma=None` (unless given) when the TSO jump step ran
+  (load.run_ramp_fit via `self.use_tso_jump` from detector_calibration; stage1). Test added; suite
+  194 passed, 13 skipped. NRS1 seg1 rerun through the pipeline (runs/nrs1-sparta-gp/sparta_tso):
+  provenance sigma None, 0 rejections, JUMP flags identical to JWST's (32964). White light
+  (as is / NaN columns dropped) vs JWST: simple 166.9 vs 166.3 (+0.6+-0.6), polynomial 188.0 vs
+  185.9 (+2.1+-1.6), GP 219.5/179.4 vs 215.4/174.7 (+4.7+-1.0). GP gap not from jump flags;
+  unexplained. Remaining DQ differences: JWST sets NO_GAIN_VALUE (non-trace) and SATURATED on 42
+  trace pixel-ints that SPARTA does not. Stage 2 NaN-column issue (mask_dq + GP) still open.
