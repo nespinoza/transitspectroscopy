@@ -439,3 +439,8 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   white-light gain (RMS sampling error ~6-7 ppm). NRS1 levels: domains disagree by 5-14 DN per
   column, growing with group -> check spectroscopic channels next. Second jump pass on corrected
   differences: deferred by user.
+- [x] Spectroscopic light curves, NRS1 seg1 (validation/runs/nrs1-cds-1f-spec, 351b195): per-channel
+  100-pt RMS at columns (R0) and R=30/100/300, 'corrected' products. All variants within +-0.6% of
+  groups_jwst in median per-channel ratio (16-84%: +-1.5-4%), ~half the channels better; excess over
+  the error ~1.01 (R0), 1.04-1.14 (binned) for all. SOSS rerun killed by Claude Code during Stage 1
+  (low memory); not restarted.
