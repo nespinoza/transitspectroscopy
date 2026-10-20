@@ -471,3 +471,13 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   difference / GP on centred groups then differenced: NRS1 11.90/10.62/8.80/8.22/8.22 (floor
   6.45), SOSS 14.45/8.36/8.13/6.47/6.47 (floor 4.32). GP per difference = joint model (the
   linear predictor commutes with differencing when masks are shared and frames independent).
+- [x] Why SPARTA + GP profiles was worse on NRS1 (242.6 vs 215.4 ppm; runs/nrs1-sparta-gp, scratch
+  sparta_gp/). (1) GP optimal extraction returns NaN for a column whose whole aperture is masked
+  (mask_dq masks any DQ != 0, e.g. the TSO jump step flags the full trace of a column in an
+  integration although its rate is fine); the white light is a nansum, so each NaN is a 600-2500
+  ppm dip (JWST rates: ints 6, 64, 109, 354). Polynomial/simple give finite values that the Stage
+  2 cleaning replaces. (2) SPARTA writes JUMP_DET for its own rejected differences (~150k extra
+  pixel-ints, ~13 trace px/int) -> more masked pixels -> 14 NaN columns instead of 6. Clearing
+  those flags: GP 219.1 ppm; dropping the NaN columns in all: jwst 174.7, sparta 179.1, nojump
+  178.6 (+3.9 +- 1.0 ppm, block bootstrap); polynomial +1.7 +- 1.7, simple +0.2 +- 0.6. Variances
+  of both fits equally calibrated. No pipeline change yet.
