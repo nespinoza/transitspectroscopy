@@ -684,7 +684,10 @@ class load(object):
         the STScI JWST Pipeline to do its magic.
 
         Select ``ramp_fit_method='sparta'`` and ``ramp_fit_options`` in ``load``
-        before detector calibration to use correlated adjacent-read fitting.
+        before detector calibration to use correlated adjacent-read fitting. After the TSO
+        jump step (``detector_calibration(use_tso_jump=True)``), its JUMP_DET flags alone
+        define the excluded differences: SPARTA's own rejection is off unless ``sigma`` is
+        given in ``ramp_fit_options``.
         That backend always recomputes, writes distinct output names, and keeps
         counts/template/provenance in ``ramp_fit_diagnostics`` per segment.
 
@@ -750,10 +753,11 @@ class load(object):
         self.rateints_per_segment = []
 
         if getattr(self, 'ramp_fit_method', 'jwst') == 'sparta':
-            from .ramp_fitting import fit_model
+            from .ramp_fitting import fit_model, jump_step_options
             self.ramp_fit_diagnostics = []
+            options = jump_step_options(self.ramp_fit_options, getattr(self, 'use_tso_jump', False))
             for name, ramp in zip(self.datanames, self.ramps_per_segment):
-                rate, rateints, diagnostics = fit_model(ramp, **self.ramp_fit_options)
+                rate, rateints, diagnostics = fit_model(ramp, **options)
                 try:
                     if save:
                         from pathlib import Path
@@ -868,7 +872,8 @@ class load(object):
 
         ramp_fit_options : dict
             (Optional) options of the ``'sparta'`` ramp fit, with ``ramp_fit_method``. Default
-            is None (none).
+            is None (none). With ``use_tso_jump``, the TSO jump flags alone define the excluded
+            differences: SPARTA's own rejection is off unless ``sigma`` is given here.
 
         """
 
@@ -910,6 +915,7 @@ class load(object):
 
         # Check and fill detector calibration input parameters per step:
         self.calibration_parameters = {} 
+        self.use_tso_jump = use_tso_jump
         self.fill_calibration_parameters(parameters, use_tso_jump, group_1f, save,
                                          group_difference_1f)
         options = dict(self.calibration_parameters.get('group_difference_1f', {}))
@@ -1895,6 +1901,12 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
         (Optional) Suffix to add to each out the outputs.
     ommit_pixeldq : bool
         (Optional) If True, ommit the pixel data quality flags and fit ramps to every pixel in the array
+    ramp_fit_method : str
+        (Optional) ``'jwst'`` (default) or ``'sparta'`` (see `transitspectroscopy.ramp_fitting`).
+    ramp_fit_options : dict
+        (Optional) Options of the ``'sparta'`` ramp fit. With ``use_tso_jump``, the TSO jump
+        flags alone define the excluded differences: SPARTA's own rejection is off unless
+        ``sigma`` is given here.
 
     Returns
     -------
@@ -1904,7 +1916,7 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
     
     """
 
-    from .ramp_fitting import validate_selection, fit_model
+    from .ramp_fitting import validate_selection, fit_model, jump_step_options
     validate_selection(ramp_fit_method, ramp_fit_options)
 
     # Add _ if suffix is given to the actual_suffix:
@@ -2141,7 +2153,8 @@ def stage1(uncal_filenames, maximum_cores = 'all', background_model = None, outp
     for i in range( len(jump_data) ):
 
         if ramp_fit_method == 'sparta':
-            rate, rateints, diagnostics = fit_model(jump_data[i], **(ramp_fit_options or {}))
+            rate, rateints, diagnostics = fit_model(
+                jump_data[i], **jump_step_options(ramp_fit_options, use_tso_jump))
             base = outputfolder+'pipeline_outputs/'+datanames[i]+'_'+actual_suffix+'sparta'
             try:
                 rate.save(base+'_rate.fits')

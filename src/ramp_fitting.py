@@ -15,6 +15,18 @@ from .core.provenance import option_record
 from .core.ramps import difference_weights, fit_ramps, validate_selection  # noqa: F401
 
 
+def jump_step_options(options, use_tso_jump):
+    """SPARTA options after a jump step.
+
+    With the TSO jump step, its JUMP_DET flags alone define the excluded differences: SPARTA's
+    own rejection is off (``sigma=None``) unless ``sigma`` is given in ``options``.
+    """
+    options = dict(options or {})
+    if use_tso_jump:
+        options.setdefault('sigma', None)
+    return options
+
+
 def fit_model(model, *, reference_step=None, **options):
     """Return (ImageModel, CubeModel, diagnostics), resolving JWST references.
 

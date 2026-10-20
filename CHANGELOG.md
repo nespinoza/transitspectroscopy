@@ -62,6 +62,9 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
   (`core.detector.difference_1f`); the default is `'groups'`. `detector_calibration` takes
   the flags `group_difference_1f_domain` and `ramp_fit_method`/`ramp_fit_options` (replacing
   the ramp fit selected in `load`); `[calibration] group_difference_1f_domain` in `ts.run`.
+- After the TSO jump step, the correlated (`'sparta'`) ramp fit rejects no differences unless
+  `sigma` is given in `ramp_fit_options` (the TSO jump flags define the excluded differences;
+  its own clipping flagged ~4e-4 of the differences of faint NIRSpec pixels as `JUMP_DET`).
 - The correlated (`'sparta'`) ramp fit refits a ramp only while it rejects a difference or its
   estimate changes (by more than 1e-3 of the noise of one difference), so a ramp's rate no
   longer depends on the other ramps of its pixel chunk; rates and variances are float32.

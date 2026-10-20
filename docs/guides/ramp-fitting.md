@@ -62,6 +62,10 @@ Implementation details specific to this library:
   analytic expression. The median valid difference supplies the initial signal
   estimate. Negative measured slopes are retained; only the photon variance is
   constrained nonnegative.
+- After the TSO jump step, the fitter rejects no differences by default (`sigma=None`): the
+  jump step, which uses all integrations, defines the jumps, and the fitter's per-ramp
+  test, whose noise model has no residual 1/f noise, would otherwise flag (as `JUMP_DET`)
+  differences in the noise tails of faint pixels, which Stage 2 with `mask_dq` then masks.
 - Rejection removes the worst difference above `sigma` per ramp per iteration,
   monotonically. We solve the covariance of the retained differences again;
   merely zeroing weights from the full covariance is incorrect at gaps. Each
@@ -92,7 +96,7 @@ Implementation details specific to this library:
 | `residual_correction` | `False` | Train/subtract the empirical residual template before the clipped fit. Off by default because the template is trained on in-transit integrations too; enable it only with out-of-event `template_integrations` or a supplied `residual_template`. |
 | `template_integrations` | All integrations in this segment | Unique zero-based local indices to train the template; extraction still fits all integrations. |
 | `residual_template` | `None` | Supply a finite `(group,row,column)` array in DN instead of training. |
-| `sigma` | `5.0` | Difference rejection threshold; `None` disables clipping. |
+| `sigma` | `5.0`; `None` after the TSO jump step | Difference rejection threshold; `None` disables clipping. After `detector_calibration(use_tso_jump=True)` (or `stage1(use_tso_jump=True)`) the TSO jump flags alone define the excluded differences, so the default is `None`; give `sigma` to reject differences again. |
 | `max_iterations` | `50` | Rejection iteration cap; ramps still rejecting at the cap are flagged unusable. |
 | `firstgroup`, `lastgroup` | All groups | Inclusive zero-based range; at least two groups must remain. |
 | `gain` | JWST reference | Scalar or detector-shaped array, electrons/DN. |

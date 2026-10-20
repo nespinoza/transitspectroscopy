@@ -1,5 +1,6 @@
 """Independent covariance checks, noisy injections and JWST interoperability."""
 import json
+from types import SimpleNamespace
 import numpy as np
 import pytest
 
@@ -259,3 +260,28 @@ def test_residual_correction_is_off_by_default():
     import inspect
     default = inspect.signature(rf.fit_ramps).parameters['residual_correction'].default
     assert default is False
+
+
+def test_tso_jump_turns_off_sparta_rejection(monkeypatch):
+    assert rf.jump_step_options(None, True) == {'sigma': None}
+    assert rf.jump_step_options({'sigma': 5.0}, True) == {'sigma': 5.0}
+    assert rf.jump_step_options({'max_iterations': 3}, False) == {'max_iterations': 3}
+
+    # load.run_ramp_fit passes the options of the jump step that detector_calibration used.
+    seen = []
+
+    class Stop(Exception):
+        pass
+
+    def fit_model(ramp, **options):
+        seen.append(options)
+        raise Stop
+
+    monkeypatch.setattr(rf, 'fit_model', fit_model)
+    for use_tso_jump, expected in ((True, {'sigma': None}), (False, {})):
+        dataset = SimpleNamespace(ramp_fit_method='sparta', ramp_fit_options={},
+                                  use_tso_jump=use_tso_jump, datanames=['x'],
+                                  ramps_per_segment=[None])
+        with pytest.raises(Stop):
+            jwst.load.run_ramp_fit(dataset, save=False)
+        assert seen[-1] == expected
