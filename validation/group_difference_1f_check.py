@@ -82,9 +82,50 @@ def white_lights(stage2):
     return curves
 
 
-def white_light_rms(ts, paths, config, output, window=100):
+def spectroscopic_rms(products, variant, output, window=100, resolving_powers=(30, 100, 300)):
+    """Median-filter RMS of the spectroscopic light curves of every spectral product.
+
+    The curves are the columns (``R0``) and wavelength bins of resolving power
+    ``resolving_powers``; the RMS (ppm), its ratio to the median error (``excess``) and the
+    curves are saved to ``spectroscopic_<variant>_<product>.npz``. Returns, per product and
+    resolution, the median over channels of the RMS and of the excess.
+    """
+    from transitspectroscopy.core.products import SpectroscopicTimeSeries, resolution_edges
+
+    summary = {}
+    for name, product in products.items():
+        if not isinstance(product, SpectroscopicTimeSeries):
+            continue
+        wavelength = (product.wavelength if product.wavelength.ndim == 1
+                      else np.median(product.wavelength, axis=0))
+        common = np.all(product.good & (product.flux_err > 0), axis=0) & (wavelength > 0)
+        flux = product.flux[:, common]
+        normalization = np.median(flux, axis=0)
+        curves = {0: (wavelength[common], (flux/normalization).T,
+                      (product.flux_err[:, common]/normalization).T)}
+        valid = wavelength[common]
+        for power in resolving_powers:
+            binned = product.bin_wavelengths(resolution_edges(valid.min(), valid.max(), power))
+            curves[power] = (binned.wavelength, binned.flux, binned.flux_err)
+        arrays, summary[name] = dict(times=product.times), {}
+        for power, (centers, flux, error) in curves.items():
+            residual = np.array([(curve/smooth_series(curve, window) - 1)*1e6 for curve in flux])
+            rms = np.sqrt(np.nanmean(residual**2, axis=1))
+            excess = rms/(np.median(error, axis=1)*1e6)
+            arrays.update({f'R{power}_wavelength': centers, f'R{power}_flux': flux,
+                           f'R{power}_error': error, f'R{power}_rms_ppm': rms,
+                           f'R{power}_excess': excess})
+            summary[name][f'R{power}'] = dict(channels=len(rms),
+                                             median_rms_ppm=float(np.median(rms)),
+                                             median_excess=float(np.median(excess)))
+        np.savez_compressed(output/f'spectroscopic_{variant}_{name}.npz', **arrays)
+    return summary
+
+
+def white_light_rms(ts, paths, config, output, window=100, spectroscopic=False):
     """Extract every rate file of ``paths`` (variant: path) with the ``[extraction]`` variants
-    of ``config``; save the white lights and print and save their median-filter RMS."""
+    of ``config``; save the white lights and print and save their median-filter RMS (and, with
+    ``spectroscopic``, that of the spectroscopic light curves; see `spectroscopic_rms`)."""
     table = {}
     for variant, path in paths.items():
         run = dict(run=dict(name=variant, output=str(output/f'stage2_{variant}')),
@@ -103,6 +144,10 @@ def white_light_rms(ts, paths, config, output, window=100):
                 table[variant][name] = dict(
                     rms_ppm=float(np.sqrt(np.nanmean(residual**2))),
                     robust_rms_ppm=float(1.4826*np.nanmedian(np.abs(residual))))
+        if spectroscopic:
+            table[variant]['spectroscopic'] = {
+                extraction: spectroscopic_rms(products, f'{variant}_{extraction}', output, window)
+                for extraction, products in result.products.items()}
         del result
         gc.collect()
     (output/'white_light_rms.json').write_text(json.dumps(table, indent=2)+'\n')
@@ -110,7 +155,13 @@ def white_light_rms(ts, paths, config, output, window=100):
     for variant in table:
         print(f'  {variant:20s} ' + '  '.join(
             f"{extraction} {values['rms_ppm']:6.1f} ({values['robust_rms_ppm']:5.1f})"
-            for extraction, values in table[variant].items()))
+            for extraction, values in table[variant].items() if extraction != 'spectroscopic'))
+        for extraction, products in table[variant].get('spectroscopic', {}).items():
+            for name, powers in products.items():
+                print(f'    {extraction}/{name}: median channel RMS ppm (excess over error) '
+                      + '  '.join(f"{power} {values['median_rms_ppm']:.0f} "
+                                  f"({values['median_excess']:.3f})"
+                                  for power, values in powers.items()))
     return table
 
 

@@ -13,7 +13,8 @@ and each corrected set of ramps is fitted with the JWST ramp fit and with the co
 is ``groups_jwst``; the CDS one is ``differences_sparta``. The rates of every variant are marked
 as group-corrected (Stage 2 then removes no 1/f noise), extracted with the ``[extraction]``
 variants of the configuration (``ts.run``) and deleted (unless ``--keep-rates``), and the
-100-point median-filter RMS of every white light is tabulated. Run from the repository root:
+100-point median-filter RMS of every white light and spectroscopic light curve (columns
+and R = 30, 100, 300 bins) is tabulated. Run from the repository root:
 
     python validation/cds_1f_comparison.py \\
         validation/data/jw01118005001_04101_00001-seg001_nrs1_uncal.fits \\
@@ -106,7 +107,8 @@ def calibrate_and_extract(ts, uncal, config, output, window, keep_rates):
             dataset.rateints_per_segment = dataset.rateints = None
             gc.collect()
             lap(f'{variant}_ramp_fit')
-            table.update(white_light_rms(ts, {variant: path}, config, output, window))
+            table.update(white_light_rms(ts, {variant: path}, config, output, window,
+                                         spectroscopic=True))
             lap(f'{variant}_stage2')
             if not keep_rates:
                 path.unlink()
@@ -147,7 +149,14 @@ def main(argv=None):
     for variant, rms in table.items():
         print(f'  {variant:20s} ' + '  '.join(
             f"{extraction} {values['rms_ppm']:6.1f} ({values['robust_rms_ppm']:5.1f})"
-            for extraction, values in rms.items()))
+            for extraction, values in rms.items() if extraction != 'spectroscopic'))
+    for variant, rms in table.items():
+        for extraction, products in rms.get('spectroscopic', {}).items():
+            for name, powers in products.items():
+                print(f'  {variant:20s} {extraction}/{name}: median channel RMS ppm (excess) '
+                      + '  '.join(f"{power} {values['median_rms_ppm']:.0f} "
+                                  f"({values['median_excess']:.3f})"
+                                  for power, values in powers.items()))
 
 
 if __name__ == '__main__':
