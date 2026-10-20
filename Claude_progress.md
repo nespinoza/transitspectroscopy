@@ -444,3 +444,13 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   groups_jwst in median per-channel ratio (16-84%: +-1.5-4%), ~half the channels better; excess over
   the error ~1.01 (R0), 1.04-1.14 (binned) for all. SOSS rerun killed by Claude Code during Stage 1
   (low memory); not restarted.
+- [x] Images of the group-level 1/f correction (validation/group_1f_panels.py; runs nrs1-1f-panels,
+  soss-1f-panels): per group (a) group, (b) minus template, (c) levels, (d) corrected, plus column
+  medians over the background pixels. NRS1 seg1 ints 10/100/300; SOSS seg1 has 144 ints, so 10/70/130.
+  The recorded call matches the levels recomputed from the templates (1e-4 DN) and (a)-(c) = (d)
+  (float32 rounding). Split-half test (background band below vs above the trace, after the template):
+  SOSS (133 bkg px/column) bands correlate 0.5 per column, 0.8-0.9 averaged over 4-64 columns;
+  NRS1 (10 bkg px/column) 0.1 per column (0.0 in the untraced columns < 450), 0.2/0.4/0.6 over
+  4/16/64 columns: the per-column NRS1 level is mostly pixel noise (~20 DN vs ~10 DN coherent);
+  rows 0-8 (unused) get worse after the correction (high-pass 24 -> 30 DN). Untraced NRS1 columns
+  with clusters of unflagged negative pixels bias levels by up to ~100 DN. Not acted on.
