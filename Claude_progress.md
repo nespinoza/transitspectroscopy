@@ -454,3 +454,15 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   4/16/64 columns: the per-column NRS1 level is mostly pixel noise (~20 DN vs ~10 DN coherent);
   rows 0-8 (unused) get worse after the correction (high-pass 24 -> 30 DN). Untraced NRS1 columns
   with clusters of unflagged negative pixels bias levels by up to ~100 DN. Not acted on.
+- [x] Literature sweep + data check for a time-domain (pixel-clock) GP 1/f model (no pipeline code;
+  scratch scripts in the session scratchpad gp1f/). Timing from headers: TSAMPLE 10 us/pixel (not
+  1 us), 12-tick line overhead (jwst NSCleanSubarray nloh=12); NRS1 FASTAXIS=+2 SLOWAXIS=+1
+  (t = c*44 + r), SOSS -2/-1 (t = (2047-c)*268 + (255-r)); RAPID, NFRAMES=1, GROUPGAP=0. Groups
+  (minus template): pixel-fixed part (kTC/superbias, constant over groups) is 75% (NRS1, sigma 50
+  DN) / 50% (SOSS, 31 DN) of the variance, plus line-periodic structure: not stationary in time.
+  Group differences or groups centred per pixel over the integration: stationary, PSD white +
+  f^-alpha, alpha 1.03 (NRS1) / 0.96 (SOSS), knees ~2 / ~6 kHz; ACF fitted by white + 7-8
+  exponentials (celerite real terms) to <1 / 3 DN^2. Hold-out (fake trace band) band-mean rms,
+  DN, none / current column median / median on centred groups / GP: NRS1 8.05/7.50/6.20/5.81
+  (floor 4.56), SOSS 9.80/5.75/5.58/4.51 (floor 3.05). Neighbouring columns add nothing for SOSS,
+  little for NRS1. Awaiting user decision.
