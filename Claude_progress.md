@@ -497,3 +497,20 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   stage2fix_*): no NaN spectra; white light old -> new, JWST rates: simple 166.3 -> 165.2,
   polynomial 185.9 -> 185.0, GP 215.4 -> 174.6; SPARTA (sigma None): 166.9 -> 165.5,
   188.0 -> 186.9, 219.5 -> 179.2. SPARTA - JWST: +0.4+-0.5, +1.9+-1.6, +4.6+-1.2.
+- [~] GP (readout-time) 1/f experiment (user: run it, watch memory, delete regenerable run
+  products). validation/runs cleaned 21 GB -> 294 MB (kept png/json/log/txt). celerite2 0.3.3
+  installed in the py313 env for the experiment only (not a package dependency).
+  validation/gp_1f.py: `gp_difference_1f` replaces core.detector.difference_1f (same templates,
+  pixels and shared rule; 5-sigma column clipping + 4-neighbour dilation); kernel white + NNLS
+  exponentials fitted to the masked ACF (timescales to `kernel_lines`=200 columns) of 16 ints;
+  celerite2 predictive mean at every pixel (exact vs dense to 1e-14; ~5 ms NRS1, ~40 ms SOSS
+  frame; never return_var: dense covariance); hold-out band (NRS1: band below the trace; SOSS
+  rows 200-215) with per-column and band-sum errors. validation/gp_1f_comparison.py: one variant
+  per process (groups_jwst, differences_sparta, gp_sparta), ramps freed before Stage 2, rates
+  deleted, --summarize. NRS1 seg1 (runs/nrs1-gp-1f): groups_jwst 165.2/185.0/174.6 ppm,
+  gp_sparta 172.2/194.0/185.0 (+7.1+-1.8, +9.0+-2.2, +10.5+-2.0) but per-channel RMS better:
+  R0 ratio 0.979-0.984, R100 0.989-0.995, R300 0.983-0.987, R30 ~1.00. Kernel white 73.4,
+  correlated 43.0 DN^2; hold-out band-mean rms none 7.74 / median 6.98 / GP 5.41 (floor 3.85).
+  Peak memory 4.6 GB per variant. Chain killed by Claude Code (system low memory) at NRS1
+  differences_sparta Stage 1; not restarted. Pending: differences_sparta, band-sum hold-out
+  diagnostic vs kernel length (scratch gp_holdout.py), SOSS seg1 (3 variants).
