@@ -490,3 +490,10 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   185.9 (+2.1+-1.6), GP 219.5/179.4 vs 215.4/174.7 (+4.7+-1.0). GP gap not from jump flags;
   unexplained. Remaining DQ differences: JWST sets NO_GAIN_VALUE (non-trace) and SATURATED on 42
   trace pixel-ints that SPARTA does not. Stage 2 NaN-column issue (mask_dq + GP) still open.
+- [x] User approved the Stage 2 NaN fix (GP gap of ~5 ppm: not a concern for now). 9eddb7c:
+  `jwst_models.dq_masked` (any DQ but JUMP_DET) used by mask_dq in stage2 (image filling and
+  the GP mask) and soss.reduce_soss; the Stage 2 cleaning also replaces non-finite spectra in
+  `corrected`. Suite 195 passed, 13 skipped. NRS1 seg1 Stage 2 rerun (runs/nrs1-sparta-gp,
+  stage2fix_*): no NaN spectra; white light old -> new, JWST rates: simple 166.3 -> 165.2,
+  polynomial 185.9 -> 185.0, GP 215.4 -> 174.6; SPARTA (sigma None): 166.9 -> 165.5,
+  188.0 -> 186.9, 219.5 -> 179.2. SPARTA - JWST: +0.4+-0.5, +1.9+-1.6, +4.6+-1.2.
