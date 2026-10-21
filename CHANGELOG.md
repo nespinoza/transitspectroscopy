@@ -91,6 +91,10 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
   enabled explicitly with suitable training integrations.
 
 ### Fixed
+- Stage 2 `mask_dq` no longer masks pixels flagged only `JUMP_DET` (their rates are fitted
+  around the jump). When the TSO jump step flagged a column's whole trace, the GP optimal
+  extraction of that column was NaN and the `nansum` white light dipped (600-2500 ppm on
+  NRS1); non-finite spectra are now also replaced in the `corrected` spectra.
 - Parallel `fit_lightcurves` (Ray) returned `None` for every fit.
 - `download(..., data_product='ramps')` could not select ramp products.
 - `trace_spectrum(xend=None)`, `get_pm_ccf`, `load.interpolate_nans`, `fit_spline` without

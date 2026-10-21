@@ -58,7 +58,7 @@ Useful options:
 | `aperture_radius` | Box (or optimal) extraction half-width in pixels |
 | `single_trace_extraction` | Use the median trace for all integrations (default) or each integration's trace |
 | `optimal_extraction` | Marsh (1989) optimal extraction instead of a box; see {doc}`optimal-extraction` |
-| `mask_dq` | Ignore pixels with non-zero DQ flags |
+| `mask_dq` | Ignore pixels with non-zero DQ flags, except `JUMP_DET` alone |
 | `nthreads` | Parallelize tracing and extraction with Ray |
 | `outputfolder`, `suffix` | Where and under which name products are cached |
 

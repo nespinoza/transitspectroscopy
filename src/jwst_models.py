@@ -67,6 +67,17 @@ def ramp_jumps(ramps):
     return [(ramp.groupdq & dqflags.group['JUMP_DET']) > 0 for ramp in ramps]
 
 
+def dq_masked(dq):
+    """Pixels that ``mask_dq`` excludes: any DQ flag but JUMP_DET.
+
+    A JUMP_DET pixel of a rate has its slope fitted around the jump, so its rate is valid.
+    """
+    from stdatamodels.jwst.datamodels import dqflags
+
+    # Stage 2 keeps DQ as floats; the flags are integers stored exactly.
+    return (np.asarray(dq).astype(np.uint32) & ~np.uint32(dqflags.pixel['JUMP_DET'])) != 0
+
+
 # Shorter than a FITS HISTORY card (72 characters), so that it is read back as one entry:
 GROUP_1F_HISTORY = 'transitspectroscopy: group-difference 1/f correction (fit_ramps)'
 

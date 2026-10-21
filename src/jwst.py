@@ -2236,8 +2236,9 @@ class _Stage2SharedMask:
         image, error = product.data[local,:,self.columns], product.err[local,:,self.columns]
         invalid = ~np.isfinite(image) | (image == -9999) | ~np.isfinite(error) | (error <= 0)
         if self.mask_dq:
+            from .jwst_models import dq_masked
             dq = product.dq[local] if product.dq.ndim == 3 else product.dq
-            invalid |= dq[:,self.columns] != 0
+            invalid |= dq_masked(dq[:,self.columns])
         return invalid
 
 
@@ -2406,7 +2407,8 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
     suffix  : string
         (Optional) Suffix to add to each out the outputs.
     mask_dq : string
-        (Optional) Mask pixels that don't have dq of 0.
+        (Optional) Mask pixels that don't have dq of 0, except JUMP_DET alone (a jump the ramp
+        fit fitted around; its rate is valid).
     extraction_backend : {'auto', 'c', 'python'}
         Optimal-extraction backend. Auto preserves C when installed, otherwise Python.
     profile_method : {'polynomial', 'gp'}
@@ -2634,12 +2636,13 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
         mf_median_err_rate = median_filter(median_rate_err, [row_window, column_window])
         median_rate_err[idx_err] = mf_median_err_rate[idx_err]
 
-    # Same for the entire TSO:
+    # Same for the entire TSO (JUMP_DET pixels have valid rates, so mask_dq keeps them):
+    from .jwst_models import dq_masked
     for i in range(tso.shape[0]):
 
         if mask_dq:
 
-            idx = np.where( np.isnan( tso[i,:,:] ) | ( tso_dq[i, :, :] != 0. ) )
+            idx = np.where( np.isnan( tso[i,:,:] ) | dq_masked( tso_dq[i, :, :] ) )
 
         else:
 
@@ -3169,9 +3172,10 @@ def stage2(input_dictionary, nthreads = None, zero_nans = True, scale_1f = True,
             model = master_spectrum * median
             sigma = sigma_master_spectrum * median
             
-            # Identify bad pixels/columns:
+            # Identify bad pixels/columns (also columns with no valid pixel, e.g. a NaN optimal
+            # extraction of a fully masked aperture, which would otherwise dip the white light):
             residuals = np.abs(spectra[i, :] - model)
-            idx_bad = np.where(residuals > 5 * sigma)[0]
+            idx_bad = np.where(~np.isfinite(spectra[i, :]) | (residuals > 5 * sigma))[0]
             
             # Replace:
             if len(idx_bad) != 0:

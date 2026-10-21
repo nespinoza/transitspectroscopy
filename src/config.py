@@ -48,7 +48,8 @@ class ExtractionConfig:
     single_trace_extraction : bool
         Extract all integrations with the median trace (``True``) or each with its own.
     mask_dq : bool
-        Ignore pixels with non-zero DQ flags.
+        Ignore pixels with non-zero DQ flags, except JUMP_DET alone (fitted around by the
+        ramp fit, so the rate is valid).
     zero_nans : bool
         Replace missing pixels by zeros (``True``) or by a median-filtered rate image.
     scale_1f : bool

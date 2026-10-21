@@ -65,7 +65,7 @@ Implementation details specific to this library:
 - After the TSO jump step, the fitter rejects no differences by default (`sigma=None`): the
   jump step, which uses all integrations, defines the jumps, and the fitter's per-ramp
   test, whose noise model has no residual 1/f noise, would otherwise flag (as `JUMP_DET`)
-  differences in the noise tails of faint pixels, which Stage 2 with `mask_dq` then masks.
+  differences in the noise tails of faint pixels.
 - Rejection removes the worst difference above `sigma` per ramp per iteration,
   monotonically. We solve the covariance of the retained differences again;
   merely zeroing weights from the full covariance is incorrect at gaps. Each

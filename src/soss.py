@@ -14,7 +14,7 @@ from .core.extraction import fractional_box
 from .core.geometry import aperture_weights  # noqa: F401  (public re-export)
 from .core.provenance import file_sha256
 from .core.tracing import refine_trace, trace_motion  # noqa: F401  (public re-exports)
-from .jwst_models import integration_times, open_model
+from .jwst_models import dq_masked, integration_times, open_model
 
 
 def _reference(model, kind, override):
@@ -147,7 +147,7 @@ def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
     flux calibration are performed. Pixels retain DQ. Box white-light curves
     use a fixed, complete, nonoverlapping wavelength band.
     DO_NOT_USE and SATURATED pixels are always excluded. ``mask_dq=True`` also
-    excludes informational flags (e.g. a successfully fitted jump), and can
+    excludes the other flags but JUMP_DET (a jump the ramp fit fitted around), and can
     leave no complete wavelength band in long series.
 
     With ``scale_1f``, a per-column 1/f level is removed from every integration
@@ -209,7 +209,7 @@ def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
             indices = np.unique(np.linspace(0, len(m.data)-1, max(2, sample_integrations//len(values))).astype(int))
             for i in indices:
                 valid = np.isfinite(m.data[i]) & np.isfinite(m.err[i]) & (m.err[i] > 0)
-                valid &= (m.dq[i] == 0) if mask_dq else ((m.dq[i] & 3) == 0)
+                valid &= ~dq_masked(m.dq[i]) if mask_dq else ((m.dq[i] & 3) == 0)
                 samples.append(np.where(valid, m.data[i], np.nan))
                 if optimal_methods:
                     sample_variances.append(np.where(valid, np.asarray(m.err[i], float)**2, np.nan))
@@ -352,7 +352,7 @@ def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
                 frame = np.asarray(m.data[i], float)-background
                 variance = np.asarray(m.err[i], float)**2
                 valid = np.isfinite(frame) & np.isfinite(variance) & (variance > 0)
-                valid &= (m.dq[i] == 0) if mask_dq else ((m.dq[i] & 3) == 0)
+                valid &= ~dq_masked(m.dq[i]) if mask_dq else ((m.dq[i] & 3) == 0)
                 if scale_1f:
                     frame -= column_levels(frame, valid, **onef)[None, :]
                 if first_image is None:

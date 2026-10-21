@@ -129,6 +129,19 @@ def test_gp_stage2_recovers_original_mask_after_image_filling():
     assert np.all(variance[mask] == 1e18)
 
 
+def test_mask_dq_keeps_jump_only_pixels():
+    from transitspectroscopy import jwst
+    from transitspectroscopy.jwst_models import dq_masked
+    dq = np.zeros((1, 4, 6), dtype=np.uint32)
+    dq[0, 1, 1], dq[0, 2, 2], dq[0, 3, 3] = 4, 4 | 2, 1
+    assert dq_masked(dq[0]).tolist() == (dq[0] & ~np.uint32(4) != 0).tolist()
+    assert dq_masked(dq[0].astype(float)).tolist() == dq_masked(dq[0]).tolist()
+    inputs = dict(rampstep=[NS(data=np.ones(dq.shape), err=np.ones(dq.shape), dq=dq)],
+                  ints_per_segment=[1])
+    mask = jwst._Stage2SharedMask(inputs, True, slice(0, 6))[0]
+    assert not mask[1, 1] and mask[2, 2] and mask[3, 3] and mask.sum() == 2
+
+
 def _driver(name, monkeypatch):
     monkeypatch.syspath_prepend(str(ROOT/'validation'))
     spec = importlib.util.spec_from_file_location(name, ROOT/f'validation/{name}.py')
