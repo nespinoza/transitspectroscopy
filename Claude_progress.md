@@ -511,6 +511,14 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   gp_sparta 172.2/194.0/185.0 (+7.1+-1.8, +9.0+-2.2, +10.5+-2.0) but per-channel RMS better:
   R0 ratio 0.979-0.984, R100 0.989-0.995, R300 0.983-0.987, R30 ~1.00. Kernel white 73.4,
   correlated 43.0 DN^2; hold-out band-mean rms none 7.74 / median 6.98 / GP 5.41 (floor 3.85).
-  Peak memory 4.6 GB per variant. Chain killed by Claude Code (system low memory) at NRS1
-  differences_sparta Stage 1; not restarted. Pending: differences_sparta, band-sum hold-out
-  diagnostic vs kernel length (scratch gp_holdout.py), SOSS seg1 (3 variants).
+  Peak memory 4.6 GB per variant. Restarted on request (scratch run_gp1f_rest.sh).
+  differences_sparta 167.8/187.7/180.1 (+2.7+-2.5, +2.7+-2.8, +5.5+-2.3 vs groups_jwst), channel
+  ratios ~1.00. GP vs differences_sparta: white +4.4+-1.6/+6.4+-1.9/+5.0+-1.6 ppm, but R0
+  ratio 0.984-0.987 (92-96% of columns < 1), R100/R300 0.989-0.992. Hold-out (no correction,
+  every 5th int, runs/nrs1-gp-1f/holdout): kernel 50/200/1000/4000 columns identical: band mean
+  median 6.96 / GP 5.41 (floor 3.84); band sum per pixel none 0.264 / median 0.220 / GP 0.216
+  (floor 0.086). So the hold-out does not reproduce the white-light loss; the per-integration
+  difference (24-30 ppm rms, lag-1 corr 0.1-0.2) is slow. Hypothesis (untested): GP carries
+  flux-correlated residuals of the background pixels nearest the trace (PSF wings, template x
+  smoothed white-light factor) into the trace edge pixels. SOSS gp_sparta killed by Claude Code
+  (system low memory) during its first ramp fit; not restarted.
