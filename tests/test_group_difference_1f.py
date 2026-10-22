@@ -240,3 +240,54 @@ def test_detector_calibration_flags_select_the_1f_domain_and_the_ramp_fit():
     assert dataset.ramp_fit_method == 'sparta' and dataset.ramp_fit_options == {'sigma': 4.0}
     with pytest.raises(ValueError, match='requires ramp_fit_method'):
         dataset.detector_calibration(ramp_fit_options={'sigma': 4.0})
+
+
+def test_offsets_before_linearity_removes_offsets_from_the_raw_counts():
+    from transitspectroscopy.core.detector import linearity_polynomial, offsets_before_linearity
+    rng = np.random.default_rng(7)
+    coefficients = np.zeros((4, NROWS, NCOLS))
+    coefficients[1] = 1 + rng.normal(0, 0.01, (NROWS, NCOLS))
+    coefficients[2] = 2e-6 + rng.normal(0, 2e-7, (NROWS, NCOLS))
+    coefficients[3] = 1e-11
+    raw = rng.uniform(0, 30000, (NGROUPS, NROWS, NCOLS))
+    offsets = rng.normal(0, 20, (NGROUPS, 1, NCOLS))
+    data = linearity_polynomial(coefficients[:, None], raw) - offsets
+    keep = np.zeros(data.shape, bool)
+    keep[-1, 3, 5] = True
+    expected = linearity_polynomial(coefficients[:, None], raw - offsets)
+    flagged = data[-1, 3, 5]
+    assert offsets_before_linearity(data, offsets, coefficients, keep=keep) == 0
+    assert data[-1, 3, 5] == flagged
+    np.testing.assert_allclose(data[~keep], expected[~keep], atol=1e-6)
+
+
+def test_group_difference_1f_removes_the_levels_before_linearity(monkeypatch):
+    # Integration-wide pedestals and column stripes in the raw counts: removed after a curved
+    # linearity correction they leave errors proportional to the counts, removed before it none.
+    models = pytest.importorskip('stdatamodels.jwst.datamodels')
+    from transitspectroscopy import jwst_models
+    from transitspectroscopy.core.detector import linearity_polynomial
+    scene, transit, stripes, clean, data = prism_scene()
+    rng = np.random.default_rng(11)
+    pedestal = rng.normal(0, 20, (NINTS, 1, 1, 1))
+    coefficients = np.zeros((3, NROWS, NCOLS))
+    coefficients[1], coefficients[2] = 1., 4e-5
+    linear = lambda counts: linearity_polynomial(coefficients[:, None, None], counts)
+    errors = {}
+    for before in (True, False):
+        monkeypatch.setattr(jwst_models, 'linearity_coefficients', lambda ramp: coefficients)
+        ramp, rates = prism_models(models, linear(data + pedestal).astype(np.float32), scene,
+                                   transit)
+        out = jwst.group_difference_1f_correction([ramp], [rates],
+                                                  instruments.get_mode('nirspec/prism'),
+                                                  before_linearity=before)
+        assert out['before_linearity'] == before and out['linearity_not_inverted'] == 0
+        slope = np.diff(ramp.data - linear(clean), axis=1).mean(axis=1)
+        errors[before] = np.std(slope - slope.mean(axis=0))
+    assert errors[True] < 0.2*errors[False]
+
+
+def test_linearity_coefficients_without_a_reference_is_none():
+    models = pytest.importorskip('stdatamodels.jwst.datamodels')
+    from transitspectroscopy.jwst_models import linearity_coefficients
+    assert linearity_coefficients(models.RampModel(data=np.zeros((1, 2, 4, 4), np.float32))) is None

@@ -282,6 +282,68 @@ def difference_1f(segments, valid, background_pixels, scale, jumps=None, shared_
     return dict(levels=levels, shared=shared)
 
 
+def linearity_polynomial(coefficients, values, derivative=False):
+    """The linearity correction ``sum_k coefficients[k] * values**k`` (or its derivative).
+
+    ``coefficients`` is ``(ncoefficients, ...)``, broadcast against ``values``.
+    """
+    result = np.zeros_like(values)
+    for power in range(len(coefficients) - 1, 0 if derivative else -1, -1):
+        result = result*values + (power if derivative else 1)*coefficients[power]
+    return result
+
+
+def offsets_before_linearity(data, offsets, coefficients, keep=None, iterations=4,
+                             tolerance=1e-3):
+    """Move offsets subtracted after the linearity correction to before it, in place.
+
+    ``data`` are groups corrected for linearity with the polynomial ``coefficients`` (see
+    `linearity_polynomial`), from which ``offsets`` were then subtracted. Their raw counts are
+    recovered by inverting the polynomial with Newton's method, and the offsets are subtracted
+    from them before the polynomial is applied again. An offset (e.g., a 1/f level or a
+    pedestal) present in the raw counts is then removed exactly, instead of leaving its product
+    with the curvature of the correction, which is larger for brighter pixels.
+
+    Parameters
+    ----------
+    data : numpy.ndarray
+        ``(group, row, column)`` groups of one integration, corrected for linearity and with
+        ``offsets`` subtracted.
+    offsets : numpy.ndarray
+        Offsets, broadcast against ``data`` (e.g., ``(group, 1, column)``).
+    coefficients : numpy.ndarray
+        ``(ncoefficients, row, column)`` linearity polynomial (identity, ``[0, 1, 0, ...]``,
+        where there is no correction).
+    keep : numpy.ndarray, optional
+        Boolean array like ``data``, True for groups to leave as they are (e.g., saturated,
+        which the linearity step does not correct).
+    iterations : int, optional
+        Newton iterations. Default is 4.
+    tolerance : float, optional
+        Largest difference (DN) between the polynomial of the recovered counts and the
+        corrected counts; groups of pixels where it is larger are left as they are. Default is
+        1e-3.
+
+    Returns
+    -------
+    int
+        Number of groups not inverted within ``tolerance`` (left as they are).
+    """
+    coefficients = np.asarray(coefficients, dtype=np.float64)[:, None]
+    linear = data.astype(np.float64) + offsets
+    raw = linear.copy()
+    for _ in range(iterations):
+        raw -= ((linearity_polynomial(coefficients, raw) - linear)
+                / linearity_polynomial(coefficients, raw, derivative=True))
+    corrected = linearity_polynomial(coefficients, raw - offsets)
+    converged = np.abs(linearity_polynomial(coefficients, raw) - linear) < tolerance
+    unchanged = ~(converged & np.isfinite(corrected))
+    if keep is not None:
+        unchanged |= keep
+    data[...] = np.where(unchanged, data, corrected).astype(data.dtype)
+    return int(np.sum(~converged))
+
+
 def tso_jump_flags(segments, window, nsigma=10):
     """Detect jumps using the time series of each pixel's group differences.
 

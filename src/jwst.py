@@ -1368,17 +1368,28 @@ def group_difference_1f_correction(ramps, rateints, mode, **options):
         and ``outer_radius`` (default: the mode's). For all modes, ``domain = 'differences'``
         measures and removes the 1/f levels on the group differences (CDS frames) instead of
         the groups (see `transitspectroscopy.core.detector.difference_1f`); the default is
-        ``'groups'``.
+        ``'groups'``. With ``before_linearity = True`` (the default), the levels, measured on
+        the ramps corrected for linearity, are removed from their raw counts instead, i.e.
+        before the linearity correction (see
+        `transitspectroscopy.core.detector.offsets_before_linearity`; ramps without a linearity
+        reference are corrected after it). Otherwise, the per-integration pedestal and 1/f
+        offsets left in the raw counts go through the curvature of the correction, which is
+        larger for the brighter pixels, and add white-light noise (about 10 ppm for NIRSpec/G395H
+        NRS1). The dark, subtracted after linearity, is neglected in the inversion.
 
     Returns
     -------
 
     diagnostics : dict
         Template factor of every group (``group_scale``, groups only), removed levels
-        (``levels``, per integration, group or difference, and column) and white-light factors
-        (``white_light_scale``).
+        (``levels``, per integration, group or difference, and column), white-light factors
+        (``white_light_scale``), whether the levels were removed before linearity
+        (``before_linearity``) and the number of groups whose linearity correction could not
+        be inverted, corrected after it (``linearity_not_inverted``).
     """
 
+    options = dict(options)
+    before_linearity = options.pop('before_linearity', True)
     if mode.stage2 == 'soss':
 
         from .soss import correct_ramps_1f, extract_soss
@@ -1386,14 +1397,59 @@ def group_difference_1f_correction(ramps, rateints, mode, **options):
         domain = settings.pop('domain', 'groups')
         settings.setdefault('aperture_radius', mode.extraction_defaults['aperture_radius'])
         result = extract_soss(rateints, **settings)
-        return correct_ramps_1f(ramps, rateints, result, domain = domain)
+        diagnostics = correct_ramps_1f(ramps, rateints, result, domain = domain)
 
-    if mode.stage2 != 'spectral':
+    elif mode.stage2 != 'spectral':
 
         raise ValueError('The group-difference 1/f correction is only defined for '
                          'spectroscopic modes')
 
-    return _spectral_group_difference_1f(ramps, rateints, mode, **options)
+    else:
+
+        diagnostics = _spectral_group_difference_1f(ramps, rateints, mode, **options)
+
+    diagnostics.update(before_linearity = False, linearity_not_inverted = 0)
+    if before_linearity:
+
+        _levels_before_linearity(ramps, diagnostics)
+
+    return diagnostics
+
+def _levels_before_linearity(ramps, diagnostics):
+    """Move the 1/f levels removed from ``ramps`` to before their linearity correction."""
+
+    from stdatamodels.jwst.datamodels import dqflags
+    from .core.detector import offsets_before_linearity
+    from .jwst_models import linearity_coefficients
+
+    coefficients = [linearity_coefficients(ramp) for ramp in ramps]
+    if any(c is None for c in coefficients):
+
+        return
+
+    # Offsets removed from every group: the levels (groups), or their cumulative sums from the
+    # second group (differences):
+    levels = diagnostics['levels']
+    if levels.shape[1] == ramps[0].data.shape[1] - 1:
+
+        levels = np.concatenate([np.zeros_like(levels[:, :1]), np.cumsum(levels, axis = 1)],
+                                axis = 1)
+
+    saturated = dqflags.group['SATURATED']
+    integration, not_inverted = 0, 0
+    for ramp, polynomial in zip(ramps, coefficients):
+
+        data = ramp.data
+        for i in range(data.shape[0]):
+
+            not_inverted += offsets_before_linearity(data[i], levels[integration][:, None, :],
+                                                     polynomial,
+                                                     keep = (ramp.groupdq[i] & saturated) != 0)
+            integration += 1
+
+        ramp.data = data
+
+    diagnostics.update(before_linearity = True, linearity_not_inverted = not_inverted)
 
 def _spectral_group_difference_1f(ramps, rateints, mode, aperture_radius = None,
                                   inner_radius = None, outer_radius = None, domain = 'groups'):

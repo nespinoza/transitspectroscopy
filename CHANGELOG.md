@@ -62,6 +62,16 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
   (`core.detector.difference_1f`); the default is `'groups'`. `detector_calibration` takes
   the flags `group_difference_1f_domain` and `ramp_fit_method`/`ramp_fit_options` (replacing
   the ramp fit selected in `load`); `[calibration] group_difference_1f_domain` in `ts.run`.
+- The group-difference 1/f levels, measured on the ramps corrected for linearity, are removed
+  from the raw counts, i.e. before the linearity correction (`before_linearity=True`, the
+  default of `group_difference_1f_correction`; `core.detector.offsets_before_linearity`,
+  `jwst_models.linearity_coefficients`). Removed after it, the per-integration pedestal and
+  1/f offsets went through the curvature of the correction, larger for brighter pixels: on
+  NIRSpec/G395H NRS1 (HAT-P-14 b, segment 1) the white-light 100-point RMS goes from 165.2,
+  185.0 and 174.6 ppm to 154.7, 177.6 and 165.9 ppm (simple, polynomial and GP extraction),
+  with the spectroscopic light curves unchanged. Numerical outputs of reductions from `uncal`
+  files change; `parameters={'group_difference_1f': {'before_linearity': False}}` restores
+  the previous correction.
 - After the TSO jump step, the correlated (`'sparta'`) ramp fit rejects no differences unless
   `sigma` is given in `ramp_fit_options` (the TSO jump flags define the excluded differences;
   its own clipping flagged ~4e-4 of the differences of faint NIRSpec pixels as `JUMP_DET`).
