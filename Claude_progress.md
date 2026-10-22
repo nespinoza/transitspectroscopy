@@ -548,3 +548,19 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   ~300 ppm, the largest PSD feature). Proxy variants: no change of the floor (gp_acn +3,
   gp_rows +7, i.e. proxy noise ~+3); the gap-2 variants lower mainly the 204 s band (-23+-14,
   -31+-12). Plot runs/nrs1-gp-1f/psd_white_light.png; scratch psd_check.py, psd_bands.py.
+- [x] The 204 s white-light oscillation (user: study it). Scratch osc_frames.py reads the NRS1
+  seg1 uncal memory-mapped (no Stage 1; 15 s): column-median background (rows >= 8 from a fixed
+  trace), 6-sigma group-difference clipping, per-integration spectra, trace y centroid and width,
+  white light for aperture half-widths 1-9 rows, row profile, reference columns, bias.
+  runs/nrs1-oscillation/frames.npz (10 MB) and oscillation.png; osc_analyse.py. Result: PSF
+  breathing. Trace width oscillates at 10.76 int (204 s = 3.4 min; 0.29 mpix, 10 sigma, LS power
+  56x median); flux moves between the core row and rows +-2..3 in anti-phase. y centroid
+  oscillates at 20.5 int (389 s = 6.5 min, 0.9 mpix, 8 sigma); no x shift, bias, reference
+  column or background signal. These are the 3.4 and 6.5 min periods of the NIRSpec
+  commissioning paper (arXiv:2211.01459), attributed to IEC heater cycling (astigmatism,
+  STPSF jwst_iec_wfe). Amplitude vs half-width (raw): 1 row 203, 2 rows 50, 3 rows 15, 4-9 rows
+  25-30 ppm; raw white rms (100-pt) min at 3 rows (134 vs 139 at 2). Pipeline (radius 2) 89-111
+  ppm; regression on the encircled-energy ratio EE(1)/EE(9) cuts it to 40-46 ppm and the rms
+  172 -> 164 (simple), 198 -> 185 (polynomial), 189 -> 177 (gp); width alone only to 64-79.
+  Side finding (open): the raw half-width-2 white light is 139 ppm vs pipeline simple 172 ppm
+  on the same metric (difference 101 ppm rms, lag-1 corr 0.35, not cosmic rays).
