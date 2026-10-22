@@ -539,3 +539,12 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   -7.7+-2.5. So the detector terms improve the noise model but not the white light; the only
   white-light gain is a 2-row gap between the trace and the background (hybrid_gap2 ~ its
   median, so the gap, not the GP). Next (not run): median with gapped background through Stage 2.
+- [x] White-noise floor of the NRS1 seg1 white lights (user hunch: GP may improve the scatter
+  around the slow systematics). Hann periodogram of the white light minus a 100-point median,
+  band rms (ppm, simple; vs differences_sparta, 40-point block bootstrap): high (0.25-0.5/int,
+  <76 s) 130.3; gp_sparta -0.1+-2.1 (polynomial +4.6+-2.9, gp -0.1+-2.9); point-to-point
+  +1.0+-1.3. The GP excess is at low frequency (<0.065/int: +15+-9) and in a periodic feature:
+  all variants show a ~89 ppm, 10.75-integration (204 s) oscillation (band 0.065-0.1/int rms
+  ~300 ppm, the largest PSD feature). Proxy variants: no change of the floor (gp_acn +3,
+  gp_rows +7, i.e. proxy noise ~+3); the gap-2 variants lower mainly the 204 s band (-23+-14,
+  -31+-12). Plot runs/nrs1-gp-1f/psd_white_light.png; scratch psd_check.py, psd_bands.py.
