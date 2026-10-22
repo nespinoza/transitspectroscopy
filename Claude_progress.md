@@ -603,3 +603,19 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   no-reference None. Suite 198 passed, 13 skipped. Docs: CHANGELOG, nirspec and soss guides.
   Not validated on SOSS (memory). Still open: aperture radius 3, the 1/f template scale,
   symmetric background rows, linearity fast-band increase.
+- [x] Literal move of the 1/f step before the linearity step (user: test whether it gives the
+  same results as the inversion). Scratch moved_test.py: first pass (Stage 1 + JWST ramp fit;
+  rates and groupdq kept in validation/runs/nrs1-gp-1f/first_pass), then Stage 1 again with
+  LinearityStep.call wrapped to run group_difference_1f_correction(before_linearity=False) on
+  the refpix-corrected ramp (first-pass rates and groupdq), then linearity, dark, final fit.
+  White light 152.8/175.1/163.2 ppm (moved - inversion: -1.8+-2.0, -2.5+-2.7, -2.7+-1.7).
+  But the rates gain +0.78 DN/s in every pixel (rows uniform; pixel-level difference after
+  removing column offsets 0.037 DN/s; per-integration column scatter 0.49 DN/s; per-column
+  light curves differ by ~930 ppm; DQ and NaNs identical; not the dark, corr 0.02). Cause:
+  core.detector.group_difference_1f scales one difference template per group by a factor
+  fitted in the aperture (group_scale); on raw counts the bright aperture is non-linear
+  (group_scale 1.009 ... 20.94 for groups 1-20), so the template over-subtracts the fainter
+  1/f background pixels by a growing amount, the levels get a -0.80 DN/s slope, and removing
+  them adds it to every column. Stage 2 background subtraction (static median) hides the
+  constant part. The literal move needs a template valid on raw counts (e.g., the median of
+  every group, no fitted factor), and two Stage 1 passes (peak 4.7 GB vs 3.2 GB).
