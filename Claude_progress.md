@@ -619,3 +619,15 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   them adds it to every column. Stage 2 background subtraction (static median) hides the
   constant part. The literal move needs a template valid on raw counts (e.g., the median of
   every group, no fitted factor), and two Stage 1 passes (peak 4.7 GB vs 3.2 GB).
+- [x] Literal move with a per-group median template (user: try it). Scratch moved_test.py
+  `moved median keep`: as the literal move, but core.detector.group_difference_1f replaced
+  by a copy whose template of every group is the median over integrations of that group
+  divided by the white-light factors (no fitted group_scale). The uniform offset is gone
+  (levels flat over groups, slope 0.001 DN/s; background row medians as the first pass).
+  White light 153.1/174.9/164.7 ppm (vs inversion -1.5+-1.5, -2.7+-2.4, -1.3+-1.4). Per-
+  channel RMS ratio to the inversion: R0 0.991-0.993 (16-84% 0.976-1.004), R100 0.994-0.998.
+  Far-background (rows 0-5, 28-31) per-integration column scatter: first pass 0.29, inversion
+  0.52, moved median 0.41 DN/s. Pixels vs inversion: identical DQ/NaNs, per-integration
+  column offsets differ by 0.50 DN/s robust sd (level measurement), pixel level 0.024 DN/s.
+  Not separated yet: the median template alone (after linearity) vs the move.
+  Rates kept: first_pass, groups_jwst_prelinear, groups_jwst_moved_median (~1.5 GB).
