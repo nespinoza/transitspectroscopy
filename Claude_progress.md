@@ -564,3 +564,27 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   172 -> 164 (simple), 198 -> 185 (polynomial), 189 -> 177 (gp); width alone only to 64-79.
   Side finding (open): the raw half-width-2 white light is 139 ppm vs pipeline simple 172 ppm
   on the same metric (difference 101 ppm rms, lag-1 corr 0.35, not cosmic rays).
+- [x] Source of the ~100 ppm extra white-light noise of the pipeline vs the raw (uncal) box
+  extraction (user: find it). NRS1 seg1, box r=2, 100-pt rms (ppm): raw 140, pipeline 172-175.
+  Scratch: source_stage1.py, source_bisect.py, source_bands.py, source_pixels.py,
+  source_emulate.py, source_pedestal.py, source_linearity.py, source_rawlin.py; small npz in
+  runs/nrs1-oscillation (rates deleted, 8 min to regenerate). Findings:
+  (1) Stage 2 adds nothing: the same box on the Stage 1 rates gives 175, corr 1.00 with the
+  pipeline. The extra is a fractional mode common to all columns (corr 0.94), not DQ/jumps/CRs,
+  not the aperture shape, not the 1/f background rows (raw with rows 3-8: 143).
+  (2) Offsets removed after linearity: the per-integration pedestal (frame-wide, 9-11 DN rms,
+  not tracked by the refpix constant) goes through the linearity curvature; measured +7.0
+  ppm/DN, predicted +6.9 ppm/DN from jwst_nirspec_linearity_0024 and the trace counts. Scratch
+  patch removing a pedestal (median of columns 100-450 per group) after refpix: 173 -> 163.
+  The per-column, per-group levels L x (f'(c)-1) predict the rest of this term (corr 0.63);
+  subtracting the prediction: 163 -> 153.
+  (3) Linearity itself on clean raw data: 140 -> 158 (r=2), 133 -> 144 (r=3); the fast band
+  rises 110 -> 120-124 for all apertures (unexplained); the 204 s band rises at r=2 (197 ->
+  238; uncorrected nonlinearity was hiding part of the breathing loss) but falls at r=3-4.
+  (4) The 1/f template white-light scale (whole-frame sum of the first-pass rates) is mostly
+  1/f: 830-1380 ppm rms, corr 0.14 with the true white light; ~12 ppm effect (emulation).
+  (5) Group-difference background rows are asymmetric about the trace ([int(c)-3, int(c)+3)
+  excluded; e.g. centre 13.95 keeps row 16 at +2.05 px).
+  Proposed (not done): remove the 1/f levels and pedestal before linearity (or subtract
+  level x f'(counts) after it), aperture radius 3, scale from the aperture of 1/f-corrected
+  rates, symmetric background rows; then check the linearity fast-band increase.
