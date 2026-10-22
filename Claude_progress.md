@@ -522,3 +522,20 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   flux-correlated residuals of the background pixels nearest the trace (PSF wings, template x
   smoothed white-light factor) into the trace edge pixels. SOSS gp_sparta killed by Claude Code
   (system low memory) during its first ramp fit; not restarted.
+- [x] GP detector-effect exploration (user: GP cost not worth it; try modelling other Rauscher
+  effects). Scratch gp_explore.py on NRS1 seg1 (runs/nrs1-gp-explore: diagnostics.json,
+  variants.json, proxy.npz, delta.npz, logs). Diagnostics of the difference background residuals:
+  ACN small (even-odd variance +19% over white; within-column ACF -1.2/-4.2 DN^2 at odd lags vs
+  73 white); no readout-asymmetric ringing/crosstalk (corr ~0.005 before and after the trace);
+  a per-row pattern common to all columns (sigma ~1.1 DN/row/difference, rows independent, corr
+  ~0.2 with the reference columns). gp_1f.fit_kernel gained `frequencies` (ComplexTerm
+  exp(-t/T)cos(wt); ACN at w=pi) and `periodic` (line harmonics 2pi m/L, row pattern) and a
+  fitted non-negative white term. Hold-out band sum (median 0.231, floor 0.086): gp 0.224,
+  gp_acn 0.175, gp_rows 0.188, hybrid (median + GP on its residual) 0.199. White-light proxy
+  (aperture sum of the per-group 1/f change / flux) validated on the measured gp_sparta vs
+  differences_sparta: corr 0.82 (simple), predicts 167.8 -> 173.5 vs measured 172.2. Proxy
+  white light (simple, vs differences_sparta 167.8): median_clipped -0.6+-0.3, gp +5.7+-1.9,
+  gp_acn +6.3+-1.9, gp_rows +7.3+-1.9, hybrid -0.6+-0.3, gp_gap2 -7.4+-3.4, hybrid_gap2
+  -7.7+-2.5. So the detector terms improve the noise model but not the white light; the only
+  white-light gain is a 2-row gap between the trace and the background (hybrid_gap2 ~ its
+  median, so the gap, not the GP). Next (not run): median with gapped background through Stage 2.

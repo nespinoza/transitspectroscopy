@@ -51,38 +51,55 @@ def masked_acf(images, masks, ticks, maximum_lag):
     return products/np.maximum(np.round(pairs), 1), np.round(pairs)
 
 
-def fit_kernel(images, masks, ticks, lines=200, nterms=12):
+def fit_kernel(images, masks, ticks, lines=200, nterms=12, frequencies=(0.,), periodic=()):
     """White variance and exponential terms fitted to the autocorrelation of ``images``.
 
-    The timescales are log-spaced from one pixel time to ``lines`` columns; their amplitudes
-    are the non-negative least-squares fit of the autocorrelation at lags 1 or more (weighted
-    by the square root of the number of pixel pairs), and the white variance is the remaining
-    variance at lag 0.
+    The timescales are log-spaced from one pixel time to ``lines`` columns; the terms are
+    ``exp(-lag/timescale) cos(frequency lag)`` for every timescale and angular ``frequency``
+    (radians per pixel time; ``0`` for the plain exponentials, ``pi`` for an alternating
+    pattern of consecutive pixels), and their amplitudes are the non-negative least-squares
+    fit of the autocorrelation at lags 1 or more (weighted by the square root of the number of
+    pixel pairs), with the white variance a non-negative term at lag 0 only. Every angular
+    frequency of ``periodic`` adds one term whose timescale is ten frames (a pattern constant
+    over a frame; e.g., the harmonics of the line period for offsets of the rows that are
+    common to all columns).
     """
     from scipy.optimize import nnls
     line = int(np.max(ticks[:, 1] - ticks[:, 0])) if ticks.shape[1] > 1 else ticks.shape[0]
     maximum_lag = min(abs(line)*lines, int(ticks.max())//2)
     acf, pairs = masked_acf(images, masks, ticks, maximum_lag)
     timescales = np.logspace(0, np.log10(maximum_lag), nterms)
-    lags = np.unique(np.logspace(0, np.log10(maximum_lag - 1), 400).astype(int))
+    timescales, frequency = (np.tile(timescales, len(frequencies)),
+                             np.repeat(np.asarray(frequencies, float), nterms))
+    timescales = np.concatenate([timescales, np.full(len(periodic), 10.*ticks.max())])
+    frequency = np.concatenate([frequency, np.asarray(periodic, float)])
+    lags = np.unique(np.concatenate([np.arange(0, min(4*abs(line), maximum_lag)),
+                                     np.logspace(0, np.log10(maximum_lag - 1), 400).astype(int)]))
     weight = np.sqrt(pairs[lags])
-    design = np.exp(-lags[:, None]/timescales[None])
-    amplitudes, _ = nnls(design*weight[:, None], acf[lags]*weight)
-    keep = amplitudes > 0
-    white = acf[0] - amplitudes.sum()
+    design = np.exp(-lags[:, None]/timescales[None])*np.cos(frequency[None]*lags[:, None])
+    design = np.column_stack([lags == 0, design])
+    solution, _ = nnls(design*weight[:, None], acf[lags]*weight)
+    white, amplitudes = solution[0], solution[1:]
     if white <= 0:
-        raise ValueError('The fitted 1/f terms exceed the variance of the residuals')
-    model = design @ amplitudes
+        raise ValueError('No white variance left by the fitted 1/f terms')
+    keep = amplitudes > 0
+    model = design @ solution
     return dict(white=float(white), amplitudes=amplitudes[keep], timescales=timescales[keep],
-                variance=float(acf[0]),
+                frequencies=frequency[keep], variance=float(acf[0]),
                 fit_rms=float(np.sqrt(np.average((model - acf[lags])**2, weights=pairs[lags]))))
 
 
 def kernel_terms(kernel):
     from celerite2 import terms
     result = None
-    for amplitude, timescale in zip(kernel['amplitudes'], kernel['timescales']):
-        term = terms.RealTerm(a=float(amplitude), c=1./float(timescale))
+    frequencies = kernel.get('frequencies', np.zeros(len(kernel['amplitudes'])))
+    for amplitude, timescale, frequency in zip(kernel['amplitudes'], kernel['timescales'],
+                                               frequencies):
+        if frequency:
+            term = terms.ComplexTerm(a=float(amplitude), b=0., c=1./float(timescale),
+                                     d=float(frequency))
+        else:
+            term = terms.RealTerm(a=float(amplitude), c=1./float(timescale))
         result = term if result is None else result + term
     return result
 
