@@ -588,3 +588,18 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   Proposed (not done): remove the 1/f levels and pedestal before linearity (or subtract
   level x f'(counts) after it), aperture radius 3, scale from the aperture of 1/f-corrected
   rates, symmetric background rows; then check the linearity fast-band increase.
+- [x] 1/f before linearity (user: run the test; if it lowers the white-light rms, migrate).
+  Test (scratch prelinear_test.py, variant groups_jwst_prelinear of gp_1f_comparison, NRS1
+  seg1, default groups domain + JWST ramp fit, r=2): levels measured as before, then each
+  group rebuilt as f(f^-1(data + L) - L) (Newton inversion of the CRDS polynomial; 0.07% of
+  group pixels not inverted, kept). White light 165.2/185.0/174.6 -> 154.7/177.6/165.9 ppm
+  (-10.5+-2.9, -7.3+-2.6, -8.6+-2.8; simple/polynomial/gp); channel ratios 0.995-1.001; peak
+  3.2 GB; correction +66 s. Migrated (0e01420): core.detector.linearity_polynomial and
+  offsets_before_linearity, jwst_models.linearity_coefficients (CRDS file from
+  meta.ref_file.linearity, subarray cut, NO_LIN_CORR/non-finite -> identity),
+  group_difference_1f_correction(before_linearity=True default; both NIRSpec and SOSS paths;
+  diagnostics before_linearity, linearity_not_inverted; skipped without a linearity
+  reference). Tests: exact inversion, 30x lower slope error on a curved synthetic scene,
+  no-reference None. Suite 198 passed, 13 skipped. Docs: CHANGELOG, nirspec and soss guides.
+  Not validated on SOSS (memory). Still open: aperture radius 3, the 1/f template scale,
+  symmetric background rows, linearity fast-band increase.
