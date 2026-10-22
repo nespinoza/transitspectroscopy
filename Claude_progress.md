@@ -631,3 +631,14 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   column offsets differ by 0.50 DN/s robust sd (level measurement), pixel level 0.024 DN/s.
   Not separated yet: the median template alone (after linearity) vs the move.
   Rates kept: first_pass, groups_jwst_prelinear, groups_jwst_moved_median (~1.5 GB).
+- [x] Median template after linearity (user: run it). Scratch moved_test.py
+  `inversion_median`: the committed correction (levels after linearity, removed before it by
+  inversion) with the per-group median template; variant groups_jwst_prelinear_median.
+  White light 154.2/175.4/165.4 ppm. Same template, inversion vs literal move: rates agree
+  (column offsets 0.018 DN/s robust sd, pixels 0.001 DN/s), white light +1.0+-0.6,
+  +0.5+-1.1, +0.7+-0.6 ppm, channel RMS ratios 0.998-1.000. Median template vs scaled
+  difference template (both by inversion): white -0.5+-1.2, -2.3+-2.3, -0.5+-1.2 ppm;
+  channel RMS R0 0.991-0.992 (16-84% 0.975-1.003), R100 0.995-0.996; far-background column
+  scatter 0.52 -> 0.40 DN/s. So the move and the inversion are equivalent; the channel gain
+  is the template. Peak memory of this run 4.6 GB (run_variant, as the literal move's 4.7 GB),
+  so the earlier 3.2 GB of groups_jwst_prelinear is not a like-for-like comparison.
