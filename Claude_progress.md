@@ -642,3 +642,19 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   scatter 0.52 -> 0.40 DN/s. So the move and the inversion are equivalent; the channel gain
   is the template. Peak memory of this run 4.6 GB (run_variant, as the literal move's 4.7 GB),
   so the earlier 3.2 GB of groups_jwst_prelinear is not a like-for-like comparison.
+- [x] Median template + 1/f before linearity as the default (user: adopt, make default,
+  commit). f57f497: core.detector.group_difference_1f(template='median' default |
+  'difference'; scale_pixels optional); jwst.load.group_difference_1f rebuilds the input
+  ramps up to linearity (_ramps_before_linearity: steps whose input status was None and are
+  COMPLETE, products not saved; first-pass groupdq kept), corrects, then linearity, post-
+  linearity and post-jump steps (_ramps_after_linearity), refit; falls back to correcting
+  the calibrated ramps if the inputs were linearized, linearity did not run, or
+  template='difference'. diagnostics['before_linearity']. _run_step helper used by
+  detector_calibration. Removed the inversion (offsets_before_linearity,
+  linearity_polynomial, linearity_coefficients, before_linearity). Tests: median template on
+  non-linear ramps, class flow with stand-in steps, fallback; suite 198 passed, 13 skipped.
+  NRS1 seg1 package run (variant package_default): rates identical to the scratch
+  groups_jwst_moved_median (0.000 DN/s), white light 153.1/174.9/164.7; Stage 1 peak 5.1 GB.
+  a833620: _reload_status keeps group_1f, group_difference_1f and SKIPPED statuses when
+  detector_calibration reloads saved linearity/jump products (a save=True rerun skipped the
+  correction). Not validated: SOSS (memory). Rate files of the variants deleted.
