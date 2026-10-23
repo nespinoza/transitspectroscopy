@@ -415,6 +415,21 @@ class load(object):
         self.mode = self.mode_definition.name
         print('\t    - Instrument/Mode: {0:}\n'.format(self.mode_definition.describe(self.filter)))
 
+    def _reload_status(self, data):
+        """
+        `check_status` for products saved by an earlier run of `detector_calibration`, keeping
+        the statuses those products do not record: ``group_1f``, ``group_difference_1f`` and
+        skipped steps.
+        """
+
+        previous = self.status
+        self.check_status(data)
+        for step, value in previous.items():
+
+            if step not in self.status or value == 'SKIPPED':
+
+                self.status[step] = value
+
     def fill_calibration_parameters(self, parameters = {}, use_tso_jump = True, group_1f = False, save = True,
                                     group_difference_1f = False):
         """
@@ -1098,7 +1113,7 @@ class load(object):
                 self.ramps_per_segment[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'linearitystep.fits')
 
             # Check status of the loaded files:
-            self.check_status(self.ramps_per_segment[-1])
+            self._reload_status(self.ramps_per_segment[-1])
             
         # Run rest of the steps prior to the jump but after linearity:
         steps = list(mode_steps['post_linearity_steps'])
@@ -1140,7 +1155,7 @@ class load(object):
                         self.ramps_per_segment[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'tsojumpstep.fits')
 
                     # Check status of the loaded files:
-                    self.check_status(self.ramps_per_segment[-1])
+                    self._reload_status(self.ramps_per_segment[-1])
                     self.status['jump'] = 'COMPLETE'
 
                     if self.suffix == '':
@@ -1172,7 +1187,7 @@ class load(object):
                         self.ramps_per_segment[i] = datamodels.RampModel(self.outputfolder+'ts_outputs/'+self.datanames[i]+'_'+self.actual_suffix+'jumpstep.fits')
 
                     # Check status of the loaded files:
-                    self.check_status(self.ramps_per_segment[-1])
+                    self._reload_status(self.ramps_per_segment[-1])
 
         # Steps between the jump step and ramp fitting (e.g., clean_flicker_noise for NIRISS/SOSS):
         for step in mode_steps.get('post_jump_steps', ()):

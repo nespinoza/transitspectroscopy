@@ -334,3 +334,15 @@ def test_group_difference_1f_is_applied_before_linearity(tmp_path):
     dataset.group_difference_1f(save=False)
     assert not dataset.group_difference_1f_diagnostics['before_linearity'] and calls == []
     assert before < 0.2*error(dataset.ramps)
+
+
+def test_reloaded_products_keep_the_group_difference_1f_status(tmp_path):
+    # detector_calibration reloads its saved linearity or jump products with _reload_status,
+    # which must not drop the correction (a rerun with save=True would skip it):
+    models = pytest.importorskip('stdatamodels.jwst.datamodels')
+    dataset, calls, jumps, expected = calibrated_dataset(tmp_path, models)
+    dataset.status['clean_flicker_noise'] = 'SKIPPED'
+    dataset._reload_status(dataset.ramps_per_segment[0])
+    assert dataset.status['group_difference_1f'] is None
+    assert dataset.status['clean_flicker_noise'] == 'SKIPPED'
+    assert dataset.status['group_1f'] == 'SKIPPED'

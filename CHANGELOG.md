@@ -105,6 +105,10 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
   enabled explicitly with suitable training integrations.
 
 ### Fixed
+- `detector_calibration` reloading its saved linearity or jump products (a rerun with
+  `save=True`) no longer drops the group-difference 1/f correction (nor `group_1f` and skipped
+  steps, e.g. the `clean_flicker_noise` it replaces): `check_status` rebuilt the statuses from
+  the products only, and the correction was skipped.
 - Stage 2 `mask_dq` no longer masks pixels flagged only `JUMP_DET` (their rates are fitted
   around the jump). When the TSO jump step flagged a column's whole trace, the GP optimal
   extraction of that column was NaN and the `nansum` white light dipped (600-2500 ppm on
