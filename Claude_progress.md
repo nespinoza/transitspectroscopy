@@ -658,3 +658,40 @@ factor; done in Stage 2 (traces, white light), then ramps refitted.
   a833620: _reload_status keeps group_1f, group_difference_1f and SKIPPED statuses when
   detector_calibration reloads saved linearity/jump products (a save=True rerun skipped the
   correction). Not validated: SOSS (memory). Rate files of the variants deleted.
+
+## Self non-linearity correction, NRS1 HAT-P-14 b seg1 (2026-10-22/23, in progress)
+
+Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (not committed).
+- [x] Per-pixel non-linearity of the median ramps (391 integrations, raw = 1/f-corrected ramps
+  before linearity, dark-subtracted). Late/early slope change of trace pixels > 500 DN: raw
+  +0.08% (robust sd 1.9%), CRDS linearity +1.35% (2.1%). Raw cores sublinear (to -10% at
+  26k DN), shoulders superlinear at the same counts; CRDS residual = -2.66 own/1e4 + 2.60
+  neighbours/1e4 (%): charge sharing. Aperture sums: CRDS +0.94% superlinear; predicted
+  transit-depth factor of CRDS 1.0056 (16-84% 1.0030-1.0083), ~35 ppm on HAT-P-14 b.
+- [x] Self correction (h(x) = x + a2 x^2 [+ a3 x^3 > 5000 DN], median ramp, OLS, outlier mask,
+  CRDS c1 as gain): slope-change sd 0.33% in sample, 0.75% even/odd cross-validated.
+- [ ] Light curves of the self/residual variants, seg2/3 out of sample: nl_chain_all.sh was
+  killed for low memory (raw copy); fixed (memmap of raw.npy), not restarted.
+- [x] Modelling study (user: Chebyshev, bias per integration, up-the-ramp correlations).
+  nl_study_extract.py + nl_study.py {noise, neighbours, bias, fits, sim}; logs in
+  scratchpad/nl_logs/study_*.log. Cross-validation: fit on even integrations, test on odd.
+  Noise: read 7.08 DN/group; difference covariance = read (lag 1, -sigma^2) + Poisson, lags
+  2-4 < 1% of the variance. Photon transfer (var/mean of differences, late/early): core
+  -7.1% vs mean -8.9% (>15k DN); shoulders var/mean -0.4 to -2.6% while the mean is +1.4 to
+  +1.5%: the shoulders' superlinearity is charge arriving from neighbours. Horizontal
+  neighbour correlation 1.6-4% (IPC), no early-late growth; vertical 6-17% (shared column
+  noise). Bias: per-pixel offset per integration ~30 DN rms (reset-like), common mode 1.2 DN
+  rms; zero charge at group -0.99 (reset one frame before group 0). Impact on the white light
+  -3.5 ppm per DN of common offset: 4 ppm (common) and 3 ppm (per-pixel) per integration.
+  Fits (held-out chi2/18 by 500-2k/2-5k/5-15k/>15k DN; null 1.03): CRDS 1.7/6.1/54/20; median
+  OLS cubic 1.8/1.7/1.6/1.5; mean GLS cubic 1.6/1.5/1.4/1.3. Chebyshev vs power: same fit
+  (held-out metrics identical), condition 1.3-16 vs 160-4e7, coefficient correlation
+  0.13-0.82 vs 0.99. Degree: 2 leaves curvature > 15k DN (chi2 2.5), 4-6 double the
+  rate-factor scatter and worsen the held-out chi2. Joint fit (all ramps, free intercept and
+  slope per integration) biased for faint pixels (errors in variables): slope change -0.47%
+  at 500-2000 DN; simulation -0.7% rate, depth factor 0.9936. Mean ramp + GLS (read +
+  Poisson covariance) unbiased in the simulation, scatter 0.75/0.30/0.17/0.11% (median OLS
+  1.12/0.47/0.27/0.16%); empirical covariance = parametric. Background pixels: held-out
+  chi2 1.6 from a static per-pixel group pattern (1.2 DN rms, reproducible between halves)
+  missing from the dark reference: the chi2 floor, not non-linearity. Depth factor per
+  column (truth: the other half): CRDS 1.0064, self 1.0000 +- 0.0010 (median OLS 0.0015).
