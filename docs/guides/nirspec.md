@@ -17,12 +17,16 @@ exposure, with these time-series-specific changes:
   Defaults are a 200-integration window for PRISM and 10 for the gratings, at 10 sigma.
   Pass `use_tso_jump=False` to use the JWST jump step instead.
 - **Group-level 1/f (default):** after a first ramp fit, `fit_ramps` traces the median rate
-  and, for every group `k`, subtracts the median over all integrations of group `k+1` minus
-  group `k` (the last group uses the last difference), scaled to group `k` and by the
-  white-light factor of the integration (the same as the Stage 2 1/f correction); the
-  column-by-column median of the remaining pixels between `onef_inner_radius` and
-  `onef_outer_radius` from the trace is removed from that group, and the ramps are fitted
-  again (`group_difference_1f_correction`; `group_difference_1f=False` turns it off). The
+  and, for every group `k`, subtracts the median over all integrations of group `k` (each
+  divided by its white-light factor, the same as the Stage 2 1/f correction), times the
+  white-light factor of the integration; the column-by-column median of the remaining pixels
+  between `onef_inner_radius` and `onef_outer_radius` from the trace is removed from that
+  group, and the ramps are fitted again (`group_difference_1f_correction`;
+  `group_difference_1f=False` turns it off). The correction is applied before the linearity
+  correction: the input ramps are calibrated again up to the linearity step, corrected (with
+  the jump flags of the first pass), and calibrated from the linearity step on. Removed after
+  it, the per-integration pedestal and 1/f offsets go through its curvature, larger for
+  brighter pixels, and add about 10 ppm to the white light of G395H/NRS1. The
   corrected rates are marked, and Stage 2 does not remove 1/f noise from them again. With
   `parameters={'group_difference_1f': {'domain': 'differences'}}`, the same levels are
   measured on the group differences (CDS frames: the median difference over integrations,
@@ -30,12 +34,11 @@ exposure, with these time-series-specific changes:
   integration cancel, and their cumulative sums are removed from the groups. The same is
   selected with `detector_calibration(group_difference_1f_domain='differences')`, and
   `detector_calibration(ramp_fit_method='sparta')` fits the corrected group differences with
-  the correlated ramp fit (see {doc}`ramp-fitting`). The levels are measured on the ramps
-  corrected for linearity but removed from their raw counts, i.e. before the linearity
-  correction (the polynomial is inverted, see `core.detector.offsets_before_linearity`):
-  removed after it, the per-integration pedestal and 1/f offsets go through its curvature,
-  larger for brighter pixels, and add about 10 ppm to the white light of G395H/NRS1.
-  `parameters={'group_difference_1f': {'before_linearity': False}}` removes them after it.
+  the correlated ramp fit (see {doc}`ramp-fitting`).
+  `parameters={'group_difference_1f': {'template': 'difference'}}` restores the earlier
+  correction: templates from the median group differences, scaled to every group in the
+  aperture, applied after the linearity correction (on raw counts those factors are biased
+  by the non-linear aperture pixels).
 - **Group-level 1/f before linearity:** `group_1f=True` subtracts column-by-column medians of
   unilluminated pixels from every group (`group_1f_correction`). Off by default.
 

@@ -62,16 +62,20 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
   (`core.detector.difference_1f`); the default is `'groups'`. `detector_calibration` takes
   the flags `group_difference_1f_domain` and `ramp_fit_method`/`ramp_fit_options` (replacing
   the ramp fit selected in `load`); `[calibration] group_difference_1f_domain` in `ts.run`.
-- The group-difference 1/f levels, measured on the ramps corrected for linearity, are removed
-  from the raw counts, i.e. before the linearity correction (`before_linearity=True`, the
-  default of `group_difference_1f_correction`; `core.detector.offsets_before_linearity`,
-  `jwst_models.linearity_coefficients`). Removed after it, the per-integration pedestal and
-  1/f offsets went through the curvature of the correction, larger for brighter pixels: on
-  NIRSpec/G395H NRS1 (HAT-P-14 b, segment 1) the white-light 100-point RMS goes from 165.2,
-  185.0 and 174.6 ppm to 154.7, 177.6 and 165.9 ppm (simple, polynomial and GP extraction),
-  with the spectroscopic light curves unchanged. Numerical outputs of reductions from `uncal`
-  files change; `parameters={'group_difference_1f': {'before_linearity': False}}` restores
-  the previous correction.
+- The group-level 1/f correction is applied before the linearity correction, with median
+  group templates: `load.group_difference_1f` calibrates the input ramps again up to the
+  linearity step (without saving), corrects them with the jump flags of the first pass, and
+  calibrates them from the linearity step on. The template of every group is the median of
+  that group over the integrations, divided by their white-light factors
+  (`core.detector.group_difference_1f(template='median')`, the default); the earlier
+  templates (median group differences scaled to every group in the aperture) are biased on
+  raw counts. Removed after the linearity correction, the per-integration pedestal and 1/f
+  offsets went through its curvature, larger for brighter pixels: on NIRSpec/G395H NRS1
+  (HAT-P-14 b, segment 1) the white-light 100-point RMS goes from 165.2, 185.0 and 174.6 ppm
+  to 153.1, 174.9 and 164.7 ppm (simple, polynomial and GP extraction), and the per-channel
+  RMS falls by about 0.8%. Numerical outputs of reductions from `uncal` files change;
+  `parameters={'group_difference_1f': {'template': 'difference'}}` restores the previous
+  correction. Ramps already corrected for linearity are corrected as before.
 - After the TSO jump step, the correlated (`'sparta'`) ramp fit rejects no differences unless
   `sigma` is given in `ramp_fit_options` (the TSO jump flags define the excluded differences;
   its own clipping flagged ~4e-4 of the differences of faint NIRSpec pixels as `JUMP_DET`).

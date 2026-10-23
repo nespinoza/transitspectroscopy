@@ -60,35 +60,6 @@ def ramp_1f_validity(ramps):
     return valid, template_valid
 
 
-def linearity_coefficients(ramp):
-    """Linearity polynomial ``(coefficient, row, column)`` used for ``ramp``, or None.
-
-    The reference file recorded by the linearity step (``meta.ref_file.linearity``) is read
-    from the CRDS cache and cut to the subarray of ``ramp``; pixels without a correction
-    (``NO_LIN_CORR`` or non-finite coefficients) get the identity. None if the ramp records no
-    linearity reference.
-    """
-    import os
-
-    name = getattr(getattr(ramp.meta.ref_file, 'linearity', None), 'name', None)
-    if not name or name.upper() == 'N/A':
-        return None
-    import crds
-    from jwst.lib.reffile_utils import get_subarray_model
-    from stdatamodels.jwst.datamodels import LinearityModel, dqflags
-
-    path = crds.locate_file(os.path.basename(name), observatory='jwst')
-    with LinearityModel(path) as reference:
-        subarray = get_subarray_model(ramp, reference)
-        coefficients = np.array(subarray.coeffs, dtype=np.float64)
-        dq = np.asarray(subarray.dq)
-    identity = (((dq & dqflags.pixel['NO_LIN_CORR']) != 0)
-                | ~np.all(np.isfinite(coefficients), axis=0))
-    coefficients[:, identity] = 0.
-    coefficients[1, identity] = 1.
-    return coefficients
-
-
 def ramp_jumps(ramps):
     """Boolean ``(integration, group, row, column)`` arrays, True where a jump was detected."""
     from stdatamodels.jwst.datamodels import dqflags

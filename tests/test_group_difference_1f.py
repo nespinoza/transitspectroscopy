@@ -52,7 +52,7 @@ def test_nirspec_group_difference_1f_traces_and_removes_column_stripes():
     mode = instruments.get_mode('nirspec/prism')
     out = jwst.group_difference_1f_correction([ramp], [rates], mode)
     np.testing.assert_allclose(out['trace'], CENTER, atol=0.1)
-    np.testing.assert_allclose(out['group_scale'], np.arange(NGROUPS) + 1, rtol=0.02)
+    assert 'group_scale' not in out
     # Up to an offset that is the same in every integration (the templates' bias and median
     # stripes), the removed levels are the stripes, and the corrected ramps the clean ones:
     levels = out['levels'] - out['levels'].mean(axis=0)
@@ -175,7 +175,8 @@ def test_difference_1f_is_insensitive_to_offsets_that_change_between_integration
         scatter[domain] = np.std(error - error.mean(axis=0))
     assert out['levels'].shape == (NINTS, NGROUPS - 1, NCOLS) and 'group_scale' not in out
     uncorrected = np.std(np.diff(stripes, axis=1))
-    assert scatter['differences'] < 0.5*scatter['groups'] and scatter['groups'] > 0.9*uncorrected
+    # (the median templates of the groups remove the static part of the offsets only):
+    assert scatter['differences'] < 0.6*scatter['groups'] and scatter['groups'] > 0.75*uncorrected
     with pytest.raises(ValueError, match='domain'):
         jwst.group_difference_1f_correction([ramp], [rates], mode, domain='frames')
 
@@ -242,52 +243,94 @@ def test_detector_calibration_flags_select_the_1f_domain_and_the_ramp_fit():
         dataset.detector_calibration(ramp_fit_options={'sigma': 4.0})
 
 
-def test_offsets_before_linearity_removes_offsets_from_the_raw_counts():
-    from transitspectroscopy.core.detector import linearity_polynomial, offsets_before_linearity
-    rng = np.random.default_rng(7)
-    coefficients = np.zeros((4, NROWS, NCOLS))
-    coefficients[1] = 1 + rng.normal(0, 0.01, (NROWS, NCOLS))
-    coefficients[2] = 2e-6 + rng.normal(0, 2e-7, (NROWS, NCOLS))
-    coefficients[3] = 1e-11
-    raw = rng.uniform(0, 30000, (NGROUPS, NROWS, NCOLS))
-    offsets = rng.normal(0, 20, (NGROUPS, 1, NCOLS))
-    data = linearity_polynomial(coefficients[:, None], raw) - offsets
-    keep = np.zeros(data.shape, bool)
-    keep[-1, 3, 5] = True
-    expected = linearity_polynomial(coefficients[:, None], raw - offsets)
-    flagged = data[-1, 3, 5]
-    assert offsets_before_linearity(data, offsets, coefficients, keep=keep) == 0
-    assert data[-1, 3, 5] == flagged
-    np.testing.assert_allclose(data[~keep], expected[~keep], atol=1e-6)
+def nonlinear(counts):
+    """A linearity correction with curvature: corrected counts of raw ``counts``."""
+    return counts + 4e-4*counts**2
 
 
-def test_group_difference_1f_removes_the_levels_before_linearity(monkeypatch):
-    # Integration-wide pedestals and column stripes in the raw counts: removed after a curved
-    # linearity correction they leave errors proportional to the counts, removed before it none.
-    models = pytest.importorskip('stdatamodels.jwst.datamodels')
-    from transitspectroscopy import jwst_models
-    from transitspectroscopy.core.detector import linearity_polynomial
+def test_median_template_holds_for_ramps_that_are_not_linear():
+    # Raw (not linearity-corrected) ramps with column stripes: the median templates remove
+    # the stripes; the group-difference templates, scaled in the bright aperture, over-subtract
+    # the fainter background pixels by an amount that grows with the group.
+    from transitspectroscopy.core.detector import group_difference_1f
+    scene, transit, stripes, clean, _ = prism_scene()
+    raw = transit[:, None, None, None]*scene*(np.arange(NGROUPS) + 1)[None, :, None, None]
+    raw = raw/(1 + 0.5*raw/raw.max())  # the raw counts of a non-linear detector
+    data = (raw + stripes[:, :, None, :]).astype(np.float32)
+    rows = np.abs(np.arange(NROWS) - CENTER)
+    background = np.repeat(((rows >= 2) & (rows < 5))[:, None], NCOLS, axis=1)
+    aperture = np.repeat((rows <= 2)[:, None], NCOLS, axis=1)
+    valid = np.ones(data.shape, bool)
+    bias = {}
+    for template in ('median', 'difference'):
+        out = group_difference_1f([data.copy()], [valid], background, transit, aperture,
+                                  template=template)
+        bias[template] = np.abs(np.mean(out['levels'] - stripes, axis=(0, 2)))
+    assert bias['median'].max() < 0.2
+    assert bias['difference'].max() > 10*bias['median'].max()
+
+
+def calibrated_dataset(tmp_path, models):
+    """A dataset loaded from raw ramps (column stripes), calibrated with stand-in steps: an
+    identity before linearity, `nonlinear` for linearity and a dark of 1 DN per group."""
     scene, transit, stripes, clean, data = prism_scene()
-    rng = np.random.default_rng(11)
-    pedestal = rng.normal(0, 20, (NINTS, 1, 1, 1))
-    coefficients = np.zeros((3, NROWS, NCOLS))
-    coefficients[1], coefficients[2] = 1., 4e-5
-    linear = lambda counts: linearity_polynomial(coefficients[:, None, None], counts)
-    errors = {}
-    for before in (True, False):
-        monkeypatch.setattr(jwst_models, 'linearity_coefficients', lambda ramp: coefficients)
-        ramp, rates = prism_models(models, linear(data + pedestal).astype(np.float32), scene,
-                                   transit)
-        out = jwst.group_difference_1f_correction([ramp], [rates],
-                                                  instruments.get_mode('nirspec/prism'),
-                                                  before_linearity=before)
-        assert out['before_linearity'] == before and out['linearity_not_inverted'] == 0
-        slope = np.diff(ramp.data - linear(clean), axis=1).mean(axis=1)
-        errors[before] = np.std(slope - slope.mean(axis=0))
-    assert errors[True] < 0.2*errors[False]
+    ramp, rates = prism_models(models, data, scene, transit)
+    ramp.int_times = np.array(
+        [(i + 1, 0, 0, 0, 0, 60000. + i/1440., 0) for i in range(NINTS)],
+        dtype=[('integration_number', 'i4'), ('int_start_MJD_UTC', 'f8'),
+               ('int_mid_MJD_UTC', 'f8'), ('int_end_MJD_UTC', 'f8'),
+               ('int_start_BJD_TDB', 'f8'), ('int_mid_BJD_TDB', 'f8'),
+               ('int_end_BJD_TDB', 'f8')])
+    ramp.save(tmp_path/'test-seg001_nrs1_uncal.fits')
+    dataset = jwst.load([str(tmp_path/'test-seg001_nrs1_uncal.fits')], outputfolder=str(tmp_path))
+    dataset.calibration_parameters, dataset.actual_suffix = {}, ''
+    dataset.fill_calibration_parameters({}, group_difference_1f=True, save=True)
+    calls = []
+
+    def step(name, function=lambda data: data):
+        def call(model, **parameters):
+            calls.append((name, parameters.get('save_results', False)))
+            model.data = function(model.data).astype(np.float32)
+            return model
+        return call
+
+    dataset.step_calls = {name: step(name) for name in ('dq_init', 'saturation', 'superbias',
+                                                        'refpix')}
+    dataset.step_calls['linearity'] = step('linearity', nonlinear)
+    dataset.step_calls['dark_sub'] = step('dark_sub', lambda data: data - np.arange(
+        NGROUPS)[None, :, None, None])
+    for name in ('dq_init', 'saturation', 'superbias', 'refpix', 'linearity', 'dark_sub'):
+        dataset._run_step(name)
+        dataset.status[name] = 'COMPLETE'
+    calls.clear()
+    jumps = np.zeros(data.shape, np.uint8)
+    jumps[5, 2:, 20, 7] = 4
+    dataset.ramps_per_segment[0].groupdq = jumps
+    dataset.merge_ramps_segments()
+    dataset.rateints_per_segment = [rates]
+    dataset.run_ramp_fit = lambda save=True, use_saved=True: None
+    expected = nonlinear(clean) - np.arange(NGROUPS)[None, :, None, None]
+    return dataset, calls, jumps, expected
 
 
-def test_linearity_coefficients_without_a_reference_is_none():
+def test_group_difference_1f_is_applied_before_linearity(tmp_path):
     models = pytest.importorskip('stdatamodels.jwst.datamodels')
-    from transitspectroscopy.jwst_models import linearity_coefficients
-    assert linearity_coefficients(models.RampModel(data=np.zeros((1, 2, 4, 4), np.float32))) is None
+    dataset, calls, jumps, expected = calibrated_dataset(tmp_path, models)
+    dataset.group_difference_1f(save=False)
+    assert dataset.group_difference_1f_diagnostics['before_linearity']
+    # The steps run again, without saving, but for the jump step, whose flags are kept:
+    assert calls == [(name, False) for name in ('dq_init', 'saturation', 'superbias', 'refpix',
+                                                'linearity', 'dark_sub')]
+    np.testing.assert_array_equal(dataset.groupdq, jumps)
+    # Up to an offset that is the same in every integration, the ramps are those of the raw
+    # counts without stripes; removed after linearity, the stripes would leave a part
+    # proportional to the counts:
+    def error(ramps):
+        slope = np.diff(ramps - expected, axis=1).mean(axis=1)
+        return np.std(slope - slope.mean(axis=0))
+    before = error(dataset.ramps)
+    dataset, calls, jumps, expected = calibrated_dataset(tmp_path, models)
+    dataset.input_status['linearity'] = 'COMPLETE'  # e.g., inputs corrected for linearity
+    dataset.group_difference_1f(save=False)
+    assert not dataset.group_difference_1f_diagnostics['before_linearity'] and calls == []
+    assert before < 0.2*error(dataset.ramps)

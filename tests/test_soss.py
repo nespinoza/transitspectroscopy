@@ -230,7 +230,10 @@ def test_group_difference_1f_recovers_column_stripes_under_a_transit():
     aperture[20:30] = True
     corrected = [groups.copy()]
     out = group_difference_1f(corrected, [valid], ~masked, scale, aperture)
-    np.testing.assert_allclose(out['group_scale'], np.arange(ngroups)+1, rtol=0.02)
+    assert 'group_scale' not in out
+    difference = group_difference_1f([groups.copy()], [valid], ~masked, scale, aperture,
+                                     template='difference')
+    np.testing.assert_allclose(difference['group_scale'], np.arange(ngroups)+1, rtol=0.02)
     # The removed levels are the stripes, up to an offset that is the same in every integration
     # (the bias, and the median stripes of the group differences, in the templates):
     levels = out['levels'] - out['levels'].mean(axis=0)
@@ -240,6 +243,10 @@ def test_group_difference_1f_recovers_column_stripes_under_a_transit():
     np.testing.assert_allclose(residual - residual.mean(axis=0), 0., atol=0.6)
     with pytest.raises(ValueError, match='white-light'):
         group_difference_1f([groups.copy()], [valid], ~masked, scale[:-1], aperture)
+    with pytest.raises(ValueError, match='scale_pixels'):
+        group_difference_1f([groups.copy()], [valid], ~masked, scale, template='difference')
+    with pytest.raises(ValueError, match="'median' or 'difference'"):
+        group_difference_1f([groups.copy()], [valid], ~masked, scale, aperture, template='x')
 
 
 def test_group_difference_1f_removes_an_offset_shared_by_jump_flagged_pixels():

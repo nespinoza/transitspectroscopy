@@ -100,16 +100,25 @@ def group_1f_correct(segments, npixel=4, nsigma=10, column_window=3, row_window=
     return corrected
 
 
-def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels,
-                        template_valid=None, shared_fraction=0.5):
-    """Group-level 1/f correction with templates built from median group differences.
+def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels=None,
+                        template_valid=None, shared_fraction=0.5, template='median'):
+    """Group-level 1/f correction with median templates of the groups.
 
-    For every group ``k``, the template is the median over all integrations of the
-    difference between groups ``k+1`` and ``k`` (the last group uses the last difference),
-    scaled to the median of group ``k`` with the ratio of their sums over ``scale_pixels``.
-    In each integration ``i`` the template, also multiplied by the white-light factor
+    For every group ``k``, the template is the median over all integrations of group ``k``,
+    each integration divided by its white-light factor ``scale[i]`` (``template =
+    'median'``, the default). In each integration ``i`` the template, multiplied by
     ``scale[i]``, is subtracted from group ``k``; the median of the remaining valid
-    ``background_pixels`` of each column is the 1/f level, removed from that group.
+    ``background_pixels`` of each column is the 1/f level, removed from that group. Every
+    pixel has its own template, so it also holds for ramps that are not linear (e.g., before
+    the linearity correction).
+
+    With ``template = 'difference'``, the template of group ``k`` is instead the median over
+    all integrations of the difference between groups ``k+1`` and ``k`` (the last group uses
+    the last difference), scaled to the median of group ``k`` with the ratio of their sums
+    over ``scale_pixels``. That factor is shared by all pixels, so this template needs ramps
+    corrected for linearity: on raw counts, the non-linear (bright) ``scale_pixels`` give
+    factors that over-subtract the fainter background pixels by an amount growing with the
+    group, and the levels then add a spurious rate to every column.
 
     Pixels excluded from the templates only (e.g., at and after a jump) are also excluded
     from the levels, so that a cosmic ray covering part of a column does not shift it,
@@ -130,28 +139,36 @@ def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels,
         ``(row, column)`` boolean array of the pixels used to measure the 1/f level.
     scale : numpy.ndarray
         White-light factor of every integration of all segments (median about 1).
-    scale_pixels : numpy.ndarray
+    scale_pixels : numpy.ndarray, optional
         ``(row, column)`` boolean array of the pixels used to scale each template to its
-        group (e.g., the order-1 aperture).
+        group (e.g., the order-1 aperture). Only used, and then needed, with ``template =
+        'difference'``.
     template_valid : list of numpy.ndarray, optional
         Like ``valid``, for the templates (e.g., also False at and after a jump). Defaults
         to ``valid``.
     shared_fraction : float, optional
         Fraction of the valid background pixels of a group excluded from the templates
         above which they are used for its levels (see above). Default is 0.5.
+    template : str, optional
+        ``'median'`` (default) or ``'difference'`` (see above).
 
     Returns
     -------
     dict
-        ``group_scale``, the factor of every group's template, ``levels``, the removed
-        ``(integration, group, column)`` levels, and ``shared``, True for the
-        ``(integration, group)`` whose levels used the pixels excluded from the templates.
+        ``levels``, the removed ``(integration, group, column)`` levels, ``shared``, True for
+        the ``(integration, group)`` whose levels used the pixels excluded from the templates,
+        and, with ``template = 'difference'``, ``group_scale``, the factor of every group's
+        template.
     """
     ngroups = segments[0].shape[1]
     if ngroups < 2:
         raise ValueError('The group-difference 1/f correction needs at least two groups')
     if len(scale) != sum(len(data) for data in segments):
         raise ValueError('One white-light factor per integration is needed')
+    if template not in ('median', 'difference'):
+        raise ValueError("template must be 'median' or 'difference'")
+    if template == 'difference' and scale_pixels is None:
+        raise ValueError("template = 'difference' needs scale_pixels")
 
     if template_valid is None:
         template_valid = valid
@@ -167,16 +184,23 @@ def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels,
         return np.concatenate(values).astype(np.float32)
 
     templates = []
-    group_scale = np.zeros(ngroups)
+    diagnostics = {}
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', RuntimeWarning)
-        differences = [np.nanmedian(stacked(k, True), axis=0) for k in range(ngroups - 1)]
-        for k in range(ngroups):
-            template = differences[min(k, ngroups - 2)]
-            group = np.nanmedian(stacked(k, False), axis=0)
-            use = scale_pixels & np.isfinite(template) & np.isfinite(group)
-            group_scale[k] = np.sum(group[use]) / np.sum(template[use])
-            templates.append(group_scale[k] * template)
+        if template == 'median':
+            factors = np.asarray(scale, dtype=np.float32)[:, None, None]
+            for k in range(ngroups):
+                templates.append(np.nanmedian(stacked(k, False) / factors, axis=0))
+        else:
+            group_scale = np.zeros(ngroups)
+            differences = [np.nanmedian(stacked(k, True), axis=0) for k in range(ngroups - 1)]
+            for k in range(ngroups):
+                difference = differences[min(k, ngroups - 2)]
+                group = np.nanmedian(stacked(k, False), axis=0)
+                use = scale_pixels & np.isfinite(difference) & np.isfinite(group)
+                group_scale[k] = np.sum(group[use]) / np.sum(difference[use])
+                templates.append(group_scale[k] * difference)
+            diagnostics['group_scale'] = group_scale
 
         levels = np.zeros((len(scale), ngroups, segments[0].shape[3]))
         shared = np.zeros((len(scale), ngroups), bool)
@@ -197,7 +221,8 @@ def group_difference_1f(segments, valid, background_pixels, scale, scale_pixels,
                     levels[integration, k] = level
                 integration += 1
 
-    return dict(group_scale=group_scale, levels=levels, shared=shared)
+    diagnostics.update(levels=levels, shared=shared)
+    return diagnostics
 
 
 def difference_1f(segments, valid, background_pixels, scale, jumps=None, shared_fraction=0.5):
@@ -280,68 +305,6 @@ def difference_1f(segments, valid, background_pixels, scale, jumps=None, shared_
                 integration += 1
 
     return dict(levels=levels, shared=shared)
-
-
-def linearity_polynomial(coefficients, values, derivative=False):
-    """The linearity correction ``sum_k coefficients[k] * values**k`` (or its derivative).
-
-    ``coefficients`` is ``(ncoefficients, ...)``, broadcast against ``values``.
-    """
-    result = np.zeros_like(values)
-    for power in range(len(coefficients) - 1, 0 if derivative else -1, -1):
-        result = result*values + (power if derivative else 1)*coefficients[power]
-    return result
-
-
-def offsets_before_linearity(data, offsets, coefficients, keep=None, iterations=4,
-                             tolerance=1e-3):
-    """Move offsets subtracted after the linearity correction to before it, in place.
-
-    ``data`` are groups corrected for linearity with the polynomial ``coefficients`` (see
-    `linearity_polynomial`), from which ``offsets`` were then subtracted. Their raw counts are
-    recovered by inverting the polynomial with Newton's method, and the offsets are subtracted
-    from them before the polynomial is applied again. An offset (e.g., a 1/f level or a
-    pedestal) present in the raw counts is then removed exactly, instead of leaving its product
-    with the curvature of the correction, which is larger for brighter pixels.
-
-    Parameters
-    ----------
-    data : numpy.ndarray
-        ``(group, row, column)`` groups of one integration, corrected for linearity and with
-        ``offsets`` subtracted.
-    offsets : numpy.ndarray
-        Offsets, broadcast against ``data`` (e.g., ``(group, 1, column)``).
-    coefficients : numpy.ndarray
-        ``(ncoefficients, row, column)`` linearity polynomial (identity, ``[0, 1, 0, ...]``,
-        where there is no correction).
-    keep : numpy.ndarray, optional
-        Boolean array like ``data``, True for groups to leave as they are (e.g., saturated,
-        which the linearity step does not correct).
-    iterations : int, optional
-        Newton iterations. Default is 4.
-    tolerance : float, optional
-        Largest difference (DN) between the polynomial of the recovered counts and the
-        corrected counts; groups of pixels where it is larger are left as they are. Default is
-        1e-3.
-
-    Returns
-    -------
-    int
-        Number of groups not inverted within ``tolerance`` (left as they are).
-    """
-    coefficients = np.asarray(coefficients, dtype=np.float64)[:, None]
-    linear = data.astype(np.float64) + offsets
-    raw = linear.copy()
-    for _ in range(iterations):
-        raw -= ((linearity_polynomial(coefficients, raw) - linear)
-                / linearity_polynomial(coefficients, raw, derivative=True))
-    corrected = linearity_polynomial(coefficients, raw - offsets)
-    converged = np.abs(linearity_polynomial(coefficients, raw) - linear) < tolerance
-    unchanged = ~(converged & np.isfinite(corrected))
-    if keep is not None:
-        unchanged |= keep
-    data[...] = np.where(unchanged, data, corrected).astype(data.dtype)
-    return int(np.sum(~converged))
 
 
 def tso_jump_flags(segments, window, nsigma=10):

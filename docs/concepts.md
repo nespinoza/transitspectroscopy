@@ -10,7 +10,7 @@ flowchart TD
     C --> C2[Reference-pixel pedestal or group-level 1/f correction]
     C --> C3[Time-series jump detection]
     C --> D[Ramp fitting: JWST or correlated-read]
-    D --> D1[Group-level 1/f with group-difference templates, then ramp fitting again]
+    D --> D1[Group-level 1/f before linearity, then ramp fitting again]
     D1 --> E[Rates per integration: time x row x column]
     E --> F[Trace each integration]
     F --> G[Outlier correction and spline smoothing of traces]

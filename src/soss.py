@@ -461,7 +461,7 @@ def extract_soss(inputs, *, pastasoss_reference=None, background_reference=None,
 
 
 
-def correct_ramps_1f(ramps, rateints, result, domain='groups'):
+def correct_ramps_1f(ramps, rateints, result, domain='groups', template='median'):
     """Group-level 1/f correction of SOSS ramps using a Stage 2 result of their rates.
 
     The traces, background and median rate of ``result`` (from :func:`extract_soss` on
@@ -483,11 +483,15 @@ def correct_ramps_1f(ramps, rateints, result, domain='groups'):
         ``'groups'`` (default) to measure the 1/f levels on the groups, or ``'differences'``
         to measure them on the group differences (CDS frames; see
         :func:`transitspectroscopy.core.detector.difference_1f`).
+    template : str, optional
+        Templates of ``'groups'``: ``'median'`` (default) or ``'difference'`` (see
+        :func:`transitspectroscopy.core.detector.group_difference_1f`).
 
     Returns
     -------
     dict
-        Group template factors (``'groups'``), removed levels and white-light factors.
+        Removed levels, white-light factors and, for ``template='difference'``, group
+        template factors.
     """
     from .core.detector import difference_1f, group_difference_1f
     from .jwst_models import ramp_1f_validity, ramp_jumps
@@ -509,7 +513,8 @@ def correct_ramps_1f(ramps, rateints, result, domain='groups'):
                                     jumps=ramp_jumps(ramps))
     elif domain == 'groups':
         diagnostics = group_difference_1f(data, valid, ~pixels['source_mask'], np.asarray(scale),
-                                          pixels['scale_pixels'], template_valid=template_valid)
+                                          pixels['scale_pixels'], template_valid=template_valid,
+                                          template=template)
     else:
         raise ValueError("domain must be 'groups' or 'differences'")
     for ramp, corrected in zip(ramps, data):

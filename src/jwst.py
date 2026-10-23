@@ -692,9 +692,9 @@ class load(object):
         counts/template/provenance in ``ramp_fit_diagnostics`` per segment.
 
         If `detector_calibration` enabled the group-difference 1/f correction (the default for
-        NIRSpec and NIRISS/SOSS), the ramps are then corrected using these rates (see
-        `group_difference_1f`) and fitted again; with ``save = True`` the corrected rates are
-        saved as ``<name>_<suffix>groupdiff1f_rateints.fits``.
+        NIRSpec and NIRISS/SOSS), the ramps are then corrected before their linearity correction
+        using these rates (see `group_difference_1f`) and fitted again; with ``save = True`` the
+        corrected rates are saved as ``<name>_<suffix>groupdiff1f_rateints.fits``.
         """
 
         self.initialize_step('ramp_fit', parameters, save, suffix, outputfolder)
@@ -706,19 +706,36 @@ class load(object):
 
     def group_difference_1f(self, save = True):
         """
-        This function performs the group-level 1/f correction with median group-difference
-        templates on self.ramps_per_segment, using the current rates per integration (see
-        `group_difference_1f_correction`; options from ``parameters['group_difference_1f']`` of
-        `detector_calibration`), and fits the ramps again. Diagnostics are kept in
-        ``self.group_difference_1f_diagnostics``. Called by `fit_ramps` when the correction is
-        enabled.
+        This function performs the group-level 1/f correction with median group templates,
+        using the current rates per integration (see `group_difference_1f_correction`; options
+        from ``parameters['group_difference_1f']`` of `detector_calibration`), and fits the ramps
+        again. The correction is applied before the linearity correction: the input ramps are
+        calibrated again up to the linearity step (the steps `detector_calibration` ran, without
+        saving their products), given the group DQ of the calibrated ramps (jump flags
+        included), corrected, and calibrated again from the linearity step on, but for the jump
+        step, whose flags are kept. If the inputs were already corrected for linearity, the
+        linearity step did not run, or ``template = 'difference'`` (which needs linear ramps),
+        the calibrated ramps are corrected instead. Diagnostics are kept in
+        ``self.group_difference_1f_diagnostics`` (``before_linearity`` says where the
+        correction was applied). Called by `fit_ramps` when the correction is enabled.
         """
 
         print('\t >> Performing group-difference 1/f correction...\n')
         options = self.calibration_parameters.get('group_difference_1f', {})
+        groupdq = None
+        if (options.get('domain', 'groups') == 'differences'
+                or options.get('template', 'median') == 'median'):
+
+            groupdq = self._ramps_before_linearity()
+
         diagnostics = group_difference_1f_correction(self.ramps_per_segment,
                                                      self.rateints_per_segment,
                                                      self.mode_definition, **options)
+        diagnostics['before_linearity'] = groupdq is not None
+        if groupdq is not None:
+
+            self._ramps_after_linearity(groupdq)
+
         self.group_difference_1f_diagnostics = diagnostics
 
         # Fit the corrected ramps (without overwriting or reusing the saved first-pass rates),
@@ -741,6 +758,94 @@ class load(object):
             factors = diagnostics['group_scale'].tolist()
             self.calibration_parameters['Group-difference 1/f template factors'] = factors
         self.status['group_difference_1f'] = 'COMPLETE'
+
+    def _ramps_before_linearity(self):
+        """
+        Replace self.ramps_per_segment with the input ramps calibrated again up to the linearity
+        step (the steps `detector_calibration` ran, without saving their products), with the
+        group DQ of the calibrated ramps. Returns that group DQ (one array per segment), or None
+        (the ramps are not changed) if the inputs were already corrected for linearity or the
+        linearity step did not run.
+        """
+
+        import gc
+
+        steps = list(self.mode_definition.detector_steps['steps'])
+        input_status = getattr(self, 'input_status', None)
+        if (input_status is None or 'linearity' not in steps
+                or input_status.get('linearity') is not None
+                or self.status.get('linearity') != 'COMPLETE'):
+
+            return None
+
+        print('\t >> Calibrating the ramps again up to the linearity step...\n')
+        groupdq = [np.array(ramp.groupdq) for ramp in self.ramps_per_segment]
+
+        # Free the calibrated ramps first, so that only one copy of the ramps is kept:
+        self.ramps_per_segment = self.ramps = self.ramps_err = self.groupdq = None
+        gc.collect()
+        self.ramps_per_segment = [datamodels.RampModel(name) for name in self.filenames]
+        for step in steps[:steps.index('linearity')]:
+
+            if input_status.get(step) is None and self.status.get(step) == 'COMPLETE':
+
+                self._run_step(step, save = False)
+
+        for ramp, flags in zip(self.ramps_per_segment, groupdq):
+
+            ramp.groupdq = flags
+
+        return groupdq
+
+    def _ramps_after_linearity(self, groupdq):
+        """
+        Calibrate self.ramps_per_segment from the linearity step on, with the steps
+        `detector_calibration` ran (without saving their products), but for the jump step:
+        the group DQ ``groupdq`` (from `_ramps_before_linearity`) is kept instead.
+        """
+
+        mode_steps = self.mode_definition.detector_steps
+        for step in ['linearity'] + list(mode_steps['post_linearity_steps']):
+
+            if self.status.get(step) == 'COMPLETE':
+
+                self._run_step(step, save = False)
+
+        for ramp, flags in zip(self.ramps_per_segment, groupdq):
+
+            ramp.groupdq = flags
+
+        for step in mode_steps.get('post_jump_steps', ()):
+
+            if self.status.get(step) == 'COMPLETE':
+
+                self._run_step(step, save = False)
+
+        self.merge_ramps_segments()
+
+    def _run_step(self, step, save = True):
+        """
+        Run the detector step ``step`` on self.ramps_per_segment (``group_1f`` on all the
+        segments together) with its calibration parameters; with ``save = False``, without
+        saving its products.
+        """
+
+        parameters = self.calibration_parameters[step]
+        if not save:
+
+            parameters = {key: value for key, value in parameters.items()
+                          if key not in ('output_dir', 'save_results', 'suffix')}
+
+        if step in ['group_1f']:
+
+            self.ramps_per_segment = self.step_calls[step]( self.ramps_per_segment, **parameters )
+
+        else:
+
+            for i in range( len(self.ramps_per_segment) ):
+
+                self.ramps_per_segment[i] = self.step_calls[step]( self.ramps_per_segment[i],
+                                                                   **parameters )
 
     def run_ramp_fit(self, save = True, use_saved = True):
         """
@@ -851,11 +956,12 @@ class load(object):
 
         group_difference_1f : bool
             (Optional) flag defining if `fit_ramps` performs the group-level 1/f correction with
-            median group-difference templates (see `group_difference_1f_correction`): the ramps
-            are fitted, corrected using the traces and white-light factors of those rates, and
-            fitted again. Applied to the modes that support it (NIRSpec and NIRISS/SOSS); for
-            NIRISS/SOSS it replaces `clean_flicker_noise`. Options go in
-            ``parameters['group_difference_1f']``. Default is True.
+            median group templates (see `group_difference_1f_correction`): the ramps are
+            fitted, corrected before their linearity correction using the traces and white-light
+            factors of those rates (see `group_difference_1f`), and fitted again. Applied to the
+            modes that support it (NIRSpec and NIRISS/SOSS); for NIRISS/SOSS it replaces
+            `clean_flicker_noise`. Options go in ``parameters['group_difference_1f']``. Default
+            is True.
 
         group_difference_1f_domain : str
             (Optional) where that correction measures the 1/f levels: ``'groups'`` (the groups)
@@ -975,25 +1081,13 @@ class load(object):
 
             for step in steps:
 
-                # Make a difference with group_1f which handles all ramps together:
-                if step in ['group_1f']:
-
-                    if self.status[step] is None:
-
-                        print('\t >> Running Group 1/f correction...')
-                        self.ramps_per_segment = self.step_calls[step]( self.ramps_per_segment, **self.calibration_parameters[step] )
-                        print('\t >> Done!')
-
-                else:
-
-                    for i in range( len(self.ramps_per_segment) ):
-                
-                        if self.status[step] is None:
-
-                            self.ramps_per_segment[i] = self.step_calls[step]( self.ramps_per_segment[i], **self.calibration_parameters[step] )
-
                 if self.status[step] is None:
 
+                    if step in ['group_1f']:
+
+                        print('\t >> Running Group 1/f correction...')
+
+                    self._run_step(step)
                     self.status[step] = 'COMPLETE'
 
         else:
@@ -1011,14 +1105,9 @@ class load(object):
 
         for step in steps:
 
-            for i in range( len(self.ramps_per_segment) ):
-
-                if self.status[step] is None:
-
-                    self.ramps_per_segment[i] = self.step_calls[step]( self.ramps_per_segment[i], **self.calibration_parameters[step] )
-
             if self.status[step] is None:
 
+                self._run_step(step)
                 self.status[step] = 'COMPLETE'
 
         # Now for the jump step; depends on which jump step user wants:
@@ -1091,10 +1180,7 @@ class load(object):
             if self.status[step] is None:
 
                 print('\t >> Running '+step+'...\n')
-                for i in range( len(self.ramps_per_segment) ):
-
-                    self.ramps_per_segment[i] = self.step_calls[step]( self.ramps_per_segment[i], **self.calibration_parameters[step] )
-
+                self._run_step(step)
                 self.status[step] = 'COMPLETE'
 
         # Save current version of the pipeline and CRDS context being used for the dataproducts generated/read above:
@@ -1252,6 +1338,8 @@ class load(object):
         if self.datatype == 'ramps':
 
             self.check_status(self.ramps_per_segment[-1])
+            # Steps already applied to the inputs (see `_ramps_before_linearity`):
+            self.input_status = dict(getattr(self, 'status', {}))
             # NINTS describes the full exposure, even when only a subset of
             # its segments was supplied. Allocate only integrations loaded.
             self.nints = sum(self.ints_per_segment)
@@ -1335,21 +1423,21 @@ def group_1f_correction(tso_list, npixel = 4, nsigma = 10, column_window = 3, ro
 
 def group_difference_1f_correction(ramps, rateints, mode, **options):
     """
-    This function performs the group-level 1/f correction with median group-difference
-    templates, the default for the near-infrared spectroscopic modes. The rates of a first ramp
-    fit give the traces and the white-light factor of every integration; for every group ``k``,
-    the median over all integrations of group ``k+1`` minus group ``k`` (the last group uses the
-    last difference), scaled to group ``k`` and by the white-light factor, is subtracted, and the
-    median of the remaining background pixels of each column (the 1/f level) is removed from that
-    group (see `transitspectroscopy.core.detector.group_difference_1f`). Ramps have to be fitted
-    again afterwards.
+    This function performs the group-level 1/f correction with median group templates, the
+    default for the near-infrared spectroscopic modes. The rates of a first ramp fit give the
+    traces and the white-light factor of every integration; for every group ``k``, the median
+    over all integrations of group ``k`` (each divided by its white-light factor), times the
+    white-light factor, is subtracted, and the median of the remaining background pixels of
+    each column (the 1/f level) is removed from that group (see
+    `transitspectroscopy.core.detector.group_difference_1f`). Ramps have to be fitted again
+    afterwards. `load.fit_ramps` applies it to the ramps before their linearity correction.
 
     Parameters
     ----------
 
     ramps : list
-        List of calibrated ramps (RampModels, after the jump step) of the segments of an
-        exposure, in chronological order. Corrected in place.
+        List of ramps (RampModels) of the segments of an exposure, in chronological order,
+        with the group DQ of the calibrated ramps (jump flags included). Corrected in place.
 
     rateints : list
         List of the rates per integration (CubeModels) of those ramps.
@@ -1364,95 +1452,44 @@ def group_difference_1f_correction(ramps, rateints, mode, **options):
         levels are the medians between ``inner_radius`` and ``outer_radius`` pixels from the
         trace, as in `transitspectroscopy.core.detector.correct_1f` (but also in the untraced
         columns, around the trace extended at its edge values); ``options`` may set
-        ``aperture_radius`` (pixels used to scale each template to its group), ``inner_radius``
-        and ``outer_radius`` (default: the mode's). For all modes, ``domain = 'differences'``
-        measures and removes the 1/f levels on the group differences (CDS frames) instead of
-        the groups (see `transitspectroscopy.core.detector.difference_1f`); the default is
-        ``'groups'``. With ``before_linearity = True`` (the default), the levels, measured on
-        the ramps corrected for linearity, are removed from their raw counts instead, i.e.
-        before the linearity correction (see
-        `transitspectroscopy.core.detector.offsets_before_linearity`; ramps without a linearity
-        reference are corrected after it). Otherwise, the per-integration pedestal and 1/f
-        offsets left in the raw counts go through the curvature of the correction, which is
-        larger for the brighter pixels, and add white-light noise (about 10 ppm for NIRSpec/G395H
-        NRS1). The dark, subtracted after linearity, is neglected in the inversion.
+        ``aperture_radius`` (pixels used to scale each ``'difference'`` template to its group),
+        ``inner_radius`` and ``outer_radius`` (default: the mode's). For all modes,
+        ``domain = 'differences'`` measures and removes the 1/f levels on the group differences
+        (CDS frames) instead of the groups (see
+        `transitspectroscopy.core.detector.difference_1f`); the default is ``'groups'``. With
+        ``'groups'``, ``template = 'difference'`` selects the earlier templates (the median
+        group differences scaled to each group in the aperture), which need ramps corrected for
+        linearity; the default is ``'median'``.
 
     Returns
     -------
 
     diagnostics : dict
-        Template factor of every group (``group_scale``, groups only), removed levels
-        (``levels``, per integration, group or difference, and column), white-light factors
-        (``white_light_scale``), whether the levels were removed before linearity
-        (``before_linearity``) and the number of groups whose linearity correction could not
-        be inverted, corrected after it (``linearity_not_inverted``).
+        Removed levels (``levels``, per integration, group or difference, and column),
+        white-light factors (``white_light_scale``) and, for ``template = 'difference'``, the
+        template factor of every group (``group_scale``).
     """
 
-    options = dict(options)
-    before_linearity = options.pop('before_linearity', True)
     if mode.stage2 == 'soss':
 
         from .soss import correct_ramps_1f, extract_soss
         settings = dict(options)
         domain = settings.pop('domain', 'groups')
+        template = settings.pop('template', 'median')
         settings.setdefault('aperture_radius', mode.extraction_defaults['aperture_radius'])
         result = extract_soss(rateints, **settings)
-        diagnostics = correct_ramps_1f(ramps, rateints, result, domain = domain)
+        return correct_ramps_1f(ramps, rateints, result, domain = domain, template = template)
 
-    elif mode.stage2 != 'spectral':
+    if mode.stage2 != 'spectral':
 
         raise ValueError('The group-difference 1/f correction is only defined for '
                          'spectroscopic modes')
 
-    else:
-
-        diagnostics = _spectral_group_difference_1f(ramps, rateints, mode, **options)
-
-    diagnostics.update(before_linearity = False, linearity_not_inverted = 0)
-    if before_linearity:
-
-        _levels_before_linearity(ramps, diagnostics)
-
-    return diagnostics
-
-def _levels_before_linearity(ramps, diagnostics):
-    """Move the 1/f levels removed from ``ramps`` to before their linearity correction."""
-
-    from stdatamodels.jwst.datamodels import dqflags
-    from .core.detector import offsets_before_linearity
-    from .jwst_models import linearity_coefficients
-
-    coefficients = [linearity_coefficients(ramp) for ramp in ramps]
-    if any(c is None for c in coefficients):
-
-        return
-
-    # Offsets removed from every group: the levels (groups), or their cumulative sums from the
-    # second group (differences):
-    levels = diagnostics['levels']
-    if levels.shape[1] == ramps[0].data.shape[1] - 1:
-
-        levels = np.concatenate([np.zeros_like(levels[:, :1]), np.cumsum(levels, axis = 1)],
-                                axis = 1)
-
-    saturated = dqflags.group['SATURATED']
-    integration, not_inverted = 0, 0
-    for ramp, polynomial in zip(ramps, coefficients):
-
-        data = ramp.data
-        for i in range(data.shape[0]):
-
-            not_inverted += offsets_before_linearity(data[i], levels[integration][:, None, :],
-                                                     polynomial,
-                                                     keep = (ramp.groupdq[i] & saturated) != 0)
-            integration += 1
-
-        ramp.data = data
-
-    diagnostics.update(before_linearity = True, linearity_not_inverted = not_inverted)
+    return _spectral_group_difference_1f(ramps, rateints, mode, **options)
 
 def _spectral_group_difference_1f(ramps, rateints, mode, aperture_radius = None,
-                                  inner_radius = None, outer_radius = None, domain = 'groups'):
+                                  inner_radius = None, outer_radius = None, domain = 'groups',
+                                  template = 'median'):
 
     from .core.detector import difference_1f, group_difference_1f
     from .jwst_models import ramp_1f_validity, ramp_jumps
@@ -1548,7 +1585,7 @@ def _spectral_group_difference_1f(ramps, rateints, mode, aperture_radius = None,
     else:
 
         diagnostics = group_difference_1f(data, valid, background_pixels, scale, scale_pixels,
-                                          template_valid = template_valid)
+                                          template_valid = template_valid, template = template)
     for ramp, corrected in zip(ramps, data):
 
         ramp.data = corrected

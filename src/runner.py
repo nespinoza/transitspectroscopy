@@ -19,12 +19,13 @@ Configuration sections (all optional except ``data``)::
                    product, folder, mast_api_token) or 'local' (glob, product)
     [mode]         name = 'auto' or a registered mode name (see ts.instruments.list_modes())
     [calibration]  parameters, use_tso_jump, group_1f, group_difference_1f (default true:
-                   group-level 1/f correction with median group-difference templates after a
-                   first ramp fit, for NIRSpec and NIRISS/SOSS; options in
-                   parameters.group_difference_1f), group_difference_1f_domain ('groups',
-                   the default, or 'differences': 1/f levels measured on the group
-                   differences), ramp_fit_method ('jwst' or 'sparta'), ramp_fit_options,
-                   ramp_fit_parameters, crds_context (pins the CRDS context, e.g. 'jwst_1584.pmap')
+                   group-level 1/f correction with median group templates, before the
+                   linearity correction, after a first ramp fit, for NIRSpec and
+                   NIRISS/SOSS; options in parameters.group_difference_1f),
+                   group_difference_1f_domain ('groups', the default, or 'differences': 1/f
+                   levels measured on the group differences), ramp_fit_method ('jwst' or
+                   'sparta'), ramp_fit_options, ramp_fit_parameters, crds_context (pins the
+                   CRDS context, e.g. 'jwst_1584.pmap')
     [extraction.<variant>]  ExtractionConfig fields (one table per extraction variant)
     [execution]    nthreads
     [lightcurves]  white_light = true, resolving_power (binned spectroscopic light curves)
