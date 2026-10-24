@@ -747,3 +747,9 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   light (simple/poly/gp): jwst 208.4/215.0/215.0, self -1.0+-0.6/-1.4+-0.7/-1.2+-0.8,
   residual -0.8/-1.0/-0.8; channel rms ratios 0.994-0.998. Chain killed by Claude Code for
   low memory during the seg2 extraction (seg1 complete).
+  Restart (user: yes): seg2 complete, killed again for low memory during the seg3
+  extraction. Seg2: raw slope change -0.66%, CRDS +0.55%, self -0.00% (sd 0.20%, crossed
+  0.53%). White light (simple/poly/gp): jwst 203.6/209.7/209.9, self -1.1+-0.5/-0.7+-0.5/
+  -0.6+-0.5, residual -0.7/-0.3/-0.5; channel rms ratios 0.995-0.998. Transfer seg1 h ->
+  seg2: slope change +0.03% (sd 0.39%; own 0.20%), rate other/own fit -0.09% (sd 0.57%;
+  NRS1 +0.01%); a2 correlation 0.958 (0.994 above 10k DN), a3 0.44.
