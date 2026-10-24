@@ -722,3 +722,15 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   sd 0.35% (own fit 0.16%, uncorrected 1.4%); rate other/own fit +0.01% (sd 0.5%).
   Coefficients seg1 vs seg2 (same pixels): a2 correlation 0.991 (1.000 above 10k DN, 0.56
   below 3k DN), a3 0.45 (0.96 above 10k DN), slope 0.95, zero/top 0.98.
+- [x] Seg3 run (user: run seg 3); stage 1 peak 4.6 GB. Seg3 white light (100-pt rms ppm,
+  simple/poly/gp): jwst 164.5/181.9/178.8, self +3.7+-0.9/+7.6+-4.3/+7.3+-1.5, residual
+  +4.5/+13.4/+7.5; channel rms ratios 0.996-1.008. Own fit: slope change self +0.00% (sd
+  0.16%), crossed sd 0.49%. Transfer seg1 or seg2 h -> seg3: sd 0.33-0.34%, rate +0.004%/
+  -0.009%; coefficient correlations as seg1-seg2 (a2 0.991, a3 0.45; > 10k DN 1.000/0.96).
+- [x] nl_depth.py transit fit fixed: unbounded and in absolute BJD it did not converge (seg1-3:
+  rp < 0; seg1+2 numbers above unreliable). Now bounded, time relative to the data middle,
+  best of 6 starts: rp 0.0823, a 9.15, inc 84.3, b 0.91, residual rms 156 ppm. Depth / jwst,
+  seg1-3, simple/poly/gp: self 0.9954+-0.0011 / 0.9964+-0.0022 / 0.9944+-0.0017; residual
+  0.9969+-0.0010 / 0.9971+-0.0020 / 0.9962+-0.0015. Self agrees with the aperture-sum CRDS
+  factor 1.0056 (1/1.0056 = 0.9944): CRDS makes the transit ~0.45% (~30 ppm) too deep. R100
+  self factors flat with wavelength (quartiles 0.9948-0.9966; slope -2.0+-1.2 per mille/um).
