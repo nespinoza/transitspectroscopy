@@ -695,3 +695,30 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   chi2 1.6 from a static per-pixel group pattern (1.2 DN rms, reproducible between halves)
   missing from the dark reference: the chi2 floor, not non-linearity. Depth factor per
   column (truth: the other half): CRDS 1.0064, self 1.0000 +- 0.0010 (median OLS 0.0015).
+- [x] Self correction switched (user: covariance-weighted Chebyshev, degree 3 for every pixel,
+  so coefficients are comparable): nl_analyse.py fits the mean ramp (GLS, read 7.08 DN +
+  Poisson 1.44 e/DN covariance), h = (x + a2 (top/2) T2 + a3 (top/2) T3 - zero)/slope on
+  [0, top = 1.02 x final], h(0) = 0, h'(0) = 1; rate-factor outlier mask kept, CRDS c1 gain.
+  Seg1: reliable 10937/10970 pixels > 500 DN; slope change in sample +0.01% (sd 0.16%),
+  cross-validated -0.00% (sd 0.45%; median OLS 0.75%). Aperture: self +0.01%, CRDS +0.93%;
+  CRDS depth factor 1.0056 (unchanged). Old fit kept as scratch nl_analyse_median_ols.py.
+- [ ] nl_chain_all.sh restarted 2026-10-23 with these coefficients (seg1-3 variants, Stage 2,
+  own fits of seg2/3). First attempt: seg1 self Stage 2 failed ("profile rejection removed an
+  entire column", integration 336): a cosmic-ray jump took pixel (19, 658), mean ramp 780 DN,
+  to 16000 DN, where the cubic h gave -2e5. h is now extended outside its fitted range [0,
+  top] by the straight line with h's value and derivative at the end; variants rerun.
+  Chain killed by Claude Code for low memory during seg3 variants (seg1, seg2 complete; seg3
+  has raw.npy and rates_jwst only).
+- [x] Seg1+2 results (user: run on seg 1 and 2). White light (100-pt rms ppm, simple/poly/gp):
+  seg1 jwst 153.1/174.9/164.7, self +3.8+-1.2/+9.2+-3.4/+7.2+-2.8, residual +4.7/+8.2/+8.2;
+  seg2 jwst 147.3/173.5/163.1, self +3.4+-0.8/+3.9+-3.7/+9.4+-1.7, residual +3.7/+9.4/+8.0.
+  Channel rms ratios to jwst 0.996-1.006 (R0/R100/R300 slightly below 1, R30 slightly above).
+  self/jwst white-light ratio: rms 14-22 ppm, slow (lag-1 0.75-0.83, point-to-point 7-10
+  ppm); seg1 integrations 42-46 dip 100-180 ppm (not yet explained). Depth / jwst (seg1+2,
+  nl_depth.py): self 0.9925+-0.0031 (simple), 0.9947+-0.0037 (poly), 0.9909+-0.0046 (gp);
+  residual 0.9951/0.9970/0.9940 (+-0.003-0.004); consistent with CRDS 0.5-0.6% too deep.
+  Transit shape poorly constrained without seg3 (reference depth 4562-5861 ppm by method).
+  Transfer (nl_transfer.py, seg1 h on seg2 mean ramps and back): slope change median -0.03%,
+  sd 0.35% (own fit 0.16%, uncorrected 1.4%); rate other/own fit +0.01% (sd 0.5%).
+  Coefficients seg1 vs seg2 (same pixels): a2 correlation 0.991 (1.000 above 10k DN, 0.56
+  below 3k DN), a3 0.45 (0.96 above 10k DN), slope 0.95, zero/top 0.98.
