@@ -734,3 +734,16 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   0.9969+-0.0010 / 0.9971+-0.0020 / 0.9962+-0.0015. Self agrees with the aperture-sum CRDS
   factor 1.0056 (1/1.0056 = 0.9944): CRDS makes the transit ~0.45% (~30 ppm) too deep. R100
   self factors flat with wavelength (quartiles 0.9948-0.9966; slope -2.0+-1.2 per mille/um).
+- [ ] NRS2 study (user: same study on NRS2; NRS1 raw/groupdq/rates deleted for space, 11.5
+  GB). Scratch scripts take NL_DETECTOR / NL_COLUMNS; nl_chain_nrs2.sh. NRS2 Stage 2 failed
+  first ("trace/aperture extends outside the detector"): the trace rises from row 12.6 to
+  30.5 of the 32-row subarray, the optimal aperture leaves it at column 1968, and the range
+  detector (a port of the original C RangeDetector) only handles a rising trace leaving
+  through row 0. Package unchanged; nl_stage2.py re-registers G395H with NRS2 xend 1900 (open
+  question for the package: NRS2 G395H default xend 2043 fails on this target).
+  Seg1 (columns 5-1899): raw slope change -0.74% (aperture sum -1.85%), CRDS +0.51% (sum
+  +0.41%; core +0.3%, shoulders +0.6 to +1.7%), self -0.02% (sd 0.20%, crossed sd 0.52%);
+  reliable 10347/10360. Predicted CRDS depth factor (aperture) 1.0030 (NRS1 1.0056). White
+  light (simple/poly/gp): jwst 208.4/215.0/215.0, self -1.0+-0.6/-1.4+-0.7/-1.2+-0.8,
+  residual -0.8/-1.0/-0.8; channel rms ratios 0.994-0.998. Chain killed by Claude Code for
+  low memory during the seg2 extraction (seg1 complete).
