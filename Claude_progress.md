@@ -781,3 +781,13 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   linearized slope by about c x the curvature of the correction, which differs between CRDS
   and self, hence the dip in their ratio (and a bias in both). Not corrected by the reference
   pixel step. Same integrations on NRS1 (raw deleted, not inspected).
+- [x] Ramp viewer in the package (user: utils and the dataset object; groups and integrations;
+  user-selected ramps): `src/inspection.py` (`RampViewer`, `inspect_ramps`, `estimate_trace`;
+  exported from `ts.utils`), `ts.jwst.load.inspect_ramps(stage, segments)` with stage
+  'calibrated', 'input' or any detector step (input ramps calibrated again up to it, without
+  saving; `_apply_step` factored out of `_run_step`). Middle panel: aperture mean and
+  background median of the image mode against the integrations or the groups ('a'), with new
+  jumps. Guide docs/guides/inspecting-ramps.md, API entry, changelog. tests/test_inspection.py
+  (moving band: in the aperture only while it crosses, in group 0 of the increments only).
+  Real NRS2 seg1 raw (391 x 20 x 32 x 2048, memory map): open 7 s, groups axis first time 10 s,
+  1.5 GB peak.

@@ -10,6 +10,7 @@ shared-profile
 soss
 miri
 ramp-fitting
+inspecting-ramps
 lightcurve-fitting
 adding-a-mode
 ```

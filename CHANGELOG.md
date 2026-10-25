@@ -23,6 +23,10 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
 - Alternative correlated adjacent-read ramp fitter (`ramp_fit_method='sparta'`, see
   `docs/guides/ramp-fitting.md`), selectable in `ts.jwst.load`, `stage1` and MIRI calibration.
 - `ramps_err_available` in `ts.jwst.load`, flagging which integrations carry ramp errors.
+- Interactive ramp viewer (`ts.utils.inspect_ramps`, `ts.utils.RampViewer`, and
+  `ts.jwst.load.inspect_ramps` for the ramps of any calibration stage; see
+  `docs/guides/inspecting-ramps.md`): the image of one integration and group in several modes,
+  against aperture and background statistics over the integrations or the groups.
 - `stage2` options `extraction_backend`, `profile_method`, `gp_options`,
   `extraction_options`, `shared_profile`, `shared_profile_options`, `soss_options`,
   `miri_options`.

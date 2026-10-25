@@ -74,6 +74,17 @@ above it keep the historical interface and add the JWST-specific layers.
 
 ```
 
+### Ramp inspection
+
+`inspect_ramps` and `RampViewer` are also available from `transitspectroscopy.utils`; on a
+calibrated dataset, use `transitspectroscopy.jwst.load.inspect_ramps` (see
+[Inspecting ramps](guides/inspecting-ramps.md)).
+
+```{eval-rst}
+.. automodule:: transitspectroscopy.inspection
+   :members: inspect_ramps, RampViewer, estimate_trace
+```
+
 ## Core algorithms
 
 ```{eval-rst}
