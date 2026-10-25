@@ -764,3 +764,11 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   -0.09%), seg2 h on seg3 +0.01%: the seg1 (out-of-transit, first) fit differs from the later
   ones by ~0.08% in rate (uniform per segment, so absorbed by the per-segment baselines);
   a2 correlation 0.957, a3 0.43.
+- [x] Figures (scratch): nl_levels.py (bright / half / faint pixels: CRDS and self corrections,
+  line-fit residuals; seg1 of each detector) and nl_tso.py (white light seg1-3, simple
+  extraction, CRDS vs self, transit fits, residuals, ratio, rms vs bin). Transit residual rms /
+  pipeline error (white-light error from the R0 column errors, 1/sqrt(sum 1/sigma^2)): NRS1
+  CRDS 155.4/106.5 = 1.46, self 159.2/107.5 = 1.48; NRS2 CRDS 202.7/143.1 = 1.42, self
+  201.9/143.6 = 1.41 (columns: excess ~0.99, so the white-light excess is common to the
+  columns). The self/CRDS dip (100-180 ppm) is at integrations 42-48 of seg1 on both
+  detectors: an event in the exposure, not in one detector's fit (not yet explained).
