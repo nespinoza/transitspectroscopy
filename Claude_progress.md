@@ -753,3 +753,14 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   -0.6+-0.5, residual -0.7/-0.3/-0.5; channel rms ratios 0.995-0.998. Transfer seg1 h ->
   seg2: slope change +0.03% (sd 0.39%; own 0.20%), rate other/own fit -0.09% (sd 0.57%;
   NRS1 +0.01%); a2 correlation 0.958 (0.994 above 10k DN), a3 0.44.
+- [x] NRS2 seg3 (user: yes), chain complete. Seg3: raw -0.58%, CRDS +0.63%, self +0.02% (sd
+  0.20%, crossed 0.54%). White light: jwst 195.7/202.3/203.0, self -1.1+-0.7/-0.7+-0.6/
+  -1.1+-0.6, residual -0.4/-0.1/-0.6; channel rms ratios 0.995-0.998 (NRS2 self lowers the
+  noise slightly on every segment; NRS1 raised the white light by 3-9 ppm).
+  Depth / jwst, NRS2 seg1-3 (rp 0.0833, a 9.21, inc 84.35), simple/poly/gp: self
+  0.9962+-0.0007 / 0.9961+-0.0007 / 0.9962+-0.0007; residual 0.9967 / 0.9966 / 0.9967 (+-
+  0.0005). Predicted from the aperture sums 1/1.0030 = 0.9970. R100 quartiles 0.9951-0.9974,
+  slope +1.2+-0.7 per mille/um. Transfer: seg1 h on seg3 rate -0.07% vs own (seg1 on seg2
+  -0.09%), seg2 h on seg3 +0.01%: the seg1 (out-of-transit, first) fit differs from the later
+  ones by ~0.08% in rate (uniform per segment, so absorbed by the per-segment baselines);
+  a2 correlation 0.957, a3 0.43.
