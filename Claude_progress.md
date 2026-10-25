@@ -772,3 +772,12 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   201.9/143.6 = 1.41 (columns: excess ~0.99, so the white-light excess is common to the
   columns). The self/CRDS dip (100-180 ppm) is at integrations 42-48 of seg1 on both
   detectors: an event in the exposure, not in one detector's fit (not yet explained).
+- [x] Viewer nl_inspect.py (scratch; user: image + light-curve residuals with integration and
+  group sliders). The self/CRDS dip (seg1 integrations 42-48) found with it on NRS2: a
+  two-row band of positive offset in raw - dark, the same in every group (an additive offset of
+  the whole ramp, not charge), sweeping down one row per integration from row ~29 (integration
+  30) to row 0 (~60) and growing from ~80 to ~290 DN; it crosses the trace rows 12-17 at
+  integrations 41-47. Trace position unchanged (shift < 0.01 px). An offset c changes the
+  linearized slope by about c x the curvature of the correction, which differs between CRDS
+  and self, hence the dip in their ratio (and a bias in both). Not corrected by the reference
+  pixel step. Same integrations on NRS1 (raw deleted, not inspected).
