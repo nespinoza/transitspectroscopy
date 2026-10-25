@@ -838,11 +838,173 @@ class load(object):
 
         self.merge_ramps_segments()
 
+    def inspect_ramps(self, stage = 'calibrated', segments = None, show = True, **options):
+        """
+        Open the interactive ramp viewer (`transitspectroscopy.utils.inspect_ramps`) on the
+        ramps of a calibration stage: the image of one integration and group (top), and the
+        mean of the image within the aperture around the trace and its median in the
+        background, against the integrations or against the groups (middle), with sliders for the
+        integration and the group, image modes (counts, counts and increments relative to
+        their median over the integrations, in DN or in units of their noise, rates) and the
+        jumps of the group DQ. See `transitspectroscopy.utils.RampViewer`.
+
+        Example usage, after `detector_calibration`::
+
+            >>> viewer = dataset.inspect_ramps()                      # calibrated ramps
+            >>> viewer = dataset.inspect_ramps('linearity', segments=0)
+
+        Parameters
+        ----------
+
+        stage : str
+            (Optional) ramps to inspect:
+
+            ``'calibrated'``
+                The current ramps of the dataset (``self.ramps``): those of
+                `detector_calibration` (after the jump step, or the TSO jump step), or, once
+                `fit_ramps` applied the group-difference 1/f correction, the corrected ramps.
+            ``'input'``
+                The input ramps (e.g., the ``uncal`` products), before any step.
+            a detector step (e.g. ``'refpix'``, ``'linearity'``, ``'dark_sub'``, ``'jump'``)
+                The ramps after that step: the input ramps calibrated again (without saving)
+                with the steps `detector_calibration` ran up to and including it, with its
+                calibration parameters. These do not include the group-difference 1/f
+                correction, applied by `fit_ramps`. The steps, in order, are those of the
+                mode (``self.mode_definition.detector_steps``) followed by ``'jump'``.
+
+            Default is ``'calibrated'``.
+
+        segments : int or list of int
+            (Optional) segments to inspect (indexes of ``self.filenames``), consecutive.
+            Default is None (all). For stages other than ``'calibrated'`` the ramps of the
+            segments are loaded and calibrated again, which needs memory for another copy
+            of them: select one segment for large datasets.
+
+        show : bool
+            (Optional) show the figure (it blocks in a script until the window is closed).
+            Default is True.
+
+        **options
+            Options of `transitspectroscopy.utils.RampViewer` (e.g. ``curves``, light curves
+            of the integrations of the segments; ``comparison_rateints``; ``trace``;
+            ``aperture_radius``; ``mode``; ``axis``). The rates per integration
+            (``self.rateints``, after `fit_ramps`) are given as ``rateints`` unless given.
+
+        Returns
+        -------
+
+        transitspectroscopy.utils.RampViewer
+            The viewer; keep it referenced for the widgets to respond.
+        """
+
+        from .inspection import RampViewer
+
+        nsegments = len(self.filenames)
+        indexes = list(range(nsegments)) if segments is None else \
+            [int(index) for index in np.atleast_1d(segments)]
+        if (not indexes or any(i < 0 or i >= nsegments for i in indexes)
+                or indexes != list(range(indexes[0], indexes[-1] + 1))):
+
+            raise ValueError('segments must be consecutive indexes of the segments, '
+                             f'between 0 and {nsegments - 1}')
+
+        stops = np.cumsum([0] + list(self.ints_per_segment))
+        selection = slice(stops[indexes[0]], stops[indexes[-1] + 1])
+        if stage == 'calibrated':
+
+            if getattr(self, 'ramps', None) is None:
+
+                raise ValueError("No calibrated ramps: run detector_calibration first, or "
+                                 "select another stage")
+
+            ramps, groupdq = self.ramps[selection], self.groupdq[selection]
+
+        else:
+
+            models = self._ramps_at_stage(stage, indexes)
+            if len(models) == 1:
+
+                ramps, groupdq = models[0].data, models[0].groupdq
+
+            else:
+
+                ramps = np.concatenate([model.data for model in models])
+                groupdq = np.concatenate([model.groupdq for model in models])
+
+        if getattr(self, 'rateints', None) is not None:
+
+            options.setdefault('rateints', self.rateints[selection])
+
+        options.setdefault('first_integration', int(stops[indexes[0]]))
+        names = ', '.join(self.datanames[i] for i in indexes) if hasattr(self, 'datanames') \
+            else ''
+        options.setdefault('title', f'{self.mode}: {names}, {stage} ramps')
+        viewer = RampViewer(ramps, groupdq, **options)
+        if show:
+
+            viewer.show()
+
+        return viewer
+
+    def _ramps_at_stage(self, stage, indexes):
+        """
+        The input ramps of the segments ``indexes`` (RampModel), calibrated again (without
+        saving) with the steps `detector_calibration` ran up to and including ``stage`` (a
+        step name, or ``'input'`` for none); see `inspect_ramps`.
+        """
+
+        mode_steps = self.mode_definition.detector_steps
+        steps = (list(mode_steps['steps']) + list(mode_steps['post_linearity_steps'])
+                 + ['jump'] + list(mode_steps.get('post_jump_steps', ())))
+        if stage != 'input' and stage not in steps:
+
+            raise ValueError(f"stage must be 'calibrated', 'input' or one of {steps}")
+
+        input_status = getattr(self, 'input_status', None) or {}
+        if stage != 'input' and self.status.get(stage) != 'COMPLETE':
+
+            raise ValueError(f'The {stage} step did not run in detector_calibration')
+
+        print('\t >> Loading the input ramps' + ('' if stage == 'input' else
+              ' and calibrating them up to the '+stage+' step') + '...\n')
+        ramps = [datamodels.RampModel(self.filenames[i]) for i in indexes]
+        for step in ([] if stage == 'input' else steps[:steps.index(stage) + 1]):
+
+            if input_status.get(step) is not None or self.status.get(step) != 'COMPLETE':
+
+                continue
+
+            if step == 'jump' and getattr(self, 'use_tso_jump', True):
+
+                ramps = tso_jumpstep(ramps, **self.calibration_parameters['jump'])
+
+            elif step == 'jump':
+
+                parameters = {key: value for key, value in
+                              self.calibration_parameters['jump'].items()
+                              if key not in ('output_dir', 'save_results', 'suffix')}
+                ramps = [calwebb_detector1.jump_step.JumpStep.call(ramp, **parameters)
+                         for ramp in ramps]
+
+            else:
+
+                ramps = self._apply_step(step, ramps, save = False)
+
+        return ramps
+
     def _run_step(self, step, save = True):
         """
         Run the detector step ``step`` on self.ramps_per_segment (``group_1f`` on all the
         segments together) with its calibration parameters; with ``save = False``, without
         saving its products.
+        """
+
+        self.ramps_per_segment = self._apply_step(step, self.ramps_per_segment, save)
+
+    def _apply_step(self, step, ramps, save = True):
+        """
+        Run the detector step ``step`` on the list of ramps ``ramps`` (see `_run_step`), and
+        return the list of the results.
         """
 
         parameters = self.calibration_parameters[step]
@@ -853,14 +1015,9 @@ class load(object):
 
         if step in ['group_1f']:
 
-            self.ramps_per_segment = self.step_calls[step]( self.ramps_per_segment, **parameters )
+            return self.step_calls[step]( ramps, **parameters )
 
-        else:
-
-            for i in range( len(self.ramps_per_segment) ):
-
-                self.ramps_per_segment[i] = self.step_calls[step]( self.ramps_per_segment[i],
-                                                                   **parameters )
+        return [self.step_calls[step]( ramp, **parameters ) for ramp in ramps]
 
     def run_ramp_fit(self, save = True, use_saved = True):
         """

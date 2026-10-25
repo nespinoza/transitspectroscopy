@@ -14,6 +14,7 @@ from astropy.constants import G, k_B, u, au, M_jup, R_jup, R_sun, M_sun
 
 from .core.binning import bin_at_resolution  # noqa: F401
 from .core.timeseries import mad_sigma as get_mad_sigma  # noqa: F401
+from .inspection import RampViewer, inspect_ramps  # noqa: F401
 
 def get_transpec_signal(Rp, Rstar, Mp, aR, Teff, mu = 2.3, albedo = 0., emissivity = 1.):
     """
