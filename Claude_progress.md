@@ -812,3 +812,19 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   rms 198 -> 174 ppm. 1/f levels from all rows > 6 from the trace (~19 vs ~10 pixels per
   column): white rms 198 -> 160 ppm on clean integrations (not band related). self/CRDS at
   41-47 stays -73..-82 ppm with the correct treatments (the two curves differ at offset counts).
+- [x] 1/f background rows sweep, NRS2 seg1 (user: rows 3-10 from the trace, a few to all
+  rows beyond; scratch nl_onef_rows.py, nl_onef_rows_plot.py, figure
+  onef_rows_nrs2_seg001.png). Levels re-measured on raw.npy (already package-corrected; the
+  median being shift-equivariant, this replaces the package's levels) from inner <= |row -
+  trace| < inner + width, inner 3..10, width 1, 2, 3, 4, 6, 8, 12, all. CRDS white rms, ints
+  25-65 excluded: package pixels (3-8, ~10 px/col) 164.5; needs >= ~10 px/col (width 1: ~900-
+  1160, width 2: 360-680, width 3: 190-440); best 4-all 158.5 and 3-all 159.3 (-6.0 +- 2.9 and
+  -5.2 +- 2.7 ppm against the package pixels, bootstrap); inner >= 8 worse (one-sided, fewer
+  pixels: 10-all 170). Binned (10) rms 51.4 -> 49.2. Correction of the previous entry: the
+  198 -> 160 was mostly not the rows. The package correction is not idempotent: applying
+  core.detector.group_difference_1f again to its own output (same pixels, white-light
+  factors, masks; nl_onef_package.py) gives 198.1 -> 165.3 ppm (second-pass levels vary by
+  0.4-0.6 DN per column in time); template from corrected ramps. Not explained yet. Package
+  pixels are asymmetric (int(center) +- 3: at column 0, centre 12.63, row 15 at 2.4 px is a
+  background pixel and row 9 at 3.6 px is not); package white-light factors differ from
+  aperture-sum ones by 570 ppm rms (correlation 0.31), with no rms effect.
