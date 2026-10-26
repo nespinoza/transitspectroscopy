@@ -828,3 +828,21 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   pixels are asymmetric (int(center) +- 3: at column 0, centre 12.63, row 15 at 2.4 px is a
   background pixel and row 9 at 3.6 px is not); package white-light factors differ from
   aperture-sum ones by 570 ppm rms (correlation 0.31), with no rms effect.
+- [x] Why the second 1/f pass helped (user: template noise or white-light factors? passes
+  3-5?). NRS2 seg1 Stage 1 rerun with the checkout (scratch onef_extract.py; 440 s, 4.7 GB):
+  the uncorrected input of core.detector.group_difference_1f saved
+  (validation/runs/nrs2-onef/seg001/orig.npy, 2 GB, and onef_inputs.npz: masks, pixels,
+  factors, levels). Pass n = one pass on the input with the template of the pass n-1 output
+  (median shift-equivariant), scratch onef_passes.py; pass 1 reproduces the package levels
+  exactly. CRDS white rms (ints 25-65 excluded): package factors, passes 1-5: 198.1, 198.3,
+  198.3, 198.3, 198.4 (levels change 0.41, 0.17, 0.08, 0.04 DN): more passes do not help;
+  template perturbations (T1 - T2 column-common or per-pixel, shuffled) change nothing.
+  Factors: aperture-sum 165.8, unity 163.7 (seg1 is out of transit), package factors median
+  filtered over 51: 164.0 (25: 167.9), iterated (factors from the white light of the
+  previous pass, window 5; onef_scales.py): 164.9, 165.0, 165.0. Cause: the package factors
+  (first-pass rates, full frame, window 5) scatter by 2678 ppm about a smooth curve; the
+  white light moves by 0.040 ppm per ppm of factor error (correlation 0.9997): 0.04 x 2678 =
+  107 ppm, in quadrature with 164 gives 196. The earlier "second pass" gain came from
+  factors of the final (1/f-corrected) rates (541 ppm scatter), and the earlier "factors do
+  not matter" test used those, not the package's. Full-frame last-first sums: 9238 ppm
+  scatter uncorrected, 5471 ppm after the 1/f levels.
