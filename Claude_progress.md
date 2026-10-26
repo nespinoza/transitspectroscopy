@@ -791,3 +791,24 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   (moving band: in the aperture only while it crosses, in group 0 of the increments only).
   Real NRS2 seg1 raw (391 x 20 x 32 x 2048, memory map): open 7 s, groups axis first time 10 s,
   1.5 GB peak.
+- [x] Moving row band, correction study (user: row term in the 1/f correction, training from
+  integrations off the trace, literature). Literature: Albert et al. 2023 (NIRISS/SOSS,
+  arXiv:2306.04572, sec. VII.2.1): two noisier rows (sigma ~100 adu) moving one row down per
+  integration, linked to the full-detector reset after each subarray integration; not
+  corrected there. NRS2 seg1 (scratch nl_band*.py): two rows, offset +20 DN (int 29) to +360
+  DN (int 59), smooth in time (~11 DN/int; trained quadratic predicts 41-48 within 5-8%), the
+  same in every group, gone at 61; uniform along the row in its median (+-15 DN) but with
+  pixel scatter 115-205 DN (normal 25), not repeatable between integrations (correlation
+  ~0.05), so only the row mean can be trained. Per-pixel reset level (line through groups 0-3
+  to group -1) removes it to 6-8 DN. Physics: within-row regression (slopes from groups 6-19,
+  disjoint from the reset estimate) of the raw-slope change on the change predicted by the
+  CRDS curve from each pixel's own offset: 0.80 +- 0.16 (0 if electronic; ~0.67 for the self
+  curvature): the offset is in the pixel (reset level), so linearity must see it. Hence
+  subtracting it before linearity (row, trained, reset variants) is wrong: lin/raw at 41-47
+  goes from +219 (CRDS) / +147 (self) to ~0 and leaves a -180..-240 ppm white-light dip.
+  The band biases the 1/f column levels (median of rows 3-8 from the trace): other rows -2
+  DN (-4 max) during the band; re-measuring without the band rows: +53 ppm raw at 41-47, +23
+  ppm through linearity. Row term as its variation over groups only (keeps the band): white
+  rms 198 -> 174 ppm. 1/f levels from all rows > 6 from the trace (~19 vs ~10 pixels per
+  column): white rms 198 -> 160 ppm on clean integrations (not band related). self/CRDS at
+  41-47 stays -73..-82 ppm with the correct treatments (the two curves differ at offset counts).
