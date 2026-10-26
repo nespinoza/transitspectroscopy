@@ -109,6 +109,8 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
   enabled explicitly with suitable training integrations.
 
 ### Fixed
+- The NIRISS/SOSS group-difference 1/f correction (`soss.correct_ramps_1f`, the default of
+  `fit_ramps`) no longer fails: its `template` argument was overwritten by the median rate.
 - `detector_calibration` reloading its saved linearity or jump products (a rerun with
   `save=True`) no longer drops the group-difference 1/f correction (nor `group_1f` and skipped
   steps, e.g. the `clean_flicker_noise` it replaces): `check_status` rebuilt the statuses from

@@ -292,3 +292,27 @@ def test_group_difference_1f_ignores_a_cosmic_ray_on_part_of_a_column():
     assert not out['shared'].any()
     # The trace pixels of that column are untouched:
     np.testing.assert_allclose(corrected[0][7, :, 15:25], groups[7, :, 15:25], atol=1e-4)
+
+
+@pytest.mark.parametrize('template', ['median', 'difference'])
+def test_correct_ramps_1f_removes_column_stripes(template):
+    # The SOSS group 1/f correction from a Stage 2 result (traces, background, median rate):
+    rng = np.random.default_rng(11)
+    nints, ngroups, nrows, ncols = 20, 4, 80, 40
+    rows = np.arange(nrows)[:, None]
+    scene = 0.5 + 200*np.exp(-0.5*((rows - 30.)/3.)**2)*np.ones(ncols)
+    stripes = rng.normal(0, 3, (nints, ngroups, ncols))
+    groups = (scene*(np.arange(ngroups) + 1)[None, :, None, None]
+              + stripes[:, :, None, :]).astype(np.float32)
+    ramp = NS(data=groups.copy(), groupdq=np.zeros(groups.shape, np.uint8),
+              pixeldq=np.zeros((nrows, ncols), np.uint32))
+    rates = NS(data=np.repeat(scene[None], nints, 0), dq=np.zeros((nints, nrows, ncols), int))
+    result = dict(metadata=dict(settings=dict(aperture_radius=5.)),
+                  median_background_subtracted=scene, background=np.zeros((nrows, ncols)),
+                  orders={1: dict(columns=np.arange(4, ncols - 4),
+                                  trace=np.full(ncols - 8, 30.))})
+    out = soss.correct_ramps_1f([ramp], [rates], result, template=template)
+    np.testing.assert_allclose(out['white_light_scale'], 1.)
+    levels = out['levels'] - out['levels'].mean(axis=0)
+    np.testing.assert_allclose(levels[:, :, 4:-4], (stripes - stripes.mean(axis=0))[:, :, 4:-4],
+                               atol=0.6)

@@ -497,15 +497,15 @@ def correct_ramps_1f(ramps, rateints, result, domain='groups', template='median'
     from .jwst_models import ramp_1f_validity, ramp_jumps
 
     aperture_radius = result['metadata']['settings']['aperture_radius']
-    template, background = result['median_background_subtracted'], result['background']
-    pixels = onef_pixels(result['orders'], template.shape, aperture_radius)
+    median, background = result['median_background_subtracted'], result['background']
+    pixels = onef_pixels(result['orders'], median.shape, aperture_radius)
     scale = []
     for value in rateints:
         with open_model(value) as m:
             for i in range(len(m.data)):
                 frame = np.asarray(m.data[i], float)-background
                 valid = np.isfinite(frame) & ((m.dq[i] & 3) == 0)
-                scale.append(white_light_scale(frame, valid, template, pixels['scale_pixels']))
+                scale.append(white_light_scale(frame, valid, median, pixels['scale_pixels']))
     valid, template_valid = ramp_1f_validity(ramps)
     data = [ramp.data for ramp in ramps]
     if domain == 'differences':
