@@ -846,3 +846,24 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   factors of the final (1/f-corrected) rates (541 ppm scatter), and the earlier "factors do
   not matter" test used those, not the package's. Full-frame last-first sums: 9238 ppm
   scatter uncorrected, 5471 ppm after the 1/f levels.
+- [x] Group 1/f study for PRISM (PID 3969 obs 1, Kepler-12, NRS1 SUB512, 5827 x 5 per
+  segment; seg1 and seg3 downloaded to validation/data/prism_3969) and SOSS (PID 1541 obs 1,
+  seg1 out of transit, seg3 in transit). Scratch onef_extract.py (both 1/f code paths; saves
+  the uncorrected input, masks, pixels, factors, levels, geometry), onef_study.py (passes,
+  factors, sweep with iterated factors), onef_summary.py (rms about a 51-integration running
+  median, 5-sigma clipped; bootstrap errors). Pass 1 reproduces the package levels exactly
+  in all four. Uncorrected white light (no linearity). Inputs deleted after each study.
+  Passes: no effect anywhere (template converged). Factors: PRISM (package window 200)
+  775/786 ppm for package, iterated and unity alike (coupling 0.027 wide aperture, 0.007
+  tight); SOSS (package factors from the order-1 aperture of the first-pass rates, no
+  filter) package 111.6/109.0, iterated 112.4/109.7, unity 110.6/108.0 (seg1 clipped at
+  integration 60, +1% outlier; coupling 0.015, so unity in transit would lower the depth by
+  ~1.5%): iterating does not help SOSS (feeds white-light noise back). Pixels: SOSS flat (all
+  inner 15-47 x widths >= 8 within +-1.5 ppm of the package's 27-px mask); PRISM all rows
+  beyond 3 vs the package's 4-15: tight aperture (2.5) -9.3 +- 1.6 / -8.0 +- 1.7 ppm (1.5%),
+  wide aperture (the mode's 10) -58 +- 5 / -62 +- 6 ppm (7.5%), but there the 1/f rows lie
+  inside the aperture (as the package's 4-15 do), which also pulls each integration toward
+  s_i T (self-subtraction): the wide gain is not all noise reduction. Open: PRISM default 1/f
+  rows (4-15) overlap its default aperture (10).
+- [x] Bug fixed (f6e22bd): soss.correct_ramps_1f overwrote its template argument with the
+  median rate, so the default SOSS fit_ramps raised since f57f497; regression test added.
