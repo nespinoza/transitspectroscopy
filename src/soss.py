@@ -467,8 +467,9 @@ def correct_ramps_1f(ramps, rateints, result, domain='groups', template='median'
     The traces, background and median rate of ``result`` (from :func:`extract_soss` on
     ``rateints``) give the masks (orders 1, 2 and 3) and the white-light factor of every
     integration, as for ``onef_method='template'``; the ramps are then corrected with
-    :func:`transitspectroscopy.core.detector.group_difference_1f`. Ramp fitting has to be
-    run again afterwards.
+    :func:`transitspectroscopy.jwst.group_difference_1f_from_traces` (the SOSS settings of
+    :func:`transitspectroscopy.jwst.group_1f_settings`). Ramp fitting has to be run again
+    afterwards.
 
     Parameters
     ----------
@@ -490,37 +491,21 @@ def correct_ramps_1f(ramps, rateints, result, domain='groups', template='median'
     Returns
     -------
     dict
-        Removed levels, white-light factors and, for ``template='difference'``, group
-        template factors.
+        Removed levels, white-light factors, the pixels used and, for
+        ``template='difference'``, group template factors.
     """
-    from .core.detector import difference_1f, group_difference_1f
-    from .jwst_models import ramp_1f_validity, ramp_jumps
+    from . import instruments
+    from .jwst import group_1f_settings, group_difference_1f_from_traces
 
     aperture_radius = result['metadata']['settings']['aperture_radius']
-    median, background = result['median_background_subtracted'], result['background']
-    pixels = onef_pixels(result['orders'], median.shape, aperture_radius)
-    scale = []
-    for value in rateints:
-        with open_model(value) as m:
-            for i in range(len(m.data)):
-                frame = np.asarray(m.data[i], float)-background
-                valid = np.isfinite(frame) & ((m.dq[i] & 3) == 0)
-                scale.append(white_light_scale(frame, valid, median, pixels['scale_pixels']))
-    valid, template_valid = ramp_1f_validity(ramps)
-    data = [ramp.data for ramp in ramps]
-    if domain == 'differences':
-        diagnostics = difference_1f(data, valid, ~pixels['source_mask'], np.asarray(scale),
-                                    jumps=ramp_jumps(ramps))
-    elif domain == 'groups':
-        diagnostics = group_difference_1f(data, valid, ~pixels['source_mask'], np.asarray(scale),
-                                          pixels['scale_pixels'], template_valid=template_valid,
-                                          template=template)
-    else:
-        raise ValueError("domain must be 'groups' or 'differences'")
-    for ramp, corrected in zip(ramps, data):
-        ramp.data = corrected
-    diagnostics['white_light_scale'] = np.asarray(scale)
-    return diagnostics
+    settings = group_1f_settings(instruments.get_mode('niriss/soss'),
+                                 aperture_radius=aperture_radius)
+    traces = {order: (trace['columns'], trace['trace'])
+              for order, trace in result['orders'].items()}
+    return group_difference_1f_from_traces(ramps, rateints, traces,
+                                           result['median_background_subtracted'],
+                                           result['background'], settings, domain=domain,
+                                           template=template)
 
 
 def reduce_soss(inputs, **options):

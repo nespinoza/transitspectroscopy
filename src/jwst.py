@@ -1604,6 +1604,10 @@ def group_difference_1f_correction(ramps, rateints, mode, **options):
     `transitspectroscopy.core.detector.group_difference_1f`). Ramps have to be fitted again
     afterwards. `load.fit_ramps` applies it to the ramps before their linearity correction.
 
+    Only the traces, the median rate and the background (where the light is) are found
+    differently for every mode; the correction itself is `group_difference_1f_from_traces`,
+    with the pixels and white-light factors of `group_1f_settings`.
+
     Parameters
     ----------
 
@@ -1616,18 +1620,14 @@ def group_difference_1f_correction(ramps, rateints, mode, **options):
 
     mode : transitspectroscopy.instruments.Mode
         Mode of the data. For NIRISS/SOSS, a box-only `transitspectroscopy.soss.extract_soss` of
-        the rates gives the traces (orders 1, 2 and 3 masked), background, median rate and
-        white-light factors (as ``onef_method = 'template'``), and ``options`` are passed to it
-        (e.g., ``pastasoss_reference``). For the other spectroscopic modes, the median rate is
-        traced, the white-light factors are those of the Stage 2 1/f correction
-        (``scale_1f_rows``, ``scale_1f_columns`` and ``scale_1f_window`` of the mode) and the 1/f
-        levels are the medians between ``inner_radius`` and ``outer_radius`` pixels from the
-        trace, as in `transitspectroscopy.core.detector.correct_1f` (but also in the untraced
-        columns, around the trace extended at its edge values); ``options`` may set
-        ``aperture_radius`` (pixels used to scale each ``'difference'`` template to its group),
-        ``inner_radius`` and ``outer_radius`` (default: the mode's). For all modes,
-        ``domain = 'differences'`` measures and removes the 1/f levels on the group differences
-        (CDS frames) instead of the groups (see
+        the rates gives the traces (orders 1, 2 and 3), background and median rate, and
+        ``options`` are passed to it (e.g., ``pastasoss_reference``). For the other
+        spectroscopic modes, the median rate is traced and, if the mode subtracts a
+        background, the background of every column is the median of its pixels more than
+        ``background_inner_radius`` from the trace; ``options`` may set ``aperture_radius``,
+        ``inner_radius`` and ``outer_radius`` (default: the mode's; see `group_1f_settings`).
+        For all modes, ``domain = 'differences'`` measures and removes the 1/f levels on the
+        group differences (CDS frames) instead of the groups (see
         `transitspectroscopy.core.detector.difference_1f`); the default is ``'groups'``. With
         ``'groups'``, ``template = 'difference'`` selects the earlier templates (the median
         group differences scaled to each group in the aperture), which need ramps corrected for
@@ -1659,29 +1659,277 @@ def group_difference_1f_correction(ramps, rateints, mode, **options):
 
     return _spectral_group_difference_1f(ramps, rateints, mode, **options)
 
-def _spectral_group_difference_1f(ramps, rateints, mode, aperture_radius = None,
-                                  inner_radius = None, outer_radius = None, domain = 'groups',
-                                  template = 'median'):
+def group_1f_settings(mode, aperture_radius = None, inner_radius = None, outer_radius = None):
+    """
+    Pixels and white-light factors of the group-level 1/f correction of a spectroscopic mode
+    (see `group_difference_1f_from_traces`), from its defaults.
+
+    ======================= ============================ =============================
+    setting                 NIRSpec (G395H/M, PRISM)     NIRISS/SOSS
+    ======================= ============================ =============================
+    ``aperture_radius``     mode's (2; PRISM 10)         ``aperture_radius + 0.5``
+    ``inner_radius``        ``onef_inner_radius`` (3; 4) ``aperture_radius + 12.5``
+    ``outer_radius``        ``onef_outer_radius`` (8; 15) None (all)
+    ``trace_reference``     ``'floor'``                  ``'center'``
+    ``extend_traces``       True                         False
+    ``edge_columns``        0                            4
+    ``scale_pixels``        ``scale_1f_rows``,           ``'aperture'`` (order 1)
+                            ``scale_1f_columns``
+    ``scale_normalization`` ``'timeseries'``             ``'median_rate'``
+    ``scale_window``        ``scale_1f_window`` (5; 200) 1
+    ======================= ============================ =============================
+
+    The SOSS radii are those of the box of half-width ``aperture_radius`` (15 pixels) and of
+    the source mask of `transitspectroscopy.soss.onef_pixels` (12 pixels more), in pixel
+    centers. The NIRSpec 1/f pixels are measured from ``floor(trace) - 0.5`` (see
+    `group_difference_1f_from_traces`) and its white-light factors are those of the Stage 2
+    1/f correction.
+
+    Parameters
+    ----------
+
+    mode : transitspectroscopy.instruments.Mode
+        A spectroscopic mode.
+
+    aperture_radius, inner_radius, outer_radius : float, optional
+        Replace the mode's ``aperture_radius`` (for SOSS, the box half-width, also giving the
+        inner radius), ``onef_inner_radius`` and ``onef_outer_radius`` (NIRSpec only).
+
+    Returns
+    -------
+
+    settings : dict
+        The settings of the table.
+    """
+
+    defaults = mode.extraction_defaults
+    aperture_radius = defaults['aperture_radius'] if aperture_radius is None else aperture_radius
+    if mode.stage2 == 'soss':
+
+        if inner_radius is not None or outer_radius is not None:
+
+            raise ValueError('The SOSS 1/f pixels are set by aperture_radius')
+
+        return dict(aperture_radius = aperture_radius + 0.5,
+                    inner_radius = aperture_radius + 12.5, outer_radius = None,
+                    trace_reference = 'center', extend_traces = False, edge_columns = 4,
+                    scale_pixels = 'aperture', scale_normalization = 'median_rate',
+                    scale_window = 1)
+
+    if mode.stage2 != 'spectral':
+
+        raise ValueError('The group-difference 1/f correction is only defined for '
+                         'spectroscopic modes')
+
+    return dict(aperture_radius = aperture_radius,
+                inner_radius = defaults['onef_inner_radius'] if inner_radius is None
+                               else inner_radius,
+                outer_radius = defaults['onef_outer_radius'] if outer_radius is None
+                               else outer_radius,
+                trace_reference = 'floor', extend_traces = True, edge_columns = 0,
+                scale_pixels = dict(rows = defaults['scale_1f_rows'],
+                                    columns = defaults['scale_1f_columns']),
+                scale_normalization = 'timeseries', scale_window = defaults['scale_1f_window'])
+
+def group_difference_1f_from_traces(ramps, rateints, traces, median, background, settings,
+                                    domain = 'groups', template = 'median'):
+    """
+    Group-level 1/f correction of the ramps of any spectroscopic mode, given where the light
+    is: the traces, the median rate and the background of the rates per integration.
+
+    1. Distances. Every pixel's distance to the nearest trace, in rows. With
+       ``trace_reference = 'floor'`` the distances are measured from ``floor(trace) - 0.5``
+       (as the earlier NIRSpec correction, which is 0.5 to 1.5 rows below the trace), and
+       with ``'center'`` from the trace. With ``extend_traces``, every trace is extended to
+       all columns at its edge values; otherwise the untraced columns of every trace are at
+       an infinite distance from it.
+    2. Pixels. The 1/f levels use the background pixels, at ``inner_radius`` to
+       ``outer_radius`` (None: no limit) from the nearest trace, except the ``edge_columns``
+       first and last columns. The aperture is the pixels at most ``aperture_radius`` from the
+       first trace (the lowest order), in its traced columns.
+    3. White-light factors. The rates minus ``background``, summed over ``scale_pixels``
+       (``'aperture'``, or a dict of ``rows`` and ``columns`` ranges). With
+       ``scale_normalization = 'median_rate'`` the sum of every integration, over its valid
+       pixels (finite and with no DO_NOT_USE or SATURATED flag), is divided by the sum of
+       ``median`` over the same pixels; with ``'timeseries'``, NaN rates are set to zero
+       before the background is subtracted, and the sums are divided by their median. The
+       factors are then median filtered over ``scale_window`` integrations.
+    4. Correction. `transitspectroscopy.core.detector.group_difference_1f` (``domain =
+       'groups'``) or `transitspectroscopy.core.detector.difference_1f` (``'differences'``):
+       per group, the template is the median over all integrations of every pixel divided by
+       the white-light factor; the template times the factor is subtracted from every
+       integration, and the median of each column's background pixels removed.
+
+    Parameters
+    ----------
+
+    ramps : list
+        Ramps (RampModels) of the segments, in chronological order; corrected in place.
+
+    rateints : list
+        Rates per integration (CubeModels or paths) of those ramps, in the same order.
+
+    traces : dict
+        ``{order: (columns, centers)}``: the traced columns and the trace row in each.
+
+    median : numpy.ndarray
+        Median rate minus the background, ``(row, column)``.
+
+    background : numpy.ndarray
+        Background of the rates, ``(row, column)``.
+
+    settings : dict
+        ``aperture_radius``, ``inner_radius``, ``outer_radius``, ``trace_reference``,
+        ``extend_traces``, ``edge_columns``, ``scale_pixels``, ``scale_normalization`` and
+        ``scale_window`` (see above and `group_1f_settings`).
+
+    domain : str
+        ``'groups'`` (default) or ``'differences'``.
+
+    template : str
+        Templates of ``'groups'``: ``'median'`` (default) or ``'difference'`` (see
+        `transitspectroscopy.core.detector.group_difference_1f`).
+
+    Returns
+    -------
+
+    diagnostics : dict
+        The diagnostics of the correction (``levels``, ``shared`` and, for ``template =
+        'difference'``, ``group_scale``), the white-light factors (``white_light_scale``),
+        and the ``background_pixels`` and ``aperture`` used.
+    """
 
     from .core.detector import difference_1f, group_difference_1f
-    from .jwst_models import ramp_1f_validity, ramp_jumps
+    from .jwst_models import open_model, ramp_1f_validity, ramp_jumps
 
     if domain not in ('groups', 'differences'):
 
         raise ValueError("domain must be 'groups' or 'differences'")
 
+    if settings['trace_reference'] not in ('center', 'floor'):
+
+        raise ValueError("trace_reference must be 'center' or 'floor'")
+
+    if settings['scale_normalization'] not in ('median_rate', 'timeseries'):
+
+        raise ValueError("scale_normalization must be 'median_rate' or 'timeseries'")
+
+    # 1. Distances to the nearest trace:
+    nrows, ncols = median.shape
+    rows = np.arange(nrows)[:, None]
+    distance = np.full((nrows, ncols), np.inf)
+    for columns, centers in traces.values():
+
+        columns, centers = np.asarray(columns, dtype = int), np.asarray(centers, dtype = float)
+        if settings['extend_traces']:
+
+            order = np.argsort(columns)
+            centers = np.interp(np.arange(ncols), columns[order], centers[order])
+            columns = np.arange(ncols)
+
+        if settings['trace_reference'] == 'floor':
+
+            centers = np.floor(centers) - 0.5
+
+        distance[:, columns] = np.minimum(distance[:, columns], np.abs(rows - centers))
+
+    # 2. Background pixels and aperture:
+    outer_radius = np.inf if settings['outer_radius'] is None else settings['outer_radius']
+    background_pixels = (distance >= settings['inner_radius']) & (distance <= outer_radius)
+    edge = settings['edge_columns']
+    if edge > 0:
+
+        background_pixels[:, :edge] = False
+        background_pixels[:, -edge:] = False
+
+    columns, centers = traces[min(traces)]
+    aperture = np.zeros((nrows, ncols), dtype = bool)
+    aperture[:, columns] = np.abs(rows - np.asarray(centers, dtype = float)) <= \
+                           settings['aperture_radius']
+
+    # 3. White-light factors:
+    if isinstance(settings['scale_pixels'], str):
+
+        if settings['scale_pixels'] != 'aperture':
+
+            raise ValueError("scale_pixels must be 'aperture' or a dict of rows and columns")
+
+        scale_pixels = aperture
+
+    else:
+
+        (first_row, last_row), (first_column, last_column) = (settings['scale_pixels']['rows'],
+                                                              settings['scale_pixels']['columns'])
+        scale_pixels = np.zeros((nrows, ncols), dtype = bool)
+        scale_pixels[first_row:last_row, first_column:last_column] = True
+
+    scale = []
+    for value in rateints:
+
+        with open_model(value) as model:
+
+            if settings['scale_normalization'] == 'timeseries':
+
+                rates = np.array(model.data, dtype = np.float32)
+                rates[np.isnan(rates)] = 0.
+                rates -= np.asarray(background, dtype = np.float32)
+                scale.extend(np.nansum(np.where(scale_pixels, rates, 0.), axis = (1, 2),
+                                       dtype = float))
+                del rates
+
+            else:
+
+                for i in range(len(model.data)):
+
+                    frame = np.asarray(model.data[i], dtype = float) - background
+                    use = (np.isfinite(frame) & ((model.dq[i] & 3) == 0) & scale_pixels
+                           & np.isfinite(median))
+                    scale.append(np.sum(frame[use]) / np.sum(median[use]))
+
+    scale = np.asarray(scale, dtype = float)
+    if settings['scale_normalization'] == 'timeseries':
+
+        scale = scale / np.nanmedian(scale)
+
+    if settings['scale_window'] > 1:
+
+        scale = median_filter(scale, settings['scale_window'])
+
+    # 4. Correction:
+    valid, template_valid = ramp_1f_validity(ramps)
+    data = [ramp.data for ramp in ramps]
+    if domain == 'differences':
+
+        diagnostics = difference_1f(data, valid, background_pixels, scale,
+                                    jumps = ramp_jumps(ramps))
+
+    else:
+
+        diagnostics = group_difference_1f(data, valid, background_pixels, scale, aperture,
+                                          template_valid = template_valid, template = template)
+    for ramp, corrected in zip(ramps, data):
+
+        ramp.data = corrected
+
+    diagnostics.update(white_light_scale = scale, background_pixels = background_pixels,
+                       aperture = aperture)
+
+    return diagnostics
+
+def _spectral_group_difference_1f(ramps, rateints, mode, aperture_radius = None,
+                                  inner_radius = None, outer_radius = None, domain = 'groups',
+                                  template = 'median'):
+
     tracing = mode.tracing_for(ramps[0].meta.instrument.detector)
     defaults = mode.extraction_defaults
-    aperture_radius = defaults['aperture_radius'] if aperture_radius is None else aperture_radius
-    inner_radius = defaults['onef_inner_radius'] if inner_radius is None else inner_radius
-    outer_radius = defaults['onef_outer_radius'] if outer_radius is None else outer_radius
+    settings = group_1f_settings(mode, aperture_radius, inner_radius, outer_radius)
 
-    # Rates and median rate, NaNs zeroed as in stage2:
+    # Median rate:
     rates = np.concatenate([np.asarray(model.data, dtype = np.float32) for model in rateints])
-    median_rate = np.nanmedian(rates, axis = 0)
-    median_rate_nan = deepcopy(median_rate)
+    median_rate_nan = np.nanmedian(rates, axis = 0)
+    del rates
+    median_rate = deepcopy(median_rate_nan)
     median_rate[np.isnan(median_rate)] = 0.
-    rates[np.isnan(rates)] = 0.
 
     # Trace of the median rate, from the mode's starting columns, with outliers replaced and
     # smoothed as in stage2:
@@ -1703,30 +1951,12 @@ def _spectral_group_difference_1f(ramps, rateints, mode, aperture_radius = None,
     y[idx_outliers] = mfilter[idx_outliers]
     _, y = fit_spline(x, y, nknots = tracing['nknots'])
 
-    # Pixels: the 1/f levels use the rows between inner_radius and outer_radius from the trace,
-    # as correct_1f but without its wrap-around near the edges, and also in the untraced columns
-    # (where correct_1f uses all rows), with the trace extended at its edge values; the template
-    # factors use the aperture:
-    nrows, ncols = median_rate.shape
-    rows = np.arange(nrows)
-    order = np.argsort(x)
-    centers = np.interp(np.arange(ncols), x[order], y[order])
-    background_pixels = np.ones(median_rate.shape, dtype = bool)
-    for column, center in enumerate(centers):
-
-        excluded = np.zeros(nrows, dtype = bool)
-        excluded[max(int(center) - inner_radius, 0) : max(int(center) + inner_radius, 0)] = True
-        excluded[: max(int(center - outer_radius), 0)] = True
-        excluded[max(int(center + outer_radius), 0) :] = True
-        background_pixels[:, column] = ~excluded
-
-    scale_pixels = np.zeros(median_rate.shape, dtype = bool)
-    scale_pixels[:, x] = np.abs(rows[:, None] - y[None, :]) <= aperture_radius
-
-    # White-light factors as in the stage2 1/f correction (after its background subtraction,
-    # if any):
+    # Background of every column as in the stage2 1/f correction (none if the mode subtracts
+    # no background):
+    background = np.zeros(median_rate.shape)
     if defaults['background_subtraction']:
 
+        rows = np.arange(median_rate.shape[0])
         out_of_trace = np.ones(median_rate.shape)
         for column, center in zip(x, y):
 
@@ -1736,33 +1966,15 @@ def _spectral_group_difference_1f(ramps, rateints, mode, aperture_radius = None,
 
                 out_of_trace[distance >= defaults['background_outer_radius'], column] = np.nan
 
-        background = np.nanmedian(median_rate_nan * out_of_trace, axis = 0)
-        background[np.isnan(background)] = 0.
-        rates -= background.astype(np.float32)
+        column_background = np.nanmedian(median_rate_nan * out_of_trace, axis = 0)
+        column_background[np.isnan(column_background)] = 0.
+        background[:] = column_background[None, :]
 
-    scale_1f_rows, scale_1f_columns = defaults['scale_1f_rows'], defaults['scale_1f_columns']
-    timeseries = np.nansum(rates[:, scale_1f_rows[0]:scale_1f_rows[1],
-                                 scale_1f_columns[0]:scale_1f_columns[1]],
-                           axis = (1, 2), dtype = float)
-    scale = median_filter(timeseries / np.nanmedian(timeseries), defaults['scale_1f_window'])
-    del rates
-
-    valid, template_valid = ramp_1f_validity(ramps)
-    data = [ramp.data for ramp in ramps]
-    if domain == 'differences':
-
-        diagnostics = difference_1f(data, valid, background_pixels, scale,
-                                    jumps = ramp_jumps(ramps))
-
-    else:
-
-        diagnostics = group_difference_1f(data, valid, background_pixels, scale, scale_pixels,
-                                          template_valid = template_valid, template = template)
-    for ramp, corrected in zip(ramps, data):
-
-        ramp.data = corrected
-
-    diagnostics.update(white_light_scale = scale, trace_columns = x, trace = y)
+    diagnostics = group_difference_1f_from_traces(ramps, rateints, {1: (x, y)},
+                                                  median_rate_nan - background, background,
+                                                  settings, domain = domain,
+                                                  template = template)
+    diagnostics.update(trace_columns = x, trace = y)
 
     return diagnostics
 

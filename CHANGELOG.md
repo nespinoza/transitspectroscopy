@@ -80,6 +80,12 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
   RMS falls by about 0.8%. Numerical outputs of reductions from `uncal` files change;
   `parameters={'group_difference_1f': {'template': 'difference'}}` restores the previous
   correction. Ramps already corrected for linearity are corrected as before.
+- The group-level 1/f correction of every spectroscopic mode goes through one function,
+  `jwst.group_difference_1f_from_traces` (traces, median rate and background in; distances,
+  1/f pixels, aperture, white-light factors and correction out), with the per-mode pixels and
+  factors in `jwst.group_1f_settings`; `group_difference_1f_correction` and
+  `soss.correct_ramps_1f` only find the traces. The outputs are unchanged; the diagnostics
+  also hold the `background_pixels` and `aperture` used.
 - After the TSO jump step, the correlated (`'sparta'`) ramp fit rejects no differences unless
   `sigma` is given in `ramp_fit_options` (the TSO jump flags define the excluded differences;
   its own clipping flagged ~4e-4 of the differences of faint NIRSpec pixels as `JUMP_DET`).

@@ -53,6 +53,11 @@ def test_nirspec_group_difference_1f_traces_and_removes_column_stripes():
     out = jwst.group_difference_1f_correction([ramp], [rates], mode)
     np.testing.assert_allclose(out['trace'], CENTER, atol=0.1)
     assert 'group_scale' not in out
+    # The 1/f rows are 4 to 15 rows from the row of the trace (int(trace), below it):
+    rows = np.arange(NROWS)[:, None] - np.floor(np.interp(np.arange(NCOLS), out['trace_columns'],
+                                                          out['trace']))
+    np.testing.assert_array_equal(out['background_pixels'],
+                                  ((rows >= 4) & (rows < 15)) | ((rows >= -15) & (rows < -4)))
     # Up to an offset that is the same in every integration (the templates' bias and median
     # stripes), the removed levels are the stripes, and the corrected ramps the clean ones:
     levels = out['levels'] - out['levels'].mean(axis=0)

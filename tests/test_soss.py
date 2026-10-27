@@ -313,6 +313,10 @@ def test_correct_ramps_1f_removes_column_stripes(template):
                                   trace=np.full(ncols - 8, 30.))})
     out = soss.correct_ramps_1f([ramp], [rates], result, template=template)
     np.testing.assert_allclose(out['white_light_scale'], 1.)
+    # The pixels of the Stage 2 SOSS 1/f correction:
+    pixels = soss.onef_pixels(result['orders'], scene.shape, 5.)
+    np.testing.assert_array_equal(out['background_pixels'], ~pixels['source_mask'])
+    np.testing.assert_array_equal(out['aperture'], pixels['scale_pixels'])
     levels = out['levels'] - out['levels'].mean(axis=0)
     np.testing.assert_allclose(levels[:, :, 4:-4], (stripes - stripes.mean(axis=0))[:, :, 4:-4],
                                atol=0.6)
