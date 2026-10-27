@@ -976,3 +976,22 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
 - [x] Defaults (f6abbac): NIRSpec group 1/f pixels = all rows >= group_1f_inner_radius from
   the trace centre (new mode keys; G395H/M 6, PRISM 8; outer None); Stage 2 1/f pixels
   unchanged; SOSS unchanged. Tests 204 pass. G395M takes the G395H value untested.
+
+## Linearity and the number of groups fitted, G395H HAT-P-14 b (2026-10-27, in progress)
+
+User: does the transmission spectrum change with the number of groups fitted (3, half, all)
+with the CRDS linearity and with the self correction, in the newest pipeline? (Hunch: the
+group-number dependence seen in earlier work, e.g. Carter, May et al. 2024 arXiv:2407.13893,
+is a non-linearity effect.) Scripts in validation/nl_groups/ (the earlier nl_*.py scratch
+scripts were lost with their session; rebuilt): nl_groups_stage1.py (package Stage 1 per
+chunk of integrations with the new group 1/f defaults; saves the corrected ramps before
+linearity, dark subtracted, and fits the CRDS-linearized ramps with the first N groups, later
+groups DO_NOT_USE), nl_groups_self.py (Chebyshev cubic self correction from the segment's
+mean ramps, GLS; then the same N-group fits), nl_groups_stage2.py (package stage 2, box
+radius 2, DQ masked; NRS2 tracing to column 1900), nl_groups_driver.sh, watchdog.sh,
+nl_groups_spectrum.py (depths per 64-column bin, paired differences from light-curve
+ratios), nl_groups_predict.py (noise-free depth factors with the self correction as truth).
+NRS1 uncal re-downloaded. N = 3, 10, 20 (NGROUPS 20).
+- [x] Test chunk (20 integrations, NRS2 seg1): rates n3/n20 in pixels > 100 DN/s: CRDS
+  0.994-0.999, self 0.9998-1.0002.
+- [ ] NRS2 and NRS1 segments 1-3 (running; outputs validation/runs/nl-groups/).
