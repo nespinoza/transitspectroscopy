@@ -31,7 +31,8 @@ def prism_models(models, data, scene, transit):
     ramp.meta.instrument.filter = 'CLEAR'
     ramp.meta.instrument.grating = 'PRISM'
     ramp.meta.exposure.type = 'NRS_BRIGHTOBJ'
-    for key, value in dict(frame_time=1., group_time=1., nframes=1, ngroups=NGROUPS,
+    for key, value in dict(frame_time=1., group_time=1., integration_time=NGROUPS*1.,
+                           nframes=1, ngroups=NGROUPS,
                            nints=NINTS, groupgap=0, readpatt='NRSRAPID').items():
         setattr(ramp.meta.exposure, key, value)
     ramp.meta.observation.date = '2025-01-01'
@@ -351,3 +352,28 @@ def test_reloaded_products_keep_the_group_difference_1f_status(tmp_path):
     assert dataset.status['group_difference_1f'] is None
     assert dataset.status['clean_flicker_noise'] == 'SKIPPED'
     assert dataset.status['group_1f'] == 'SKIPPED'
+
+
+def test_white_light_factors_are_the_aperture_rates_filtered_over_a_time_window():
+    # Every mode: aperture sums of the rates relative to the median rate, median filtered over
+    # scale_window_time (12 s of 4-s integrations: 3 integrations).
+    models = pytest.importorskip('stdatamodels.jwst.datamodels')
+    from scipy.ndimage import median_filter
+    scene, transit, stripes, clean, data = prism_scene()
+    ramp, rates = prism_models(models, data, scene, transit)
+    noise = 1 + np.random.default_rng(5).normal(0, 1e-3, NINTS)
+    rates.data *= noise[:, None, None].astype(np.float32)
+    mode = instruments.get_mode('nirspec/prism')
+    settings = jwst.group_1f_settings(mode, scale_window_time=12.)
+    assert (settings['scale_pixels'], settings['scale_normalization']) == ('aperture',
+                                                                            'median_rate')
+    traces = {1: (np.arange(NCOLS), np.full(NCOLS, CENTER))}
+    out = jwst.group_difference_1f_from_traces([ramp], [rates], traces, scene,
+                                               np.zeros(scene.shape), settings)
+    aperture = np.abs(np.arange(NROWS) - CENTER) <= settings['aperture_radius']
+    expected = (rates.data[:, aperture].sum(axis=(1, 2)) / scene[aperture].sum())
+    np.testing.assert_allclose(out['white_light_scale'], median_filter(expected, 3), rtol=1e-6)
+    ramp.meta.exposure.integration_time = None
+    with pytest.raises(ValueError, match='integration time'):
+        jwst.group_difference_1f_from_traces([ramp], [rates], traces, scene,
+                                             np.zeros(scene.shape), settings)

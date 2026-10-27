@@ -305,7 +305,8 @@ def test_correct_ramps_1f_removes_column_stripes(template):
     groups = (scene*(np.arange(ngroups) + 1)[None, :, None, None]
               + stripes[:, :, None, :]).astype(np.float32)
     ramp = NS(data=groups.copy(), groupdq=np.zeros(groups.shape, np.uint8),
-              pixeldq=np.zeros((nrows, ncols), np.uint32))
+              pixeldq=np.zeros((nrows, ncols), np.uint32),
+              meta=NS(exposure=NS(integration_time=33.)))
     rates = NS(data=np.repeat(scene[None], nints, 0), dq=np.zeros((nints, nrows, ncols), int))
     result = dict(metadata=dict(settings=dict(aperture_radius=5.)),
                   median_background_subtracted=scene, background=np.zeros((nrows, ncols)),

@@ -86,6 +86,15 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
   factors in `jwst.group_1f_settings`; `group_difference_1f_correction` and
   `soss.correct_ramps_1f` only find the traces. The outputs are unchanged; the diagnostics
   also hold the `background_pixels` and `aperture` used.
+- The white-light factors of the group-level 1/f correction are, for every mode, the
+  aperture sums of the first-pass rates relative to the median rate, median filtered over
+  300 s (`scale_window_time` of `jwst.group_1f_settings`; the window in integrations from the
+  ramps' `EFFINTTM`). NIRSpec used the rectangle and window of the Stage 2 1/f correction
+  (2400-2800 ppm scatter on G395H, 900-1000 on PRISM; now 100-190) and SOSS was unfiltered.
+  This changes the default outputs. On G395H NRS2 (PID 1118 obs 5) the package's factors
+  added about 107 ppm in quadrature to the white light (segment 1, 198 ppm; aperture factors
+  166); on PRISM (PID 3969 obs 1) and SOSS (PID 1541 obs 1) the white-light rms changes by
+  less than 1 ppm.
 - After the TSO jump step, the correlated (`'sparta'`) ramp fit rejects no differences unless
   `sigma` is given in `ramp_fit_options` (the TSO jump flags define the excluded differences;
   its own clipping flagged ~4e-4 of the differences of faint NIRSpec pixels as `JUMP_DET`).

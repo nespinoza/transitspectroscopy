@@ -1659,7 +1659,8 @@ def group_difference_1f_correction(ramps, rateints, mode, **options):
 
     return _spectral_group_difference_1f(ramps, rateints, mode, **options)
 
-def group_1f_settings(mode, aperture_radius = None, inner_radius = None, outer_radius = None):
+def group_1f_settings(mode, aperture_radius = None, inner_radius = None, outer_radius = None,
+                      scale_window_time = 300.):
     """
     Pixels and white-light factors of the group-level 1/f correction of a spectroscopic mode
     (see `group_difference_1f_from_traces`), from its defaults.
@@ -1673,17 +1674,19 @@ def group_1f_settings(mode, aperture_radius = None, inner_radius = None, outer_r
     ``trace_reference``     ``'floor'``                  ``'center'``
     ``extend_traces``       True                         False
     ``edge_columns``        0                            4
-    ``scale_pixels``        ``scale_1f_rows``,           ``'aperture'`` (order 1)
-                            ``scale_1f_columns``
-    ``scale_normalization`` ``'timeseries'``             ``'median_rate'``
-    ``scale_window``        ``scale_1f_window`` (5; 200) 1
+    ``scale_pixels``        ``'aperture'``               ``'aperture'`` (order 1)
+    ``scale_normalization`` ``'median_rate'``            ``'median_rate'``
+    ``scale_window_time``   ``scale_window_time`` (300)  ``scale_window_time`` (300)
     ======================= ============================ =============================
 
     The SOSS radii are those of the box of half-width ``aperture_radius`` (15 pixels) and of
     the source mask of `transitspectroscopy.soss.onef_pixels` (12 pixels more), in pixel
     centers. The NIRSpec 1/f pixels are measured from ``floor(trace) - 0.5`` (see
-    `group_difference_1f_from_traces`) and its white-light factors are those of the Stage 2
-    1/f correction.
+    `group_difference_1f_from_traces`). The white-light factors of every mode are the
+    aperture sums of the first-pass rates relative to the median rate, median filtered over
+    ``scale_window_time``: of the definitions tried on G395H, PRISM and SOSS, the least noisy
+    (100-270 ppm, against 900-2800 ppm for the rectangle of the Stage 2 1/f correction on
+    NIRSpec).
 
     Parameters
     ----------
@@ -1694,6 +1697,9 @@ def group_1f_settings(mode, aperture_radius = None, inner_radius = None, outer_r
     aperture_radius, inner_radius, outer_radius : float, optional
         Replace the mode's ``aperture_radius`` (for SOSS, the box half-width, also giving the
         inner radius), ``onef_inner_radius`` and ``onef_outer_radius`` (NIRSpec only).
+
+    scale_window_time : float, optional
+        Width, in seconds, of the median filter of the white-light factors. Default is 300.
 
     Returns
     -------
@@ -1714,7 +1720,7 @@ def group_1f_settings(mode, aperture_radius = None, inner_radius = None, outer_r
                     inner_radius = aperture_radius + 12.5, outer_radius = None,
                     trace_reference = 'center', extend_traces = False, edge_columns = 4,
                     scale_pixels = 'aperture', scale_normalization = 'median_rate',
-                    scale_window = 1)
+                    scale_window_time = scale_window_time)
 
     if mode.stage2 != 'spectral':
 
@@ -1727,9 +1733,8 @@ def group_1f_settings(mode, aperture_radius = None, inner_radius = None, outer_r
                 outer_radius = defaults['onef_outer_radius'] if outer_radius is None
                                else outer_radius,
                 trace_reference = 'floor', extend_traces = True, edge_columns = 0,
-                scale_pixels = dict(rows = defaults['scale_1f_rows'],
-                                    columns = defaults['scale_1f_columns']),
-                scale_normalization = 'timeseries', scale_window = defaults['scale_1f_window'])
+                scale_pixels = 'aperture', scale_normalization = 'median_rate',
+                scale_window_time = scale_window_time)
 
 def group_difference_1f_from_traces(ramps, rateints, traces, median, background, settings,
                                     domain = 'groups', template = 'median'):
@@ -1753,7 +1758,9 @@ def group_difference_1f_from_traces(ramps, rateints, traces, median, background,
        pixels (finite and with no DO_NOT_USE or SATURATED flag), is divided by the sum of
        ``median`` over the same pixels; with ``'timeseries'``, NaN rates are set to zero
        before the background is subtracted, and the sums are divided by their median. The
-       factors are then median filtered over ``scale_window`` integrations.
+       factors are then median filtered over ``scale_window_time`` seconds (the odd number of
+       integrations nearest to it, at most all of them; the integration time is the
+       ``EFFINTTM`` of the ramps).
     4. Correction. `transitspectroscopy.core.detector.group_difference_1f` (``domain =
        'groups'``) or `transitspectroscopy.core.detector.difference_1f` (``'differences'``):
        per group, the template is the median over all integrations of every pixel divided by
@@ -1781,7 +1788,7 @@ def group_difference_1f_from_traces(ramps, rateints, traces, median, background,
     settings : dict
         ``aperture_radius``, ``inner_radius``, ``outer_radius``, ``trace_reference``,
         ``extend_traces``, ``edge_columns``, ``scale_pixels``, ``scale_normalization`` and
-        ``scale_window`` (see above and `group_1f_settings`).
+        ``scale_window_time`` (see above and `group_1f_settings`).
 
     domain : str
         ``'groups'`` (default) or ``'differences'``.
@@ -1891,9 +1898,18 @@ def group_difference_1f_from_traces(ramps, rateints, traces, median, background,
 
         scale = scale / np.nanmedian(scale)
 
-    if settings['scale_window'] > 1:
+    integration_time = getattr(getattr(getattr(ramps[0], 'meta', None), 'exposure', None),
+                               'integration_time', None)
+    if integration_time is None or not integration_time > 0:
 
-        scale = median_filter(scale, settings['scale_window'])
+        raise ValueError('The ramps need their integration time (EFFINTTM) to filter the '
+                         'white-light factors')
+
+    window = min(int(round(settings['scale_window_time'] / integration_time)) | 1,
+                 (len(scale) - 1) | 1)
+    if window > 1:
+
+        scale = median_filter(scale, window)
 
     # 4. Correction:
     valid, template_valid = ramp_1f_validity(ramps)
