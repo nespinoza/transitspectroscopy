@@ -940,3 +940,19 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   trace centre beyond the aperture help G395H (-22 ppm), are neutral for SOSS, and cost
   PRISM +130 ppm (wide aperture) / +7 (tight). All chunked runs: footprint <= 4.5 GB, swap
   <= 2 GB. Defaults not changed (awaiting the user).
+- [x] Group 1/f factors default (5522a61, user approved): aperture rates / median rate,
+  median filtered over 300 s (scale_window_time), every mode. Tests 204 pass.
+- [x] 1/f pixel sweep, G395H NRS2 (scratch onef_sweep.py, onef_sweep_summary.py; results
+  validation/runs/onef-full/g395h/sweep_seg00?.npz, sweep_seg23.csv). Default factors and
+  median templates; pixels inner <= d < inner + width from the trace centre (inner 2-10,
+  width 1-12, all). Metrics: white rms (aperture 2), median rms of 32 spectroscopic bins, a
+  chromatic injection (each bin's source counts scaled by +-0.3 (s_i - 1), alternating, zero
+  white-light change; injected ramps corrected separately with their own templates; "kept"
+  = fraction of it left), and the first-difference variance of the white light / sum of its
+  pixels' (self-subtraction would push it below 1). Segs 2-3 (seg 1 to rerun: its run had
+  NaN templates in the sort median and in the injection): white rms flat at 171 +- 1 for
+  inner >= 4 and widths >= 4 (raw 818); spec rms 926-935; kept 0.976 (inner 2, width 4),
+  0.989 (3, 4), 0.993 (4, 4), 0.998 (5, all), 0.999 (6, all), 0.9998 (9, all): pixels near
+  the trace remove part of a chromatic signal (the current default ~3-8 rows: ~1%). Floor
+  ratio 1.07-1.3 everywhere (no photon-noise removal). Choice: inner 6, all rows (170.8 ppm,
+  kept 0.999).
