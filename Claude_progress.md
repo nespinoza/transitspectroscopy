@@ -926,3 +926,17 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   med/pkg/pkg -0.36 +- 0.09 % / -0.09 +- 0.02, med/new/new -0.24 +- 0.02 / -0.06 +- 0.00
   (median template shallower, as G395H's -0.76). Open: PRISM pixels (inside the aperture or
   not); the depth shifts are small (< 1%) in both NIRSpec modes.
+- [x] Homogeneous group 1/f method, SOSS (PID 1541 obs 1, segs 1-4, transit ~5800 ppm;
+  results validation/runs/onef-full/soss/homog_seg00?.npz). Pixels unchanged (the package's
+  are already centre-based, > 27.5 px from any order; 133 px/col); new factors = the
+  package's (order-1 aperture / median rate) median filtered over 300 s = 9 ints (scatter
+  848/242/331/312 -> 93/179/272/247 ppm; seg1 has the integration-60 outlier). rms all
+  segments, aperture 15.5: med/pkg/pkg 127.2, two/pkg/pkg 129.8, med/new/new 126.7 (-0.5 +-
+  0.1), two/new/new 127.0. Depth, paired vs two/new/new: med -0.13 +- 0.57 % (not
+  detectable). Summary over the three modes: the factor definition matters only where the
+  package's factors were noisy (G395H); with clean factors the two-term template matches the
+  median template's rms everywhere and makes the depth 0.76 +- 0.23 % (G395H), 0.24 +- 0.02
+  (PRISM wide), 0.06 (PRISM tight) and 0.1 +- 0.6 % (SOSS) deeper; 1/f pixels from the
+  trace centre beyond the aperture help G395H (-22 ppm), are neutral for SOSS, and cost
+  PRISM +130 ppm (wide aperture) / +7 (tight). All chunked runs: footprint <= 4.5 GB, swap
+  <= 2 GB. Defaults not changed (awaiting the user).
