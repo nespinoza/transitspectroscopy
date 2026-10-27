@@ -956,3 +956,11 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   the trace remove part of a chromatic signal (the current default ~3-8 rows: ~1%). Floor
   ratio 1.07-1.3 everywhere (no photon-noise removal). Choice: inner 6, all rows (170.8 ppm,
   kept 0.999).
+- [x] 1/f pixel sweep, PRISM (segs 1-5; validation/runs/onef-full/prism/sweep_seg00?.npz,
+  sweep_all.csv; inner 2-12, widths 1-12, all; apertures 10 and 2.5). Kept (chromatic
+  injection): inner 2 all 0.965, 3 0.978, 4 0.986 (about the current 4-15), 5 0.991, 6
+  0.995, 7 0.9984, 8 1.0000. White rms aperture 10 / 2.5 (all rows beyond inner): 810 / 599
+  (2), 840 / 603 (4), 874 / 606 (6), 890 / 606 (7), 911 / 608 (8), 1012 / 617 (12); spectral
+  bins +8% from inner 4 to 8. Floor ratios 2.5-4.5, rising with inner (no sign of
+  photon-noise removal; the injection is the decisive metric). So the in-aperture rows'
+  lower rms partly removes real chromatic signal. Rule kept >= 0.999: PRISM inner 8, all.
