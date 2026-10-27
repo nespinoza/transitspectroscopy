@@ -867,3 +867,27 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   rows (4-15) overlap its default aperture (10).
 - [x] Bug fixed (f6e22bd): soss.correct_ramps_1f overwrote its template argument with the
   median rate, so the default SOSS fit_ramps raised since f57f497; regression test added.
+- [x] One function for the group 1/f correction (871890e): jwst.group_difference_1f_from_traces
+  (traces, median rate, background -> distances, 1/f pixels, aperture, white-light factors,
+  core correction) and jwst.group_1f_settings (the per-mode table). NIRSpec and SOSS only
+  find the traces. Outputs identical on synthetic PRISM, G395H and SOSS scenes, both
+  templates and domains (scratch onef_equivalence.py; SOSS up to apertures at exactly
+  half-integer distances; scipy's median_filter is not reproducible for windows longer than
+  twice the data, so the check uses a numpy filter). The mode differences, now explicit:
+  NIRSpec 1/f rows from floor(trace) - 0.5 (0.5-1.5 rows below the trace), traces extended
+  to all columns, factors from a fixed rectangle (G395H the full 32 rows) of the first-pass
+  rates, NaNs as zero, normalised by their median, filtered over 5 (G395H) or 200 (PRISM)
+  integrations; SOSS 1/f pixels > 27.5 px from the nearest order (center), 4 edge columns
+  out, factors from the order-1 aperture relative to the median rate, unfiltered.
+  Template question: the median template is normalised (median_i of x_i/s_i), but the whole
+  pixel is divided by s_i, also what does not transit (bias residual, dark, sky): with
+  x = A + s_i S + f, the background residual is A (1 - s_i) + f, so A (1 - s_i) is taken as
+  1/f and removed from the aperture; noise in s_i leaks the same way. That is the measured
+  coupling (G395H 0.040, PRISM 0.027/0.007, SOSS 0.015 = (A + S) of the 1/f pixels x
+  aperture rows / aperture flux), and the A part of it biases the depth by that fraction.
+  The 'differences' domain template (core.detector.difference_1f) is not normalised at all
+  (median of the raw differences, then times s_i). G395H gained most from iterating only
+  because its factors were the noisiest (2678 ppm x 0.040 = 107 ppm). Proposed next:
+  per-pixel two-term templates (x = a + s_i b, robust), one factor definition (aperture
+  white light, window in time) and 1/f pixels from the trace center, for all modes; depth
+  bias on a full transit.
