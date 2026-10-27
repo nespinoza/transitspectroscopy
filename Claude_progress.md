@@ -891,3 +891,26 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   per-pixel two-term templates (x = a + s_i b, robust), one factor definition (aperture
   white light, window in time) and 1/f pixels from the trace center, for all modes; depth
   bias on a full transit.
+- [x] Restart after the 2026-10-26 machine freeze (full-segment Stage 1 of G395H NRS2 seg1
+  reached a ~10 GB footprint with a PRISM download alongside; swap filled the disk). jwst
+  steps called alone deep-copy their input; patching that (make_copy=False) was not enough.
+  New extraction (scratch onef_extract3.py, chain.sh): each segment in 3 chunks of
+  integrations through the package flow up to the group 1/f call, 2-3 GB peak; the saved
+  inputs reproduce the package's chunk levels to 0.003 DN rms (levels 14.7 DN rms; float16).
+  Memory watchdog (job footprint incl. compressed, swap, disk). Deleted the G395H NRS1 uncal
+  (re-downloadable); auto mode refused deleting the nrs2-nonlinearity intermediates (12 GB).
+- [x] Homogeneous group 1/f method, G395H NRS2 (PID 1118 obs 5, segs 1-3, transit in 2-3,
+  ~6600 ppm; scratch onef_homog.py, onef_homog_summary.py; results
+  validation/runs/onef-full/g395h/homog_seg00?.npz). Per segment, as the package. Variants
+  template/pixels/factors: med = median_i(x_i/s_i) (package), two = robust per-pixel fit x =
+  a + s_i b (3 x 5-sigma clipping); pkg pixels (floor - 0.5, 3-8 rows, 9.4 px/col) vs new
+  (trace centre, >= 3 rows, all; 26 px/col); pkg factors (32-row rectangle, window 5;
+  2400-2800 ppm scatter) vs new (aperture of the first-pass rates / median rate, window 300 s
+  = 17 ints; 170-190 ppm). White light = aperture-2 sums of per-pixel OLS slopes (no
+  linearity). rms about a 51 median, all segments: raw 819, med/pkg/pkg 198.1, two/pkg/pkg
+  259.9, med/new/pkg 176.5, med/new/new 175.3, two/new/new 176.0 (-22 +- 3 vs package). Depth
+  change vs raw (regression of corrected - raw on s - 1, block bootstrap): all within +-1%
+  (+-0.8); paired vs two/new/new: med/pkg/pkg -0.16 +- 0.18 %, med/new/pkg -0.67 +- 0.21,
+  med/new/new -0.76 +- 0.23 (median template shallower), two/pkg/pkg +2.61 +- 0.44 (two-term
+  with noisy factors: attenuated b, worse rms). So the two-term template needs clean factors;
+  with them it matches the median template's rms and differs in depth by ~0.7%.
