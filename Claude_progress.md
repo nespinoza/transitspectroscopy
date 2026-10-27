@@ -914,3 +914,15 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   med/new/new -0.76 +- 0.23 (median template shallower), two/pkg/pkg +2.61 +- 0.44 (two-term
   with noisy factors: attenuated b, worse rms). So the two-term template needs clean factors;
   with them it matches the median template's rms and differs in depth by ~0.7%.
+- [x] Homogeneous group 1/f method, PRISM (PID 3969 obs 1, Kepler-12, segs 1-5, all 5
+  downloaded; transit ~1.7%; results validation/runs/onef-full/prism/homog_seg00?.npz; inputs
+  deleted after each segment). New pixels: trace centre, >= 11 rows (one beyond aperture 10;
+  10 px/col vs the package's 21 in rows 4-15); new factors: aperture-10 rates, window 300 s =
+  265 ints (unfiltered 7600 ppm scatter, filtered 110; package 900-1000). rms all segments,
+  aperture 10 / 2.5: med/pkg/pkg 753.6 / 571.9, two/pkg/pkg 993.8 / 625.1, med/new/pkg 883.6
+  / 579.0, med/new/new 883.6 / 579.0, two/new/new 883.3 / 578.9. Factors and template: no
+  rms effect; pixels outside the aperture: +130 ppm (wide; half the pixels, and the
+  package's in-aperture rows may self-subtract) / +7 (tight). Depth, paired vs two/new/new:
+  med/pkg/pkg -0.36 +- 0.09 % / -0.09 +- 0.02, med/new/new -0.24 +- 0.02 / -0.06 +- 0.00
+  (median template shallower, as G395H's -0.76). Open: PRISM pixels (inside the aperture or
+  not); the depth shifts are small (< 1%) in both NIRSpec modes.
