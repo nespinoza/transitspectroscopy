@@ -29,6 +29,7 @@ everything, `--from-step extract` only the extraction. Both folders are git-igno
 | `diagnostics.py` | Shared plotting and metric helpers |
 | `gp_sweep.py` | GP profile hyperparameter sweep from a saved NRS1 run |
 | `miri_ramp_compare.py`, `miri_ramp_repair_tails.py`, `audit_miri_ramp_comparison.py` | JWST vs correlated-read ramp fitting on MIRI data |
+| `onef/` | Group 1/f study: factors and 1/f pixels per mode ([README](onef/README.md)) |
 | `configs/legacy/` | JSON settings of the runs recorded in the reports |
 
 Pinned SOSS reference files are described in `references/soss/README.md`.
