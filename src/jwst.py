@@ -1669,9 +1669,11 @@ def group_1f_settings(mode, aperture_radius = None, inner_radius = None, outer_r
     setting                 NIRSpec (G395H/M, PRISM)     NIRISS/SOSS
     ======================= ============================ =============================
     ``aperture_radius``     mode's (2; PRISM 10)         ``aperture_radius + 0.5``
-    ``inner_radius``        ``onef_inner_radius`` (3; 4) ``aperture_radius + 12.5``
-    ``outer_radius``        ``onef_outer_radius`` (8; 15) None (all)
-    ``trace_reference``     ``'floor'``                  ``'center'``
+    ``inner_radius``        ``group_1f_inner_radius``    ``aperture_radius + 12.5``
+                            (G395H/M 6; PRISM 8)
+    ``outer_radius``        ``group_1f_outer_radius``    None (all)
+                            (None: all)
+    ``trace_reference``     ``'center'``                 ``'center'``
     ``extend_traces``       True                         False
     ``edge_columns``        0                            4
     ``scale_pixels``        ``'aperture'``               ``'aperture'`` (order 1)
@@ -1681,8 +1683,12 @@ def group_1f_settings(mode, aperture_radius = None, inner_radius = None, outer_r
 
     The SOSS radii are those of the box of half-width ``aperture_radius`` (15 pixels) and of
     the source mask of `transitspectroscopy.soss.onef_pixels` (12 pixels more), in pixel
-    centers. The NIRSpec 1/f pixels are measured from ``floor(trace) - 0.5`` (see
-    `group_difference_1f_from_traces`). The white-light factors of every mode are the
+    centers. The NIRSpec radii are the smallest that keep 99.9% of a chromatic transit signal
+    injected into the ramps (PID 1118 obs 5 NRS2, PID 3969 obs 1): 1/f pixels nearer the
+    trace hold starlight, and a chromatic signal there is removed as 1/f; beyond them the
+    white-light rms is flat (G395H) or rises slowly (PRISM, aperture 10). The SOSS 1/f pixels
+    keep 99.2% (the PSF wings and the other orders reach the whole subarray), at the plateau
+    of the injected signal kept. The white-light factors of every mode are the
     aperture sums of the first-pass rates relative to the median rate, median filtered over
     ``scale_window_time``: of the definitions tried on G395H, PRISM and SOSS, the least noisy
     (100-270 ppm, against 900-2800 ppm for the rectangle of the Stage 2 1/f correction on
@@ -1696,7 +1702,8 @@ def group_1f_settings(mode, aperture_radius = None, inner_radius = None, outer_r
 
     aperture_radius, inner_radius, outer_radius : float, optional
         Replace the mode's ``aperture_radius`` (for SOSS, the box half-width, also giving the
-        inner radius), ``onef_inner_radius`` and ``onef_outer_radius`` (NIRSpec only).
+        inner radius), ``group_1f_inner_radius`` and ``group_1f_outer_radius`` (NIRSpec
+        only).
 
     scale_window_time : float, optional
         Width, in seconds, of the median filter of the white-light factors. Default is 300.
@@ -1728,11 +1735,11 @@ def group_1f_settings(mode, aperture_radius = None, inner_radius = None, outer_r
                          'spectroscopic modes')
 
     return dict(aperture_radius = aperture_radius,
-                inner_radius = defaults['onef_inner_radius'] if inner_radius is None
+                inner_radius = defaults['group_1f_inner_radius'] if inner_radius is None
                                else inner_radius,
-                outer_radius = defaults['onef_outer_radius'] if outer_radius is None
+                outer_radius = defaults['group_1f_outer_radius'] if outer_radius is None
                                else outer_radius,
-                trace_reference = 'floor', extend_traces = True, edge_columns = 0,
+                trace_reference = 'center', extend_traces = True, edge_columns = 0,
                 scale_pixels = 'aperture', scale_normalization = 'median_rate',
                 scale_window_time = scale_window_time)
 

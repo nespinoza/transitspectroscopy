@@ -18,11 +18,15 @@ exposure, with these time-series-specific changes:
   Pass `use_tso_jump=False` to use the JWST jump step instead.
 - **Group-level 1/f (default):** after a first ramp fit, `fit_ramps` traces the median rate
   and, for every group `k`, subtracts the median over all integrations of group `k` (each
-  divided by its white-light factor, the same as the Stage 2 1/f correction), times the
-  white-light factor of the integration; the column-by-column median of the remaining pixels
-  between `onef_inner_radius` and `onef_outer_radius` from the trace is removed from that
-  group, and the ramps are fitted again (`group_difference_1f_correction`;
-  `group_difference_1f=False` turns it off). The correction is applied before the linearity
+  divided by its white-light factor: the aperture flux of the first-pass rates relative to
+  the median rate, median filtered over 300 s), times the white-light factor of the
+  integration; the column-by-column median of the remaining pixels at least
+  `group_1f_inner_radius` rows from the trace centre (6 for the gratings, 8 for PRISM; up to
+  `group_1f_outer_radius`, by default all) is removed from that group. Nearer pixels hold
+  starlight, and a chromatic transit signal in them would be removed with the 1/f levels
+  (about 1% of it with the earlier 3-8 rows of G395H, 1.5% with 4-15 of PRISM). The ramps
+  are then fitted again (`group_difference_1f_correction`; `group_difference_1f=False` turns
+  it off). The correction is applied before the linearity
   correction: the input ramps are calibrated again up to the linearity step, corrected (with
   the jump flags of the first pass), and calibrated from the linearity step on. Removed after
   it, the per-integration pedestal and 1/f offsets go through its curvature, larger for

@@ -95,6 +95,15 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
   added about 107 ppm in quadrature to the white light (segment 1, 198 ppm; aperture factors
   166); on PRISM (PID 3969 obs 1) and SOSS (PID 1541 obs 1) the white-light rms changes by
   less than 1 ppm.
+- The NIRSpec 1/f pixels of the group-level correction are all the rows at least
+  `group_1f_inner_radius` from the trace centre (new mode defaults: G395H/M 6, PRISM 8;
+  `group_1f_outer_radius` None), instead of the Stage 2 `onef_inner_radius` to
+  `onef_outer_radius` (3-8, 4-15) measured from `floor(trace) - 0.5`. A chromatic transit
+  signal injected into the ramps showed that 1/f pixels nearer the trace remove part of it
+  with the levels (about 1% for G395H, 1.5% for PRISM); with the new pixels less than 0.1%.
+  The white-light rms is unchanged on G395H (171 ppm, PID 1118 obs 5 NRS2) and higher on
+  PRISM with its 10-pixel aperture (840 -> 911 ppm; 603 -> 608 with a 2.5-pixel aperture).
+  The Stage 2 1/f correction keeps its pixels.
 - After the TSO jump step, the correlated (`'sparta'`) ramp fit rejects no differences unless
   `sigma` is given in `ramp_fit_options` (the TSO jump flags define the excluded differences;
   its own clipping flagged ~4e-4 of the differences of faint NIRSpec pixels as `JUMP_DET`).
