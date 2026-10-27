@@ -964,3 +964,15 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   bins +8% from inner 4 to 8. Floor ratios 2.5-4.5, rising with inner (no sign of
   photon-noise removal; the injection is the decisive metric). So the in-aperture rows'
   lower rms partly removes real chromatic signal. Rule kept >= 0.999: PRISM inner 8, all.
+- [x] 1/f pixel sweep, SOSS (segs 1-4; soss/sweep_seg00?.npz, sweep_all.csv; inner 16-50 px,
+  widths 4-32, all). The injection first scaled every pixel's counts (zodiacal light too);
+  rerun with only the star's share (median / (median + background)); G395H seg 1 rerun too
+  (NaN fix). SOSS: white rms flat 126-128 for inner >= 20; kept 0.991 (16, all), 0.9936
+  (24), 0.9942 (27.5, the package's), 0.9962 (50); bins 460 -> 485 ppm from 16 to 50. The
+  starlight in the 1/f pixels (PSF wings, other orders) keeps ~0.5% of a chromatic signal
+  out at any distance in the subarray; a per-column fit of level + wing profile could
+  separate them (not tried). SOSS keeps its pixels. G395H all segments: inner 6, all: 174.7
+  ppm, kept 0.9992 (2: 177.2 / 0.9932; 3-8 like: 0.992).
+- [x] Defaults (f6abbac): NIRSpec group 1/f pixels = all rows >= group_1f_inner_radius from
+  the trace centre (new mode keys; G395H/M 6, PRISM 8; outer None); Stage 2 1/f pixels
+  unchanged; SOSS unchanged. Tests 204 pass. G395M takes the G395H value untested.
