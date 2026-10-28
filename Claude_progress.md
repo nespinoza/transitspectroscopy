@@ -998,17 +998,22 @@ NRS1 uncal re-downloaded. N = 3, 10, 20 (NGROUPS 20).
   rate ratios step at the chunk boundaries (seg1, out of transit: 3 groups -507/+563/-309
   ppm, 10: -68/+61/-35, 20: -29/+44/-51 about a line). Cause: core.detector.
   group_difference_1f removes the column median of x_i - s_i T over the background pixels,
-  and the template T (median over the integrations of the chunk; of the segment in the
-  package) holds their median 1/f pattern m, so the corrected ramps keep s_i m: a
-  flux-proportional offset constant over the template's integrations, different between
-  chunks/segments and with the groups fitted. Harmless within one segment, it puts steps
-  between segments (chunks here) that a baseline can only absorb where they hold
-  out-of-transit data. Fix (scripts only, NL_TEMPLATE_LEVEL=1 default in
+  and the template T (median over the integrations of the chunk here) holds their median
+  1/f pattern m, so the corrected ramps keep s_i m: a flux-proportional offset constant over
+  the template's integrations, different between chunks and with the groups fitted; steps
+  between chunks that a baseline can only absorb where they hold out-of-transit data. The
+  package builds one template from all the segments it is given (load.group_difference_1f
+  passes ramps_per_segment; core stacks them), so there m is one global offset times s_i: a
+  normalisation, no steps and no depth bias (chromatic mixing ~m/F, negligible); the steps
+  only appear when segments (or chunks) are corrected separately. Fix (scripts only, NL_TEMPLATE_LEVEL=1 default in
   nl_groups_stage1.py; package unchanged): remove each template's own column median over the
   background pixels; then the levels remove the integration's 1/f fully and s_i times the
   column's median background light (proportional to the flux; no depth change). Seg1 chunk
-  offsets at 3 groups -145/+62/-48 ppm (noise ~55), white rms 613 -> 597 ppm. Open question
-  for the package (changes default outputs).
+  offsets at 3 groups -145/+62/-48 ppm (noise ~55), white rms 613 -> 597 ppm. Not general
+  (user, 2026-10-27): with zodiacal light or trace wings in the background pixels (SOSS) it
+  removes s_i x a non-transiting or chromatic level. Within one template m is degenerate with
+  the column-constant part of the static scene; PCA or pixel weights cannot separate them,
+  only more integrations or the group structure (scene grows with time, 1/f does not).
 - [x] Self correction fitted per segment: self/CRDS level steps +500 ppm seg1 -> seg2 (as
   before); spectrum fits use one baseline factor per segment (+ common quadratic), for
   every variant.
