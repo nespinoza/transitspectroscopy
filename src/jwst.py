@@ -32,6 +32,7 @@ from .spectroscopy import *
 from .timeseries import *
 from . import instruments
 from .config import DEPRECATED_STAGE2_KEYWORDS, STAGE2_ARGUMENTS, ExtractionConfig
+from .core.linearity import SelfLinearity, fit_self_linearity, mean_ramp_sums
 from .core.detector import (cc_uniluminated_outliers, correct_1f, get_last_minus_first,  # noqa: F401
                             get_loom, get_roeba, get_uniluminated_mask, group_1f_correct,
                             spill_filter, subtract_side_pedestal, tso_jump_flags)
@@ -1001,6 +1002,103 @@ class load(object):
 
         self.ramps_per_segment = self._apply_step(step, self.ramps_per_segment, save)
 
+    def _self_linearity_path(self):
+        """Where `fit_self_linearity` saves the self non-linearity correction."""
+
+        return (self.outputfolder+'ts_outputs/'+self.datanames[0]+'_'+self.actual_suffix
+                +'self_linearity.npz')
+
+    def fit_self_linearity(self, save = True):
+        """
+        Fit the self non-linearity correction (`transitspectroscopy.core.linearity`) to the
+        current ramps of all the segments, which must not be corrected for linearity yet
+        (`detector_calibration` calls it before the linearity step with ``self_linearity =
+        True``): the mean ramp of every pixel over its unflagged, non-outlier integrations
+        (`mean_ramp_sums`) is fitted with `fit_self_linearity`, with the options in
+        ``parameters['self_linearity']``. The result is kept in ``self.self_linearity`` and,
+        with ``save = True``, saved (with the mean ramps, to combine fits of several
+        visits) to ``ts_outputs/<first segment>_<suffix>self_linearity.npz``, whose path is
+        kept in ``self.self_linearity_file``.
+        """
+
+        print('\t >> Fitting the self non-linearity correction...\n')
+        options = dict(getattr(self, 'self_linearity_options', {}))
+        nsigma = options.pop('nsigma', 5.)
+        options.pop('stop_after_fit', None)
+        sums = counts = None
+        for ramp in self.ramps_per_segment:
+
+            segment_sums, segment_counts = mean_ramp_sums(ramp.data, ramp.groupdq, nsigma)
+            sums = segment_sums if sums is None else sums + segment_sums
+            counts = segment_counts if counts is None else counts + segment_counts
+
+        meta = self.ramps_per_segment[0].meta
+        metadata = dict(detector = str(meta.instrument.detector),
+                        subarray = str(meta.subarray.name), xstart = meta.subarray.xstart,
+                        ystart = meta.subarray.ystart, xsize = meta.subarray.xsize,
+                        ysize = meta.subarray.ysize, files = list(self.datanames))
+        self.self_linearity = fit_self_linearity(sums / np.maximum(counts, 1), counts,
+                                                 metadata = metadata, **options)
+        print('\t    - {0:} of {1:} pixels above {2:} DN fitted.\n'.format(
+              self.self_linearity.metadata['reliable'], self.self_linearity.metadata['fitted'],
+              self.self_linearity.metadata['min_counts']))
+        if save:
+
+            self.self_linearity_file = self._self_linearity_path()
+            self.self_linearity.save(self.self_linearity_file)
+
+    def _self_linearity_gain(self, ramp):
+        """
+        The linear coefficient of the CRDS linearity correction of the pixels of ``ramp``
+        (the slope of the self correction at zero counts, so that self-corrected pixels keep
+        the relative gains of the CRDS correction).
+        """
+
+        from jwst.lib import reffile_utils
+
+        step = calwebb_detector1.linearity_step.LinearityStep()
+        path = step.get_reference_file(ramp, 'linearity')
+        with datamodels.LinearityModel(path) as reference:
+
+            if not reffile_utils.ref_matches_sci(ramp, reference):
+
+                reference = reffile_utils.get_subarray_model(ramp, reference)
+
+            return np.array(reference.coeffs[1], dtype = float)
+
+    def _self_linearity_step(self, ramp, **parameters):
+        """
+        Linearity step of the self non-linearity correction: the CRDS linearity step (its
+        data-quality flags, and the correction of the pixels the self correction does not
+        fit), with the pixels of ``self.self_linearity`` replaced by the self correction of
+        their raw counts.
+        """
+
+        from .jwst_models import mark_self_linearity
+
+        if self.self_linearity is None:
+
+            raise RuntimeError('The self non-linearity correction was not fitted or loaded '
+                               '(see fit_self_linearity)')
+
+        if self.self_linearity.shape != ramp.data.shape[2:]:
+
+            raise ValueError('The self non-linearity correction is {0:} pixels; the ramps are '
+                             '{1:}'.format(self.self_linearity.shape, ramp.data.shape[2:]))
+
+        rows, columns = np.nonzero(self.self_linearity.pixels)
+        # Before the CRDS step, which may correct its input in place:
+        raw = np.array(ramp.data[:, :, rows, columns], dtype = np.float32)
+        output = self.step_calls['crds_linearity'](ramp, **parameters)
+        gain = self._self_linearity_gain(output)[rows, columns]
+        for i in range(raw.shape[0]):
+
+            output.data[i][:, rows, columns] = self.self_linearity.correct(
+                raw[i], gain = gain, rows = rows, columns = columns)
+
+        mark_self_linearity(output)
+        return output
+
     def _apply_step(self, step, ramps, save = True):
         """
         Run the detector step ``step`` on the list of ramps ``ramps`` (see `_run_step`), and
@@ -1095,7 +1193,8 @@ class load(object):
 
     def detector_calibration(self, parameters = {}, use_tso_jump = True, group_1f = False, save = True, suffix = '', outputfolder = None,
                              group_difference_1f = True, group_difference_1f_domain = None,
-                             ramp_fit_method = None, ramp_fit_options = None, **kwargs):
+                             ramp_fit_method = None, ramp_fit_options = None,
+                             self_linearity = False, self_linearity_coefficients = None, **kwargs):
         """
         This function performs detector-level calibration --- i.e., most of what is Stage1 in the STScI JWST pipeline,
         but not performing ramp-fitting nor CDS. In other words, this stops at the jump step.
@@ -1153,6 +1252,27 @@ class load(object):
             is None (none). With ``use_tso_jump``, the TSO jump flags alone define the excluded
             differences: SPARTA's own rejection is off unless ``sigma`` is given here.
 
+        self_linearity : bool
+            (Optional) If True, the self non-linearity correction replaces the CRDS one (see
+            `transitspectroscopy.core.linearity`): a per-pixel Chebyshev correction fitted
+            to the mean ramps of all the segments, before the linearity step, and applied
+            instead of the CRDS polynomial to the pixels it fits (the others keep the CRDS
+            correction; data-quality flags are those of the CRDS step). The fit is saved as
+            ``<first segment>_<suffix>self_linearity.npz`` in ``ts_outputs`` (reused by later
+            runs) and the products carry ``selflin`` in their suffix. Fit options go in
+            ``parameters['self_linearity']``: ``read_noise`` (DN, default 7), ``gain``
+            (electrons/DN, default 1.4; both only weight the fit), ``min_counts`` (DN,
+            default 500), ``min_ramps`` (default 20), ``min_groups`` (default 5),
+            ``top_factor`` (default 1.02), ``nsigma`` (outlier integrations, default 5) and
+            ``stop_after_fit`` (return once the fit is saved, e.g. to combine the fits of
+            several visits; default False). Default is False.
+
+        self_linearity_coefficients : str or transitspectroscopy.core.linearity.SelfLinearity
+            (Optional) Coefficients of the self non-linearity correction to apply instead of
+            fitting them (implies ``self_linearity = True``): a `SelfLinearity` or the path to
+            a file written by `SelfLinearity.save` (or any ``.npz`` file with ``a2``, ``a3``
+            and ``top`` maps of the subarray). Default is None.
+
         """
 
         if ramp_fit_method is not None:
@@ -1165,6 +1285,24 @@ class load(object):
         elif ramp_fit_options is not None:
 
             raise ValueError('ramp_fit_options requires ramp_fit_method')
+
+        self.use_self_linearity = bool(self_linearity) or self_linearity_coefficients is not None
+        self.self_linearity_options = dict(parameters.get('self_linearity', {}))
+        unknown = set(self.self_linearity_options) - {'read_noise', 'gain', 'min_counts',
+                                                     'min_ramps', 'min_groups', 'top_factor',
+                                                     'nsigma', 'stop_after_fit'}
+        if unknown:
+
+            raise ValueError(f"Unknown parameters['self_linearity'] options: {sorted(unknown)}")
+
+        if self.self_linearity_options and not self.use_self_linearity:
+
+            raise ValueError("parameters['self_linearity'] needs self_linearity = True")
+
+        if self.use_self_linearity:
+
+            # Distinct product names, so that CRDS-corrected products are never reloaded:
+            suffix = suffix+'_selflin' if suffix != '' else 'selflin'
 
         self.suffix = suffix
 
@@ -1244,6 +1382,31 @@ class load(object):
 
         self.step_calls['group_1f'] = group_1f_correction
         self.step_calls['linearity'] = calwebb_detector1.linearity_step.LinearityStep.call
+        self.step_calls['crds_linearity'] = calwebb_detector1.linearity_step.LinearityStep.call
+        self.self_linearity = None
+        if self.use_self_linearity:
+
+            self.step_calls['linearity'] = self._self_linearity_step
+            if isinstance(self_linearity_coefficients, SelfLinearity):
+
+                self.self_linearity = self_linearity_coefficients
+
+            elif self_linearity_coefficients is not None:
+
+                self.self_linearity = SelfLinearity.load(self_linearity_coefficients)
+
+            elif os.path.exists(self._self_linearity_path()):
+
+                print('\t >> Self non-linearity correction found. Loading it...\n')
+                self.self_linearity_file = self._self_linearity_path()
+                self.self_linearity = SelfLinearity.load(self.self_linearity_file)
+
+            source = ('fitted' if self_linearity_coefficients is None else 'given'
+                      if isinstance(self_linearity_coefficients, SelfLinearity)
+                      else str(self_linearity_coefficients))
+            self.calibration_parameters['self_linearity'] = dict(self.self_linearity_options,
+                                                                 source = source)
+
         self.step_calls['clean_flicker_noise'] = calwebb_detector1.clean_flicker_noise_step.CleanFlickerNoiseStep.call
 
         # Now go step-by-step checking which steps were done. If linearity was done and saved, read it:
@@ -1258,6 +1421,15 @@ class load(object):
                     if step in ['group_1f']:
 
                         print('\t >> Running Group 1/f correction...')
+
+                    if (step == 'linearity' and self.use_self_linearity
+                            and self.self_linearity is None):
+
+                        self.fit_self_linearity(save = save)
+                        if self.self_linearity_options.get('stop_after_fit', False):
+
+                            print('\t >> Self non-linearity correction fitted; stopping.\n')
+                            return
 
                     self._run_step(step)
                     self.status[step] = 'COMPLETE'

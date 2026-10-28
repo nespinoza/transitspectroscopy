@@ -87,6 +87,14 @@ def mark_group_1f(model):
     model.history.append(GROUP_1F_HISTORY)
 
 
+SELF_LINEARITY_HISTORY = 'transitspectroscopy: self non-linearity correction'
+
+
+def mark_self_linearity(model):
+    """Record in ``model`` (ramps) the self non-linearity correction."""
+    model.history.append(SELF_LINEARITY_HISTORY)
+
+
 def group_1f_corrected(value):
     """True if the rates (a model or a path) were corrected with ``mark_group_1f``."""
     with open_model(value) as model:
