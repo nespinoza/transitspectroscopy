@@ -1062,3 +1062,41 @@ Chebyshev coefficients; documented; joint fits of many visits (a 15-visit progra
   CRDS; 130 s, footprint 5.2 GB (CRDS 4.2 GB).
 - [x] docs/guides/self-linearity.md (usage, formula, user coefficients, multi-visit recipe),
   API entry, NIRSpec guide line, CHANGELOG.
+
+## WASP-39 b: NIRSpec PRISM vs NIRISS/SOSS with the self correction (2026-10-27/28, running)
+
+User: replicate the WASP-39 b transmission spectrum with the self correction, planet
+properties of Carter, May et al. 2024 (arXiv:2407.13893), compare SOSS and PRISM (PRISM
+saturated); scratch old datasets/raw products/pipeline fits in validation; run sequentially;
+no made-up data or results.
+- [x] Paper (Table 1): P 4.0552842 d, a/R* 11.390, b 0.4498, i 87.7369, e 0; T0 PRISM
+  2459771.335647, NIRISS 2459787.5567843 (BJD TDB). Spectroscopic fits: orbit fixed,
+  quadratic LD fixed from ExoTiC-LD ([M/H] 0, Teff 5512, logg 4.7), linear baseline. PRISM
+  saturates the brightest pixel at ~0.63-2.06 um, as early as group 2 of 5; they excluded
+  PRISM < 2 um from the joint fit; offsets PRISM - SOSS -10 +- 27 ppm off saturation.
+  ExoTiC-LD is not installed: q1, q2 fitted per bin (both modes alike).
+- [x] Cleanup (user-authorized): validation/data emptied (HAT-P-14 NRS1/NRS2/SOSS uncal,
+  PRISM 3969, MIRI: 20 GB) and every *.fits and > 5 MB *.npy under validation/runs (12 GB);
+  plots, json/csv and npz results kept. Disk 8 -> 39 GB.
+- [x] Data: ERS 1366 obs 4 (PRISM, jw01366004001_04101_00001, NRS1, 4 segments, 21500
+  integrations x 5 groups, SUB512, 1.131 s) and obs 1 (SOSS, jw01366001001_04101_00001,
+  4 segments, 5.1 GB). Brightest PRISM raw ramp 30383/48704/62542/64468/64471 DN (A/D
+  saturated from group 4).
+- [x] Scripts validation/wasp39/: wasp39_stage1.py (package Stage 1 per chunk of 1/3 of a
+  segment; 'fit' = detector_calibration(self_linearity, stop_after_fit); group 1/f template
+  of every chunk aligned to the first chunk's: column median over background pixels of the
+  difference removed, mode-agnostic), wasp39_combine_fit.py (one exposure fit from the chunk
+  mean ramps), wasp39_stage2.py (package stage 2 per segment, traces of the first CRDS
+  segment reused by all), wasp39_spectrum.py, wasp39_prism.sh, watchdog.sh.
+- [x] PRISM self fit (21500 integrations): 2196/2197 pixels with 5 groups fitted; pixels that
+  lose groups to saturation (49 with 4, 115 with 3, 93 with 2 groups, columns 63-138) keep the
+  CRDS correction: a per-pixel cubic needs >= 5 groups (min_groups).
+- [x] Upstream bug: AssignWcsStep fails on PRISM with jwst 3.0.0 / stdatamodels 6.0.0 /
+  astropy 7.2.2 (Rotation3DToGWA.evaluate takes angles[0] of a 1-D parameter array). Patched in
+  wasp39_stage2.py only (angles accepted 1-D or 2-D); wavelengths agree with the STScI
+  x1dints (CAL_VER 3.0.0, jwst_1584) to 2e-4 um median, 1.7e-3 um max (413 columns).
+- [x] First CRDS pass: white light alternated by +-1.2% between integrations: pixels reaching
+  saturation after group 0 in some integrations had one-group ramps, suppressed by default
+  (suppress_one_group=True), zeroed in stage 2 (columns 139-140 flux 99k vs 11k). Rerun with
+  parameters['ramp_fit']['suppress_one_group'] = False: columns 139-140 rms 0.56%, white (box)
+  0.04% per integration. First-pass spectra kept in prism/first_pass_suppress_one_group/.
