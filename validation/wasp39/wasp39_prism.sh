@@ -1,5 +1,6 @@
 # bash validation/wasp39/wasp39_prism.sh: WASP-39 b NIRSpec PRISM (ERS 1366 obs 4), in order:
-# self-correction fit on all chunks, CRDS stage 1 + stage 2, self stage 1 + stage 2.
+# self-correction fit on all chunks, CRDS stage 1 + stage 2, self stage 1 + stage 2. With
+# arguments <variant> <coefficients.npz>, only stage 1 + stage 2 of that variant (after them).
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 cd "$HERE/../.."
@@ -39,6 +40,12 @@ stage2() {  # variant
     if [ -z "$reference" ]; then reference=$out/spec_crds_seg001; fi
   done
 }
+if [ $# -gt 0 ]; then
+  stage1 $1 $2
+  stage2 $1
+  echo "PRISM $1 DONE"
+  exit 0
+fi
 stage1 fit
 [ -f $out/self_linearity.npz ] || $P "$HERE/wasp39_combine_fit.py" $out $out/self_linearity.npz | tee $logs/prism_combine.log
 stage1 crds

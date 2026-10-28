@@ -3,8 +3,11 @@ of one segment's chunks.
 
 All of an exposure's rates do not fit in memory in stage 2, so it runs per segment; with
 <reference work folder>, the traces of that earlier run are reused (one trace for all
-segments, so that the aperture does not move between them).
-  python wasp39_stage2.py <folder> <variant> <first,first,...> <out.npz> [<reference work>]
+segments, so that the aperture does not move between them). With <mask.npy> (a (row, column)
+static mask, wasp39_saturation_mask.py), its pixels are flagged DO_NOT_USE in every integration
+(and so zeroed in the extraction).
+  python wasp39_stage2.py <folder> <variant> <first,first,...> <out.npz> [<reference work>
+      [<mask.npy>]]
 """
 import os, sys, time, shutil, glob
 from pathlib import Path
@@ -35,6 +38,7 @@ transform_models.Rotation3DToGWA.evaluate = rotation_evaluate
 folder, variant, out = Path(sys.argv[1]), sys.argv[2], sys.argv[4]
 firsts = [int(f) for f in sys.argv[3].split(',')]
 reference = Path(sys.argv[5]) if len(sys.argv) > 5 else None
+mask = np.load(sys.argv[6]) if len(sys.argv) > 6 else None
 start = time.monotonic()
 rates = [datamodels.open(str(folder/f'{variant}_{f:05d}.fits')) for f in firsts]
 # A rate fitted from the unsaturated groups is valid, but keeps the SATURATED flag, which
@@ -42,6 +46,9 @@ rates = [datamodels.open(str(folder/f'{variant}_{f:05d}.fits')) for f in firsts]
 SATURATED = datamodels.dqflags.pixel['SATURATED']
 for r in rates:
     r.dq = np.asarray(r.dq) & ~np.uint32(SATURATED)
+    if mask is not None:
+        r.dq = r.dq | np.where(mask, np.uint32(datamodels.dqflags.pixel['DO_NOT_USE']),
+                               np.uint32(0))
 times = np.concatenate([np.asarray(r.int_times['int_mid_BJD_TDB']) + 2400000.5 for r in rates])
 inputs = {'rampstep': rates, 'times': times, 'ints_per_segment': [len(r.data) for r in rates]}
 work = Path(out).with_suffix('')

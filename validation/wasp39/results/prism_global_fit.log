@@ -1,0 +1,7 @@
+2352 pixels (168 with 3-4 full groups), top 52748 DN: a2 0.063928 +- 0.000531, a3 0.014387 +- 0.000269; chi2/dof 38413.98
+  5-group pixels 500-5000 DN (1792): chi2/dof shared 8137.71, per pixel (dof 1) 355.70
+  5-group pixels 5000-20000 DN (312): chi2/dof shared 160610.27, per pixel (dof 1) 2964.81
+  5-group pixels 20000-40000 DN (65): chi2/dof shared 35620.36, per pixel (dof 1) 300.51
+  5-group pixels 40000-60000 DN (14): chi2/dof shared 38446.27, per pixel (dof 1) 13342.61
+  h(0.8R)/h(0.2R), shared over per-pixel - 1 (79 pixels above 20 kDN): median -0.0361, rms 0.0165 (per-pixel h(0.8R)/h(0.2R)/4 - 1: median +0.0546)
+hybrid: 2196 per-pixel, 258 shared

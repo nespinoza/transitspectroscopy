@@ -1,9 +1,10 @@
 """Stage 1 of a chunk of integrations of one segment (WASP-39 b, ERS 1366), package flow.
 
 load -> detector_calibration (TSO jump) -> fit_ramps (group 1/f correction before linearity),
-with the CRDS linearity correction or the self correction of given coefficients:
+with the CRDS linearity correction or a self correction of given coefficients (variant
+'self', or any other name, e.g. 'hybrid'):
   python wasp39_stage1.py <uncal> <folder> <first> <last> crds
-  python wasp39_stage1.py <uncal> <folder> <first> <last> self <coefficients.npz>
+  python wasp39_stage1.py <uncal> <folder> <first> <last> <variant> <coefficients.npz>
   python wasp39_stage1.py <uncal> <folder> <first> <last> fit
 The first two save the rates per integration as <variant>_<first>.fits (variance arrays
 dropped; stage 2 does not use them; one-group ramps kept, suppress_one_group = False); 'fit' runs detector_calibration(self_linearity=True,
@@ -112,7 +113,7 @@ else:
     # Pixels that saturate after the first group in some integrations keep a rate from that
     # group (the JWST default drops one-group ramps, so their flux would come and go):
     options = {'parameters': {'ramp_fit': {'suppress_one_group': False}}}
-    if variant == 'self':
+    if variant != 'crds':
         options['self_linearity_coefficients'] = sys.argv[6]
     dataset.detector_calibration(save=False, **options)
     dataset.fit_ramps(save=False)

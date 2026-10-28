@@ -1124,3 +1124,28 @@ no made-up data or results.
   to -2000 ppm) remain with both; their brightest pixels (257, with 2-4 unsaturated groups)
   cannot be fitted per pixel and keep CRDS; one-group rates of pixels saturating after group
   0 are used. Above saturation the agreement improves (chi2 36 -> 22).
+
+## WASP-39 b PRISM follow-ups: saturated cores masked; a shared correction (2026-10-28)
+
+User: do the follow-ups (mask the saturated cores in the extraction; one correction shared by
+all pixels, so that the early-saturating pixels can be corrected too).
+- [x] Mask (wasp39_saturation_mask.py): 628 pixels saturate in some integration, 270 in > 0.1%
+  of them (the trace core, columns 63-140, <= 5 per column; the rest are cosmic-ray
+  saturations). 'core' = those 270, 'grow1' = also +-1 row (426). Static: DO_NOT_USE in every
+  integration (wasp39_stage2.py mask argument), zeroed in the box extraction.
+- [x] PRISM - SOSS self, < 2.06 um (35 bins): self+core -56 +- 19 ppm, rms 410, chi2 379;
+  self+grow1 +18 +- 23, rms 411, chi2 181 (unmasked self: -254, 608, 2141). The deep dips are
+  gone. CRDS+core +2522, rms 2224, chi2 13413; CRDS+grow1 +772, rms 785, chi2 1236: CRDS
+  mis-corrects the core's neighbours, which then carry the columns' flux.
+- [x] Neighbours of saturating pixels (5-20 kDN): CRDS-corrected mean ramps accelerate,
+  (h4-h3)/(h1-h0) median 1.28 (rms 0.21) vs 1.02 for other pixels at the same counts: charge
+  spilled from the saturated neighbours (not non-linearity); the per-pixel self fits absorb it.
+- [x] Shared correction (wasp39_global_fit.py, counts alone, one top 52748 DN, z/b per pixel,
+  groups unsaturated in all integrations, 2352 pixels): a2 0.0639, a3 0.0144; insensitive to the
+  minimum counts (0.060-0.064) and shared group offsets unstable, so not used. It does not
+  describe pixels: on 79 bright 5-group pixels corrected (h4-h3)/(h1-h0) rms 0.033 (per pixel
+  0.0012, CRDS 0.050); CRDS + a shared residual, same 0.033. 'hybrid' (per-pixel where fitted,
+  shared for the 258 others above 500 DN) through stage 1/2: PRISM - SOSS < 2.06 um +804 ppm,
+  rms 1946, chi2 9048 (worse than CRDS); white rms 628 ppm (self 463).
+- Results: validation/wasp39/results/prism_followups{,_all}.{png,json}, prism_spectrum_*.npz,
+  prism_global_linearity.npz, saturation_mask_*.npy, prism_global_fit.log.

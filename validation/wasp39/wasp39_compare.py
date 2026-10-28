@@ -4,7 +4,9 @@ Common 0.04 um bins: SOSS order 2 for 0.60-0.84 um, order 1 for 0.88-2.84 um. Pe
 (PRISM variant, SOSS variant): PRISM - SOSS per bin (errors added in quadrature), its
 weighted mean and the chi2 about it, in the PRISM saturated range (bin centre < 2.06 um,
 Carter, May et al. 2024: ~0.63-2.06 um) and above it (2.06-2.84 um).
-  python wasp39_compare.py <run folder> <out.png> <out.json>
+  python wasp39_compare.py <run folder> <out.png> <out.json> [<PRISM variant> ...]
+The PRISM variants (spectrum_<variant>.npz; default crds and self) are compared with both SOSS
+variants; with variants given, the figure shows each of them against SOSS self.
 """
 import sys, json
 from pathlib import Path
@@ -14,6 +16,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 run, png, out_json = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+variants = sys.argv[4:] or ['crds', 'self']
 SATURATION = 2.06
 
 
@@ -38,7 +41,7 @@ def stats(d, e):
 
 
 results, curves = {}, {}
-for pv in ('crds', 'self'):
+for pv in variants:
     pc, pe, pd, perr = prism(pv)
     for sv in ('crds', 'self'):
         sc, se, sd, serr = soss(sv)
@@ -59,23 +62,38 @@ for pv in ('crds', 'self'):
 Path(out_json).write_text(json.dumps(results, indent=1))
 
 fig, axes = plt.subplots(2, 1, figsize=(11, 9), sharex=True)
-styles = {'crds': dict(color='tab:red', label='CRDS linearity'),
-          'self': dict(color='tab:blue', label='self linearity')}
-for pv in ('crds', 'self'):
-    c, _, d, e = prism(pv)
-    m = (c < 2.9)
-    axes[0].errorbar(c[m], 1e6*d[m], 1e6*e[m], fmt='o', ms=3, lw=0.7, mfc='none',
-                     color=styles[pv]['color'], label=f"PRISM, {styles[pv]['label']}")
-for sv, marker in (('crds', 's'), ('self', 'D')):
-    c, _, d, e = soss(sv)
-    axes[0].errorbar(c + 0.008, 1e6*d, 1e6*e, fmt=marker, ms=3, lw=0.7,
-                     color='k' if sv == 'self' else 'grey',
-                     label=f"SOSS, {styles[sv]['label']}")
-for pv in ('crds', 'self'):
-    c, d, e = curves[f'PRISM {pv} - SOSS self']
-    axes[1].errorbar(c + (0.006 if pv == 'self' else -0.006), 1e6*d, 1e6*e, fmt='o', ms=3,
-                     lw=0.7, color=styles[pv]['color'],
-                     label=f"PRISM {styles[pv]['label']} - SOSS self linearity")
+if sys.argv[4:]:
+    colors = plt.cm.tab10(np.arange(len(variants)))
+    for k, (pv, color) in enumerate(zip(variants, colors)):
+        c, _, d, e = prism(pv)
+        m = (c < 2.9)
+        axes[0].errorbar(c[m] + 0.004*k, 1e6*d[m], 1e6*e[m], fmt='o', ms=3, lw=0.7, mfc='none',
+                         color=color, label=f'PRISM {pv}')
+        c, d, e = curves[f'PRISM {pv} - SOSS self']
+        sat = results[f'PRISM {pv} - SOSS self']['saturated (<2.06 um)']
+        axes[1].errorbar(c + 0.004*k, 1e6*d, 1e6*e, fmt='o', ms=3, lw=0.7, color=color,
+                         label=f"PRISM {pv} - SOSS self (< 2.06 um: chi2 {sat['chi2']:.0f}, "
+                               f"rms {sat['rms_ppm']:.0f} ppm)")
+    c, _, d, e = soss('self')
+    axes[0].errorbar(c, 1e6*d, 1e6*e, fmt='D', ms=3, lw=0.7, color='k', label='SOSS self')
+else:
+    styles = {'crds': dict(color='tab:red', label='CRDS linearity'),
+              'self': dict(color='tab:blue', label='self linearity')}
+    for pv in ('crds', 'self'):
+        c, _, d, e = prism(pv)
+        m = (c < 2.9)
+        axes[0].errorbar(c[m], 1e6*d[m], 1e6*e[m], fmt='o', ms=3, lw=0.7, mfc='none',
+                         color=styles[pv]['color'], label=f"PRISM, {styles[pv]['label']}")
+    for sv, marker in (('crds', 's'), ('self', 'D')):
+        c, _, d, e = soss(sv)
+        axes[0].errorbar(c + 0.008, 1e6*d, 1e6*e, fmt=marker, ms=3, lw=0.7,
+                         color='k' if sv == 'self' else 'grey',
+                         label=f"SOSS, {styles[sv]['label']}")
+    for pv in ('crds', 'self'):
+        c, d, e = curves[f'PRISM {pv} - SOSS self']
+        axes[1].errorbar(c + (0.006 if pv == 'self' else -0.006), 1e6*d, 1e6*e, fmt='o', ms=3,
+                         lw=0.7, color=styles[pv]['color'],
+                         label=f"PRISM {styles[pv]['label']} - SOSS self linearity")
 for ax in axes:
     ax.axvspan(0.6, SATURATION, color='orange', alpha=0.1, lw=0)
 axes[1].axhline(0, color='k', lw=0.5)
