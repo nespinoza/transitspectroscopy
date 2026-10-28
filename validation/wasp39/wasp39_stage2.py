@@ -1,4 +1,5 @@
-"""Package stage 2 (box extraction, the mode's default aperture) of one segment's chunks.
+"""Package stage 2 (box extraction, the mode's default aperture, DQ-masked but for SATURATED)
+of one segment's chunks.
 
 All of an exposure's rates do not fit in memory in stage 2, so it runs per segment; with
 <reference work folder>, the traces of that earlier run are reused (one trace for all
@@ -36,6 +37,11 @@ firsts = [int(f) for f in sys.argv[3].split(',')]
 reference = Path(sys.argv[5]) if len(sys.argv) > 5 else None
 start = time.monotonic()
 rates = [datamodels.open(str(folder/f'{variant}_{f:05d}.fits')) for f in firsts]
+# A rate fitted from the unsaturated groups is valid, but keeps the SATURATED flag, which
+# mask_dq would mask (in the integrations where the pixel saturates, not in the others):
+SATURATED = datamodels.dqflags.pixel['SATURATED']
+for r in rates:
+    r.dq = np.asarray(r.dq) & ~np.uint32(SATURATED)
 times = np.concatenate([np.asarray(r.int_times['int_mid_BJD_TDB']) + 2400000.5 for r in rates])
 inputs = {'rampstep': rates, 'times': times, 'ints_per_segment': [len(r.data) for r in rates]}
 work = Path(out).with_suffix('')

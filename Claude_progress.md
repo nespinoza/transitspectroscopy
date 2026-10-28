@@ -1063,7 +1063,7 @@ Chebyshev coefficients; documented; joint fits of many visits (a 15-visit progra
 - [x] docs/guides/self-linearity.md (usage, formula, user coefficients, multi-visit recipe),
   API entry, NIRSpec guide line, CHANGELOG.
 
-## WASP-39 b: NIRSpec PRISM vs NIRISS/SOSS with the self correction (2026-10-27/28, running)
+## WASP-39 b: NIRSpec PRISM vs NIRISS/SOSS with the self correction (2026-10-27/28)
 
 User: replicate the WASP-39 b transmission spectrum with the self correction, planet
 properties of Carter, May et al. 2024 (arXiv:2407.13893), compare SOSS and PRISM (PRISM
@@ -1100,3 +1100,27 @@ no made-up data or results.
   (suppress_one_group=True), zeroed in stage 2 (columns 139-140 flux 99k vs 11k). Rerun with
   parameters['ramp_fit']['suppress_one_group'] = False: columns 139-140 rms 0.56%, white (box)
   0.04% per integration. First-pass spectra kept in prism/first_pass_suppress_one_group/.
+- [x] Stage 2 masking: rates fitted from the unsaturated groups keep the SATURATED flag, and
+  mask_dq zeroed them in the integrations where the pixel saturates (same flips); the
+  SATURATED bit is cleared before stage 2 (other flags still masked). PRISM CRDS seg1 white
+  379 ppm per integration, chunk steps +31/-53 ppm (noise ~31). First 1000 integrations
+  (settling ramp, +280-590 ppm) excluded from the PRISM fits.
+- [x] PRISM white depths (0.04 um bins 0.60-5.34, q1/q2 free, linear baseline): CRDS 21319 +-
+  15, self 20969 +- 15 ppm; paired self - CRDS -342.7 +- 2.7 ppm: by range 0.6-1.0 -330, 1.0-
+  1.5 -322, 1.5-2.06 -257, 2.06-2.8 -82, 2.8-4.0 -175, 4.0-5.3 -93 ppm (+-0.3-0.9). The 1.862 um
+  bin (columns 139-140, pixels saturating in some integrations): CRDS 24734 +- 271, self 20834
+  +- 52 (neighbours ~21200-21500).
+- [x] SOSS: self fit 117611/117611 pixels (9 groups, none saturated); chunk templates aligned
+  (2.68 DN rms). Box extraction keeps order 1 only to 2.13 um (orders overlap beyond, traces
+  20-40 px apart, order 2 ~7% of order 1), so the joint (deblended) polynomial optimal
+  extraction is used: order 1 0.852-2.828 um, white rms 98 ppm; optimal/box 0.993 in isolated
+  columns. White depths order 1: CRDS 21219 +- 15, self 21164 +- 16 (paired -55.6 +- 0.9); order
+  2: 20986 / 20982 (paired -5.4 +- 1.4).
+- [x] PRISM - SOSS (common bins; SOSS order 2 0.60-0.84, order 1 0.88-2.84;
+  validation/wasp39/results/prism_vs_soss.{png,json}): < 2.06 um (35 bins) CRDS-CRDS mean +100
+  +- 12, rms 790, chi2 2093; self-self -254 +- 12, rms 608, chi2 2141. 2.06-2.84 um (20 bins)
+  CRDS-CRDS +213 +- 33, rms 202, chi2 36; self-self +117 +- 33, rms 175, chi2 22. The self
+  correction does not fix the saturated range: the same deep PRISM dips (0.94, 1.06, 1.3 um,
+  to -2000 ppm) remain with both; their brightest pixels (257, with 2-4 unsaturated groups)
+  cannot be fitted per pixel and keep CRDS; one-group rates of pixels saturating after group
+  0 are used. Above saturation the agreement improves (chi2 36 -> 22).

@@ -26,7 +26,8 @@ stage1() {  # variant [coefficients]
   done
 }
 stage2() {  # variant
-  reference=""; [ "$1" != crds ] && reference=$out/spec_crds_seg001  # one trace for all
+  reference=""  # one trace for all segments and variants: that of CRDS segment 1
+  if [ "$1" != crds ]; then reference=$out/spec_crds_seg001; fi
   for u in $uncals; do
     s=$(basename $u | sed -E 's/.*-seg([0-9]+)_.*/\1/')
     firsts=$(chunks $u | awk '{printf "%s%d", (NR>1?",":""), $1}')
@@ -35,7 +36,7 @@ stage2() {  # variant
       $P "$HERE/wasp39_stage2.py" $out/seg$s $1 $firsts $spec $reference > $logs/prism_stage2_$1_seg$s.log 2>&1
       echo "prism stage 2 $1 seg$s: $(tail -1 $logs/prism_stage2_$1_seg$s.log)"
     fi
-    [ -z "$reference" ] && reference=$out/spec_crds_seg001
+    if [ -z "$reference" ]; then reference=$out/spec_crds_seg001; fi
   done
 }
 stage1 fit
