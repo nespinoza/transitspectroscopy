@@ -43,6 +43,9 @@ exposure, with these time-series-specific changes:
   correction: templates from the median group differences, scaled to every group in the
   aperture, applied after the linearity correction (on raw counts those factors are biased
   by the non-linear aperture pixels).
+- **Self non-linearity correction (optional):** `self_linearity=True` replaces the CRDS
+  linearity correction of the pixels it fits by one fitted to the mean ramps of the data
+  (see {doc}`self-linearity`).
 - **Group-level 1/f before linearity:** `group_1f=True` subtracts column-by-column medians of
   unilluminated pixels from every group (`group_1f_correction`). Off by default.
 

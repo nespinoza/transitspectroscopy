@@ -117,6 +117,9 @@ calibrated dataset, use `transitspectroscopy.jwst.load.inspect_ramps` (see
 .. automodule:: transitspectroscopy.core.ramps
    :members: fit_ramps, difference_weights, validate_selection
 
+.. automodule:: transitspectroscopy.core.linearity
+   :members: SelfLinearity, fit_self_linearity, mean_ramp_sums
+
 .. automodule:: transitspectroscopy.core.detector
    :members:
 

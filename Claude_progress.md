@@ -1032,3 +1032,33 @@ NRS1 uncal re-downloaded. N = 3, 10, 20 (NGROUPS 20).
   (bin errors 210-430 ppm), so only the paired self - CRDS resolves the linearity part.
   Conclusion: with CRDS the depth bias changes with the groups fitted by up to ~0.35% (~25
   ppm here, wavelength dependent); the self correction removes it (predicted < 0.02%).
+
+## Self non-linearity correction in the package (2026-10-27)
+
+User: an optional flag of detector_calibration, instead of the CRDS correction; user-given
+Chebyshev coefficients; documented; joint fits of many visits (a 15-visit program).
+- [x] src/core/linearity.py (no jwst imports): mean_ramp_sums (per-pixel group sums/counts;
+  groups from the first flagged one on excluded, integrations deviating > nsigma robust sd
+  excluded), fit_self_linearity (shared a2, a3 and top; zero point and slope per mean ramp;
+  GLS read + Poisson; sets may have different groups; pixel blocks), SelfLinearity
+  (correct with gain = h'(0), linear continuation outside [0, top], save/load .npz with the
+  mean ramps and metadata; any npz with a2/a3/top maps). Same formulas as the study: on NRS2
+  seg1 mean ramps the coefficients equal nl_groups_self.py's to 1e-16.
+- [x] jwst.load.detector_calibration(self_linearity=False, self_linearity_coefficients=None),
+  options in parameters['self_linearity'] (read_noise, gain, min_counts, min_ramps,
+  min_groups, top_factor, nsigma, stop_after_fit; unknown or flag-less options raise). Suffix
+  gains 'selflin'. fit_self_linearity() before the linearity step on all segments (saved
+  ts_outputs/<first>_<suffix>self_linearity.npz, self.self_linearity_file; reused by later
+  runs). Linearity step = CRDS step (flags, fallback for unfitted pixels) with the fitted
+  pixels replaced by h(raw), gain = CRDS c1 (0.90-1.02 on NRS2, median 0.98); history entry.
+  The group 1/f re-calibration from linearity on uses it. h is applied at the CRDS position
+  (before dark_sub; the NRS2 dark is ~1 DN at the last group).
+- [x] tests/test_self_linearity.py (7): fit/charge recovery (noise-free 1e-4; with Poisson +
+  read noise and 400 integrations the per-pixel slope scatter is ~1% near 500 DN, < 0.5% >
+  5000 DN), extensions, sums with jumps/saturation, joint visits (incl. missing groups),
+  save/load, detector_calibration options, the step with stand-ins. Suite 211 passed, 13
+  skipped. Real data (NRS2 seg1, 130 integrations, package flow incl. group 1/f): 10383/10384
+  pixels, self/CRDS aperture sum 0.9937 (study 0.9932-0.9937), unfitted pixels identical to
+  CRDS; 130 s, footprint 5.2 GB (CRDS 4.2 GB).
+- [x] docs/guides/self-linearity.md (usage, formula, user coefficients, multi-visit recipe),
+  API entry, NIRSpec guide line, CHANGELOG.

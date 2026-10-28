@@ -27,6 +27,13 @@ Detailed development notes for the work below are in `docs/dev-notes/`.
   `ts.jwst.load.inspect_ramps` for the ramps of any calibration stage; see
   `docs/guides/inspecting-ramps.md`): the image of one integration and group in several modes,
   against aperture and background statistics over the integrations or the groups.
+- Self non-linearity correction (`detector_calibration(self_linearity=True)`, see
+  `docs/guides/self-linearity.md`): a per-pixel cubic Chebyshev correction fitted to the mean
+  ramps of the data, applied instead of the CRDS polynomial to the pixels it fits; given
+  coefficients with `self_linearity_coefficients`, and joint fits of several visits with
+  `transitspectroscopy.core.linearity.fit_self_linearity`. On HAT-P-14 b G395H the CRDS
+  correction makes the transit 0.2-0.9% too deep, by an amount that depends on the number of
+  groups fitted; the self correction removes it.
 - `stage2` options `extraction_backend`, `profile_method`, `gp_options`,
   `extraction_options`, `shared_profile`, `shared_profile_options`, `soss_options`,
   `miri_options`.
