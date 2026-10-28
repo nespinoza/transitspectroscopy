@@ -6,7 +6,7 @@ DEPTH scales it, x'(t) = h^-1((1 - DEPTH) h(x(t))). Each correction C (CRDS poly
 self h) is applied to x and x', and the slopes over the first N groups are fitted with the
 JWST ramp-fit weights (optimal weighting: |t - t_mid|^P, P from the signal-to-noise ratio
 of the ramp); the apparent depth of a pixel is 1 - slope(C(x'))/slope(C(x)). Spectroscopic
-bins (the columns of nl_groups_spectrum.py) sum the box aperture (rows within RADIUS of the
+bins (the columns of nl_groups_spectrum.py, from the first traced column) sum the box aperture (rows within RADIUS of the
 flux-weighted centre of the column); the depth factor is the apparent over the true depth.
   python nl_groups_predict.py <run folder> <spectrum.npz> <detector> [...] --groups 3,10,20
 """
@@ -15,10 +15,13 @@ from pathlib import Path
 import numpy as np
 
 DEPTH, RADIUS, READ_NOISE, GAIN = 0.0069, 2, 7.08, 1.44
+FIRST_COLUMN = {'nrs1': 500, 'nrs2': 5}
 SNR_LIMITS, POWERS = [5, 10, 20, 50, 100], [0., 0.4, 1., 3., 6., 10.]
 args = [a for a in sys.argv[1:] if not a.startswith('--')]
 groups = [int(n) for n in sys.argv[sys.argv.index('--groups') + 1].split(',')]
 args.remove(sys.argv[sys.argv.index('--groups') + 1])
+if '--out' in sys.argv:
+    args.remove(sys.argv[sys.argv.index('--out') + 1])
 run, spectrum, detectors = Path(args[0]), np.load(args[1]), args[2:]
 
 
@@ -38,7 +41,8 @@ def jwst_slope(y, n):
 
 results = {}
 for detector in detectors:
-    columns_of_bins = spectrum[f'{detector}__bin_columns']
+    # Spectra are indexed along the traced columns (G395H: NRS1 500-2042, NRS2 5-1900 here):
+    columns_of_bins = spectrum[f'{detector}__bin_columns'] + FIRST_COLUMN[detector]
     factors = {f'{c}_n{n}': [] for c in ('crds', 'self') for n in groups}
     for segment in sorted(glob.glob(str(run/detector/'seg*'))):
         c = np.load(Path(segment)/'self_coefficients.npz')

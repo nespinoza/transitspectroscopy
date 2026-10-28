@@ -4,8 +4,9 @@ Per detector: the white light of the reference variant (CRDS, all groups) fixes 
 shape (t0, a/R*, inclination; P fixed) and the quadratic limb darkening of the white light;
 every spectroscopic bin (BIN columns) of the reference is then fitted for Rp/R* and its limb
 darkening (q1, q2), and every variant for Rp/R* with that bin's limb darkening; baselines
-are quadratic in time. Depth differences between two variants come from the ratio of their
-light curves, fitted with a quadratic baseline and the derivative of the transit model with
+are a quadratic in time times a free factor per segment (the self correction is fitted per
+segment, and its levels differ between segments by ~0.05%). Depth differences between two variants come from the ratio of their
+light curves, fitted with the same baseline and the derivative of the transit model with
 respect to the depth (paired: the noise both share cancels), with errors from the residual
 scatter times the time-averaging beta factor.
 Integrations excluded: the first SKIP of the exposure, and 25-65 of segment 1 (a moving
@@ -31,10 +32,16 @@ def load(detector, variant):
     data = [np.load(s) for s in segments]
     times = np.concatenate([d['times'] for d in data])
     spectra = np.concatenate([d['spectra'] for d in data])
+    segment = np.concatenate([np.full(len(d['times']), j) for j, d in enumerate(data)])
     keep = np.ones(len(times), bool)
     keep[:SKIP] = False
     keep[BAND[0]:BAND[1]] = False   # segment 1 comes first
-    return times[keep], spectra[keep], data[0]['wavelengths']
+    return times[keep], spectra[keep], data[0]['wavelengths'], segment[keep]
+
+
+def baseline_design(x, segment):
+    """One offset per segment, and a common linear and quadratic term."""
+    return np.column_stack([segment == j for j in np.unique(segment)] + [x, x**2]).astype(float)
 
 
 def model(params, times, rp, u):
@@ -50,8 +57,8 @@ def quadratic_u(q1, q2):
 
 
 def baseline_fit(flux, shape, x):
-    """Least-squares quadratic baseline of flux/shape; returns residuals and the baseline."""
-    design = np.stack([np.ones_like(x), x, x**2], 1)*shape[:, None]
+    """Least-squares baseline of flux/shape; returns residuals and the baseline."""
+    design = BASE*shape[:, None]
     coefficients = np.linalg.lstsq(design, flux, rcond=None)[0]
     fitted = design @ coefficients
     return flux - fitted, fitted
@@ -77,8 +84,7 @@ def depth_fit(flux, shape_params, times, x, u, rp0):
     shape = model(shape_params, times, rp, u)
     residuals, fitted = baseline_fit(flux, shape, x)
     derivative = (model(shape_params, times, rp + 1e-4, u) - shape)/1e-4*fitted/shape
-    design = np.stack([np.ones_like(x), x, x**2], 1)*shape[:, None]
-    design = np.column_stack([design, derivative])
+    design = np.column_stack([BASE*shape[:, None], derivative])
     covariance = np.linalg.inv(design.T @ design)*np.var(residuals)
     error = np.sqrt(covariance[-1, -1])*beta(residuals)
     return rp, error, np.std(residuals)
@@ -90,7 +96,7 @@ def difference_fit(flux, reference, shape_params, times, x, u, rp):
     ratio = ratio/np.median(ratio)
     shape = model(shape_params, times, rp, u)
     d_shape = (model(shape_params, times, np.sqrt(rp**2 + 1e-5), u) - shape)/1e-5/shape
-    design = np.column_stack([np.ones_like(x), x, x**2, d_shape])
+    design = np.column_stack([BASE, d_shape])
     coefficients = np.linalg.lstsq(design, ratio, rcond=None)[0]
     residuals = ratio - design @ coefficients
     covariance = np.linalg.inv(design.T @ design)*np.var(residuals)
@@ -100,8 +106,9 @@ def difference_fit(flux, reference, shape_params, times, x, u, rp):
 results = {}
 for detector in detectors:
     variants = sorted({Path(p).stem[5:] for p in glob.glob(str(run/detector/'seg*'/'spec_*.npz'))})
-    times, reference, wavelengths = load(detector, 'crds_n20')
+    times, reference, wavelengths, segment = load(detector, 'crds_n20')
     x = (times - times.mean())/(times.max() - times.min())
+    BASE = baseline_design(x, segment)
     good = np.isfinite(wavelengths) & np.isfinite(reference).all(0)
     columns = np.nonzero(good)[0]
     bins = [b for b in np.array_split(columns, max(1, len(columns)//BIN))]
@@ -151,7 +158,7 @@ for detector in detectors:
                         white_params=best.x, variants=np.array(variants))
     fluxes = {}
     for variant in variants:
-        t_v, spectra, _ = load(detector, variant)
+        t_v, spectra, _, _ = load(detector, variant)
         assert np.allclose(t_v, times)
         f = np.array([spectra[:, c].sum(1) for c in bins]).T
         fluxes[variant] = f/np.median(f, 0)

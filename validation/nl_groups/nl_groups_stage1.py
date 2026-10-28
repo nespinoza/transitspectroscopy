@@ -13,6 +13,7 @@ linearity step on (`load._ramps_after_linearity`):
   linearity_<first>.txt the CRDS linearity reference file
   ramp_fit_<first>.json the package's ramp-fit step parameters
   python nl_groups_stage1.py <uncal> <folder> <first> <last> <N1,N2,...>
+(NL_TEMPLATE_LEVEL=0: the package's group 1/f templates, unchanged.)
 """
 import os, sys, json, time, resource, shutil
 from pathlib import Path
@@ -38,6 +39,60 @@ def prepare_output(self, init, make_copy=None, **kwargs):
 
 
 JwstStep.prepare_output = prepare_output
+
+# The group 1/f correction removes from every group the column median of x_i - s_i T over the
+# background pixels, where the template T (median over the integrations) holds the median 1/f
+# pattern m of the integrations it was built from: the corrected ramps keep s_i m, an offset
+# that is the same for all of them and differs between chunks (segments in the package) and
+# with the number of groups fitted. With TEMPLATE_LEVEL, each template's own column median
+# over the background pixels is removed first, so that s_i m cancels (the column's median
+# background light times s_i is removed instead, proportional to the flux).
+TEMPLATE_LEVEL = os.environ.get('NL_TEMPLATE_LEVEL', '1') == '1'
+import warnings
+from transitspectroscopy.core import detector as core_detector
+
+
+def group_difference_1f_template_level(segments, valid, background_pixels, scale,
+                                       scale_pixels=None, template_valid=None,
+                                       shared_fraction=0.5, template='median'):
+    """core.detector.group_difference_1f (median templates) with level-free templates."""
+    assert template == 'median'
+    print('group 1/f: templates without their background level', flush=True)
+    ngroups = segments[0].shape[1]
+    template_valid = valid if template_valid is None else template_valid
+    factors = np.asarray(scale, dtype=np.float32)[:, None, None]
+    templates = []
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', RuntimeWarning)
+        for k in range(ngroups):
+            stack = np.concatenate([np.where(good[:, k], data[:, k], np.nan)
+                                    for data, good in zip(segments, template_valid)])
+            t = np.nanmedian(stack.astype(np.float32)/factors, axis=0)
+            level = np.nanmedian(np.where(background_pixels, t, np.nan), axis=0)
+            templates.append(t - np.where(np.isfinite(level), level, 0.)[None, :])
+        levels = np.zeros((len(scale), ngroups, segments[0].shape[3]))
+        shared = np.zeros((len(scale), ngroups), bool)
+        integration = 0
+        for data, good, clean in zip(segments, valid, template_valid):
+            for i in range(len(data)):
+                for k in range(ngroups):
+                    residual = data[i, k] - scale[integration]*templates[k]
+                    use = good[i, k] & background_pixels
+                    unflagged = use & clean[i, k]
+                    excluded = use.sum() - unflagged.sum()
+                    shared[integration, k] = excluded > shared_fraction*max(use.sum(), 1)
+                    if not shared[integration, k]:
+                        use = unflagged
+                    level = np.nanmedian(np.where(use, residual, np.nan), axis=0)
+                    level = np.where(np.isfinite(level), level, 0.0)
+                    data[i, k] -= level[None, :]
+                    levels[integration, k] = level
+                integration += 1
+    return dict(levels=levels, shared=shared)
+
+
+if TEMPLATE_LEVEL:
+    core_detector.group_difference_1f = group_difference_1f_template_level
 
 uncal, folder = sys.argv[1], Path(sys.argv[2])
 first, last = int(sys.argv[3]), int(sys.argv[4])

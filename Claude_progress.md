@@ -977,7 +977,7 @@ Scratch scripts nl_*.py; products in validation/runs/nrs1-nonlinearity/seg001 (n
   the trace centre (new mode keys; G395H/M 6, PRISM 8; outer None); Stage 2 1/f pixels
   unchanged; SOSS unchanged. Tests 204 pass. G395M takes the G395H value untested.
 
-## Linearity and the number of groups fitted, G395H HAT-P-14 b (2026-10-27, in progress)
+## Linearity and the number of groups fitted, G395H HAT-P-14 b (2026-10-27)
 
 User: does the transmission spectrum change with the number of groups fitted (3, half, all)
 with the CRDS linearity and with the self correction, in the newest pipeline? (Hunch: the
@@ -994,4 +994,36 @@ ratios), nl_groups_predict.py (noise-free depth factors with the self correction
 NRS1 uncal re-downloaded. N = 3, 10, 20 (NGROUPS 20).
 - [x] Test chunk (20 integrations, NRS2 seg1): rates n3/n20 in pixels > 100 DN/s: CRDS
   0.994-0.999, self 0.9998-1.0002.
-- [ ] NRS2 and NRS1 segments 1-3 (running; outputs validation/runs/nl-groups/).
+- [x] First NRS2 pass (kept in validation/runs/nl-groups/nrs2_chunk_template): the N-group
+  rate ratios step at the chunk boundaries (seg1, out of transit: 3 groups -507/+563/-309
+  ppm, 10: -68/+61/-35, 20: -29/+44/-51 about a line). Cause: core.detector.
+  group_difference_1f removes the column median of x_i - s_i T over the background pixels,
+  and the template T (median over the integrations of the chunk; of the segment in the
+  package) holds their median 1/f pattern m, so the corrected ramps keep s_i m: a
+  flux-proportional offset constant over the template's integrations, different between
+  chunks/segments and with the groups fitted. Harmless within one segment, it puts steps
+  between segments (chunks here) that a baseline can only absorb where they hold
+  out-of-transit data. Fix (scripts only, NL_TEMPLATE_LEVEL=1 default in
+  nl_groups_stage1.py; package unchanged): remove each template's own column median over the
+  background pixels; then the levels remove the integration's 1/f fully and s_i times the
+  column's median background light (proportional to the flux; no depth change). Seg1 chunk
+  offsets at 3 groups -145/+62/-48 ppm (noise ~55), white rms 613 -> 597 ppm. Open question
+  for the package (changes default outputs).
+- [x] Self correction fitted per segment: self/CRDS level steps +500 ppm seg1 -> seg2 (as
+  before); spectrum fits use one baseline factor per segment (+ common quadratic), for
+  every variant.
+- [x] Results, NRS2 and NRS1 segs 1-3 (validation/nl_groups/results/: spectrum_nrs?.npz,
+  predicted_nrs?.npz, groups_g395h.png; 29 NRS2 / 24 NRS1 bins of 64 columns). White depths
+  (ppm, 3/10/20 groups): NRS2 CRDS 7460/7591/7609, self 7447/7563/7571; NRS1 CRDS
+  7419/7402/7381, self 7368/7337/7342. Paired self - CRDS (white): NRS2 -12.4/-28.0/-38.0
+  (+-1), NRS1 -50.6/-64.6/-38.7 (+-1.3): CRDS too deep by 0.17/0.37/0.50% (NRS2) and
+  0.69/0.88/0.53% (NRS1; not monotonic in N), wavelength dependent (NRS1 bins 2.9-3.7 um:
+  ~-50/-65/-35 ppm). Noise-free prediction (self as truth, JWST ramp-fit weights): CRDS
+  factors NRS2 1.0017/1.0035/1.0047, NRS1 1.0067/1.0085/1.0053; self 1.0000 (bins within
+  +-0.0002). Measured - predicted per bin: NRS2 rms 3.6-4.9 ppm (chi2 27-37/29), NRS1
+  7-11 ppm (chi2 47-141/24), correlation 0.76-0.86. Direct N differences (white, ppm):
+  10 - 20 groups NRS2 CRDS -17.7, self -7.7 (+-22); NRS1 CRDS +21.2, self -4.7 (+-15);
+  3 - 20 NRS2 -149 / -123 (+-72), NRS1 +38 / +26 (+-46): 3-group spectra are 3-4x noisier
+  (bin errors 210-430 ppm), so only the paired self - CRDS resolves the linearity part.
+  Conclusion: with CRDS the depth bias changes with the groups fitted by up to ~0.35% (~25
+  ppm here, wavelength dependent); the self correction removes it (predicted < 0.02%).
