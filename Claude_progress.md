@@ -1149,3 +1149,13 @@ all pixels, so that the early-saturating pixels can be corrected too).
   rms 1946, chi2 9048 (worse than CRDS); white rms 628 ppm (self 463).
 - Results: validation/wasp39/results/prism_followups{,_all}.{png,json}, prism_spectrum_*.npz,
   prism_global_linearity.npz, saturation_mask_*.npy, prism_global_fit.log.
+- [x] Figures (user request): results/spectrum_prism_soss.png (wasp39_final_figure.py: SOSS self
+  orders 1+2 and PRISM self_grow1 with PRISM - SOSS; < 2.06 um +18 +- 23 ppm, chi2 181/34;
+  2.06-2.84 um +118 +- 33, chi2 22/19) and results/pixels_self_vs_crds.png
+  (wasp39_pixels_figure.py: mean count and self/CRDS rate maps of columns 55-150, local gains,
+  ramp increments of a core neighbour (13,122; 7.1 kDN), a bright pixel > 2 px from the core
+  (15,143; 46.9 kDN) and a halo pixel (19,105; 1.4 kDN), and (h4-h3)/(h1-h0) for all 5-group
+  pixels). Raw ramps of the neighbours and of a halo of pixels up to ~7 rows from the
+  early-saturating core (columns ~90-125) accelerate (halo pixel at 1.4 kDN: last increment
+  +12%), which no count-dependent non-linearity explains; CRDS keeps it (neighbours median
+  1.21), self removes it (1.001) and lowers those rates by 4-10%.
