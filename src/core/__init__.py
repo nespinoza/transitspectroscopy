@@ -17,6 +17,7 @@ tracing         Trace finding, cross-correlation and FWHM measurements.
 photometry      Aperture, background, centroid and 2-D GP PSF photometry.
 ramps           Correlated adjacent-read ramp fitting.
 detector        Detector-level corrections: pedestals, 1/f, jumps, LOOM/ROEBA, masks.
+linearity       Self non-linearity correction fitted on the science ramps.
 timeseries      Outlier detection in time series.
 binning         Binning of spectra at a given resolving power.
 provenance      File hashes and other provenance helpers.
